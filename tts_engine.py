@@ -47,20 +47,38 @@ EXPRESSIVITY_PHRASES = {
     "calm": "in a calm, steady, soothing tone",
 }
 
+EMOTION_PHRASES = {
+    "none": "",
+    "happy": "with a cheerful, upbeat, happy mood",
+    "sad": "with a sad, melancholic, sorrowful mood",
+    "angry": "with an angry, forceful, intense mood",
+    "excited": "with enthusiastic, energetic, excited emotion",
+    "fearful": "with a fearful, tense, hesitant mood",
+    "whisper": "in a quiet, intimate, whispering voice",
+    "serious": "in a serious, formal, authoritative mood",
+}
+
 
 def build_description(speaker: str = "rohit", speed: str = "moderate",
-                       pitch: str = "low", expressivity: str = "expressive") -> str:
+                       pitch: str = "low", expressivity: str = "expressive",
+                       emotion: str = "none") -> str:
     name = speaker.capitalize() if speaker.lower() in SPEAKERS else "Rohit"
     desc_voice = SPEAKERS.get(speaker.lower(), SPEAKERS["rohit"])
     speed_p = SPEED_PHRASES.get(speed, SPEED_PHRASES["moderate"])
     pitch_p = PITCH_PHRASES.get(pitch, PITCH_PHRASES["low"])
     expr_p = EXPRESSIVITY_PHRASES.get(expressivity, EXPRESSIVITY_PHRASES["expressive"])
-    return (
-        f"{name} speaks in a {desc_voice} voice with a clear natural Indian Hindi accent. "
-        f"He delivers the lines {speed_p}, {pitch_p}, {expr_p}. "
-        f"The pronunciation is very clear. The recording is very high quality, "
-        f"studio-grade, close-sounding, with no background noise at all."
+    emo_p = EMOTION_PHRASES.get(emotion.lower(), "")
+    parts = [
+        f"{name} speaks in a {desc_voice} voice with a clear natural Indian Hindi accent.",
+        f"He delivers the lines {speed_p}, {pitch_p}, {expr_p}.",
+    ]
+    if emo_p:
+        parts.append(f"The lines are spoken {emo_p}.")
+    parts.append(
+        "The pronunciation is very clear. The recording is very high quality, "
+        "studio-grade, close-sounding, with no background noise at all."
     )
+    return " ".join(parts)
 
 
 VOICE_DESCRIPTION = build_description()

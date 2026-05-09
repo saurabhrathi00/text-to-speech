@@ -67,6 +67,20 @@
         </div>
       </details>
 
+      <div class="emotion-row">
+        <span class="emotion-label">Emotion</span>
+        <div class="emotion-buttons" id="emotionButtons">
+          <button type="button" class="emo-btn active" data-emotion="none">😐 Neutral</button>
+          <button type="button" class="emo-btn" data-emotion="happy">😄 Happy</button>
+          <button type="button" class="emo-btn" data-emotion="sad">😢 Sad</button>
+          <button type="button" class="emo-btn" data-emotion="excited">🤩 Excited</button>
+          <button type="button" class="emo-btn" data-emotion="angry">😠 Angry</button>
+          <button type="button" class="emo-btn" data-emotion="fearful">😨 Fearful</button>
+          <button type="button" class="emo-btn" data-emotion="whisper">🤫 Whisper</button>
+          <button type="button" class="emo-btn" data-emotion="serious">🎙️ Serious</button>
+        </div>
+      </div>
+
       <label class="checkbox-row">
         <input type="checkbox" id="skipNormalize" />
         <span>Qwen skip karo — mera text bilkul exact bolo (no auto-correction)</span>
@@ -113,12 +127,22 @@
     const audio = document.getElementById('audioPlayer');
     const downloadBtn = document.getElementById('downloadBtn');
 
+    let activeEmotion = 'none';
+    document.querySelectorAll('#emotionButtons .emo-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#emotionButtons .emo-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeEmotion = btn.dataset.emotion;
+      });
+    });
+
     function getVoice() {
       return {
         speaker: document.getElementById('speaker').value,
         speed: document.getElementById('speed').value,
         pitch: document.getElementById('pitch').value,
         expressivity: document.getElementById('expressivity').value,
+        emotion: activeEmotion,
         custom: document.getElementById('customDesc').value.trim(),
       };
     }

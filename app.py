@@ -68,6 +68,7 @@ def _build_voice_description(voice: dict) -> str:
         speed=voice.get("speed", "moderate"),
         pitch=voice.get("pitch", "low"),
         expressivity=voice.get("expressivity", "expressive"),
+        emotion=voice.get("emotion", "none"),
     )
 
 
