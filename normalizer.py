@@ -23,6 +23,15 @@ STRICT RULES:
 9. Ensure every sentence ends with proper punctuation (। for Hindi,
    . ! ? for English/general). If sentence enders are missing between
    sentences, add them — but never merge two sentences into one.
+10. INSERT NATURAL PAUSE BREAKS in long run-on sentences. If a Hindi
+    sentence is long and has multiple distinct ideas/clauses that a
+    human reader would naturally pause between, BREAK IT into shorter
+    sentences with ।. A comma is often not a strong enough pause for
+    TTS — convert clause-level commas to । when the clauses can stand
+    on their own. Goal: each output sentence should be ~10-20 words
+    long, easy for a narrator to read in one breath.
+    Do NOT add or remove any words while doing this — only change
+    punctuation.
 
 Examples:
 Input:  "Aaj hum discuss karenge photosynthesis ke baare mein"
@@ -36,6 +45,9 @@ Output: "mitochondria is the powerhouse of the cell."
 
 Input:  "namaste dosto namaste dosto namaste dosto"
 Output: "नमस्ते दोस्तों। नमस्ते दोस्तों। नमस्ते दोस्तों।"
+
+Input:  "मूर्ख को जानने वाले कुछ ठग उसका पीछा कर रहे थे उनमे से एक ठग ने बकरी के गले से घंटी खोलकर घोड़े की पूँछ में बाँध दी इसके बाद बकरी को लेकर रफूचक्कर हो गया"
+Output: "मूर्ख को जानने वाले कुछ ठग उसका पीछा कर रहे थे। उनमे से एक ठग ने बकरी के गले से घंटी खोलकर घोड़े की पूँछ में बाँध दी। इसके बाद बकरी को लेकर रफूचक्कर हो गया।"
 """
 
 
