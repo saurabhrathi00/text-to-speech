@@ -105,14 +105,26 @@ def load_model():
 
 
 def _split_text(text: str) -> list[str]:
-    """One sentence per chunk. Sentences are detected by terminal
-    punctuation (। . ! ?). Sentences are never merged together and never
-    split internally.
+    """One sentence per chunk.
+
+    Sentence boundaries:
+    - Hindi danda (।) — always splits, even if no space follows.
+      ("हुआ।सीख" → ["हुआ।", "सीख"])
+    - . ! ? — splits when followed by whitespace, a quote, end of text,
+      or a Devanagari character. Avoids splitting on dots in numbers
+      like "5.5" or English abbreviations like "Mr.S" since those are
+      followed by digits or Latin letters.
+
+    No characters are dropped: re.split preserves all text. The only
+    possible failure mode is a missed split (sentences staying merged),
+    never lost words.
     """
     text = text.strip()
     if not text:
         return []
-    sentences = [s.strip() for s in re.split(r"(?<=[।.!?])\s+", text) if s.strip()]
+    pattern = r'(?<=।)|(?<=[.!?])(?=[\s"\'ऀ-ॿ]|$)'
+    parts = re.split(pattern, text)
+    sentences = [p.strip() for p in parts if p and p.strip()]
     return sentences or [text]
 
 
