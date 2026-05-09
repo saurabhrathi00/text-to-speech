@@ -21,22 +21,23 @@
     </header>
 
     <section class="card">
+      <div class="provider-toggle">
+        <button type="button" class="prov-btn active" data-provider="parler">💻 Local (Parler)</button>
+        <button type="button" class="prov-btn" data-provider="elevenlabs">☁️ ElevenLabs</button>
+      </div>
+      <p id="providerNote" class="provider-note hidden"></p>
+
       <label for="script" class="label">Apna script likhein (Hindi / Hinglish / English)</label>
       <textarea id="script" rows="12" placeholder="Aaj hum baat karenge photosynthesis ke baare mein..."></textarea>
 
-      <details class="voice-controls">
-        <summary>🎚️ Voice tune karein (advanced)</summary>
+      <details class="voice-controls" open>
+        <summary>🎚️ Voice tune karein</summary>
         <div class="controls-grid">
           <div class="control">
-            <label for="speaker">Speaker</label>
-            <select id="speaker">
-              <option value="rohit" selected>Rohit (deep male)</option>
-              <option value="aman">Aman (young male)</option>
-              <option value="divya">Divya (warm female)</option>
-              <option value="rani">Rani (news anchor)</option>
-            </select>
+            <label for="speaker">Voice</label>
+            <select id="speaker"></select>
           </div>
-          <div class="control">
+          <div class="control parler-only">
             <label for="speed">Speed</label>
             <select id="speed">
               <option value="slow">Slow</option>
@@ -44,7 +45,7 @@
               <option value="fast">Fast</option>
             </select>
           </div>
-          <div class="control">
+          <div class="control parler-only">
             <label for="pitch">Pitch</label>
             <select id="pitch">
               <option value="low" selected>Low / Deep</option>
@@ -52,7 +53,7 @@
               <option value="high">High</option>
             </select>
           </div>
-          <div class="control">
+          <div class="control parler-only">
             <label for="expressivity">Tone</label>
             <select id="expressivity">
               <option value="expressive" selected>Expressive</option>
@@ -61,7 +62,7 @@
             </select>
           </div>
         </div>
-        <div class="control full">
+        <div class="control full parler-only">
           <label for="customDesc">Custom description (optional — overrides above)</label>
           <textarea id="customDesc" rows="2" placeholder="e.g. Rohit speaks slowly with a deep voice..."></textarea>
         </div>
@@ -136,9 +137,68 @@
       });
     });
 
+    let activeProvider = 'parler';
+    let providerCaps = { emotions_supported: false };
+    const providerNote = document.getElementById('providerNote');
+    const speakerSelect = document.getElementById('speaker');
+
+    async function loadVoicesFor(provider) {
+      try {
+        const res = await fetch(`/api/providers/${provider}/voices`);
+        const data = await res.json();
+        speakerSelect.innerHTML = '';
+        (data.voices || []).forEach((v, i) => {
+          const opt = document.createElement('option');
+          opt.value = v.id;
+          opt.textContent = v.label;
+          if (i === 0) opt.selected = true;
+          speakerSelect.appendChild(opt);
+        });
+        providerCaps = data;
+        document.querySelectorAll('.parler-only').forEach(el => {
+          el.style.display = (provider === 'parler') ? '' : 'none';
+        });
+        document.querySelector('.emotion-row').style.display =
+          data.emotions_supported ? '' : 'none';
+      } catch (e) {
+        showError('Voice list load nahi hua');
+      }
+    }
+
+    async function setProvider(provider) {
+      activeProvider = provider;
+      document.querySelectorAll('.prov-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.provider === provider);
+      });
+      if (provider === 'elevenlabs') {
+        const r = await fetch('/api/providers');
+        const info = await r.json();
+        if (!info.elevenlabs_configured) {
+          providerNote.textContent = '⚠️ ELEVENLABS_API_KEY .env mein set nahi hai. Generate fail hoga.';
+          providerNote.classList.remove('hidden');
+        } else {
+          providerNote.textContent = 'ElevenLabs API mode — emotions supported, billing active.';
+          providerNote.classList.remove('hidden');
+        }
+      } else {
+        providerNote.classList.add('hidden');
+      }
+      await loadVoicesFor(provider);
+    }
+
+    document.querySelectorAll('.prov-btn').forEach(btn => {
+      btn.addEventListener('click', () => setProvider(btn.dataset.provider));
+    });
+
+    // On page load, sync UI with .env's default provider
+    fetch('/api/providers').then(r => r.json()).then(info => {
+      setProvider(info.current);
+    });
+
     function getVoice() {
       return {
-        speaker: document.getElementById('speaker').value,
+        speaker: speakerSelect.value,
+        voice_id: speakerSelect.value,
         speed: document.getElementById('speed').value,
         pitch: document.getElementById('pitch').value,
         expressivity: document.getElementById('expressivity').value,
@@ -171,7 +231,7 @@
         const res = await fetch('/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: getVoice(), skip_normalize: skip })
+          body: JSON.stringify({ text, voice: getVoice(), skip_normalize: skip, provider: activeProvider })
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error || 'Kuch galat ho gaya, dobara koshish karein'); return; }
@@ -198,7 +258,7 @@
         const res = await fetch('/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: getVoice() })
+          body: JSON.stringify({ text, voice: getVoice(), provider: activeProvider })
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error || 'Kuch galat ho gaya'); return; }

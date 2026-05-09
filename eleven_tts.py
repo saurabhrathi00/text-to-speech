@@ -5,6 +5,56 @@ API_BASE = "https://api.elevenlabs.io/v1"
 DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGBDnXBQb")  # Adam — English-leaning
 
+# Curated multilingual voices that handle Hindi reasonably well using
+# eleven_multilingual_v2. User can override via voice library.
+CURATED_VOICES = [
+    {"id": "pNInz6obpgDQGBDnXBQb", "label": "Adam (male, deep)"},
+    {"id": "ErXwobaYiN019PkySvjV", "label": "Antoni (male, warm)"},
+    {"id": "VR6AewLTigWG4xSOukaG", "label": "Arnold (male, narrator)"},
+    {"id": "21m00Tcm4TlvDq8ikWAM", "label": "Rachel (female, calm)"},
+    {"id": "EXAVITQu4vr4xnSDxMaL", "label": "Sarah (female, soft)"},
+    {"id": "AZnzlk1XvdvUeBnXmlld", "label": "Domi (female, strong)"},
+    {"id": "MF3mGyEYCl7XYWbV9V6O", "label": "Elli (female, young)"},
+    {"id": "TxGEqnHWrfWFTfGW9XjX", "label": "Josh (male, deep)"},
+]
+
+
+def list_voices() -> list[dict]:
+    """Return available voices. Tries to fetch from the ElevenLabs API
+    (so user's cloned/saved Hindi voices show up); falls back to the
+    curated list if the API isn't reachable or no key is set.
+    """
+    api_key = os.getenv("ELEVENLABS_API_KEY", "")
+    if not api_key:
+        return CURATED_VOICES
+
+    try:
+        r = requests.get(
+            f"{API_BASE}/voices",
+            headers={"xi-api-key": api_key},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            return CURATED_VOICES
+        data = r.json()
+        voices = []
+        for v in data.get("voices", []):
+            label = v.get("name", "Unknown")
+            labels = v.get("labels") or {}
+            extras = []
+            if labels.get("gender"):
+                extras.append(labels["gender"])
+            if labels.get("accent"):
+                extras.append(labels["accent"])
+            if labels.get("description"):
+                extras.append(labels["description"])
+            if extras:
+                label = f"{label} ({', '.join(extras)})"
+            voices.append({"id": v["voice_id"], "label": label})
+        return voices or CURATED_VOICES
+    except Exception:
+        return CURATED_VOICES
+
 
 class ElevenLabsError(Exception):
     pass

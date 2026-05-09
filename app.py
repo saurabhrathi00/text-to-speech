@@ -28,20 +28,32 @@ from aligner import align as align_words, load_aligner
 import eleven_tts
 
 
-def _provider() -> str:
-    """Active TTS provider — 'parler' (default, local) or 'elevenlabs'."""
+PARLER_SPEAKERS = [
+    {"id": "rohit", "label": "Rohit (deep male)"},
+    {"id": "aman", "label": "Aman (young male)"},
+    {"id": "divya", "label": "Divya (warm female)"},
+    {"id": "rani", "label": "Rani (news anchor female)"},
+]
+
+
+def _default_provider() -> str:
+    """Provider from .env — used as initial UI state."""
     return (os.getenv("TTS_PROVIDER") or "parler").strip().lower()
 
 
+def _resolve_provider(requested: str | None) -> str:
+    """Provider for THIS request. If client passed one, use it; else env."""
+    p = (requested or "").strip().lower()
+    if p in ("parler", "elevenlabs"):
+        return p
+    return _default_provider()
+
+
 def _tts_synthesize(text: str, out_path: str, description: str,
-                     voice: dict) -> str:
-    """Dispatch to the configured TTS provider. Returns the actual saved
-    file path (extension may differ between providers)."""
-    if _provider() == "elevenlabs":
+                     voice: dict, provider: str) -> str:
+    if provider == "elevenlabs":
         if not eleven_tts.is_configured():
-            raise RuntimeError(
-                "TTS_PROVIDER=elevenlabs but ELEVENLABS_API_KEY not set in .env"
-            )
+            raise RuntimeError("ELEVENLABS_API_KEY not set in .env")
         return eleven_tts.synthesize(text, out_path, voice_config=voice)
     return parler_synthesize(text, out_path, description=description)
 
@@ -117,24 +129,25 @@ def tts():
 
     voice = data.get("voice") or {}
     description = _build_voice_description(voice)
+    provider = _resolve_provider(data.get("provider"))
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename
 
     try:
-        actual_path = _tts_synthesize(text, str(out_path), description, voice)
+        actual_path = _tts_synthesize(text, str(out_path), description, voice, provider)
     except Exception:
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
     actual_filename = Path(actual_path).name
-    words = align_words(actual_path) if _provider() == "parler" else []
+    words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
     return jsonify({
         "audio_url": f"/audio/{actual_filename}",
         "description_used": description,
         "words": words,
-        "provider": _provider(),
+        "provider": provider,
     })
 
 
@@ -146,7 +159,9 @@ def generate():
         return jsonify({"error": "Pehle kuch type karein"}), 400
 
     skip_normalize = bool(data.get("skip_normalize"))
-    description = _build_voice_description(data.get("voice") or {})
+    voice = data.get("voice") or {}
+    description = _build_voice_description(voice)
+    provider = _resolve_provider(data.get("provider"))
 
     if skip_normalize:
         normalized = text
@@ -160,13 +175,13 @@ def generate():
     out_path = AUDIO_DIR / filename
 
     try:
-        actual_path = _tts_synthesize(normalized, str(out_path), description, voice)
+        actual_path = _tts_synthesize(normalized, str(out_path), description, voice, provider)
     except Exception:
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
     actual_filename = Path(actual_path).name
-    words = align_words(actual_path) if _provider() == "parler" else []
+    words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
     return jsonify({
@@ -174,7 +189,7 @@ def generate():
         "audio_url": f"/audio/{actual_filename}",
         "description_used": description,
         "words": words,
-        "provider": _provider(),
+        "provider": provider,
     })
 
 
@@ -185,7 +200,7 @@ def serve_audio(filename):
 
 
 def _warmup_in_background():
-    provider = _provider()
+    provider = _default_provider()
     print(f"[startup] TTS provider: {provider}")
     if provider == "parler":
         print("[startup] Parler + aligner warmup in background...")
@@ -212,6 +227,37 @@ def _warmup_in_background():
 def health():
     from tts_engine import _model
     return jsonify({"server": "up", "tts_ready": _model is not None})
+
+
+@app.route("/api/providers")
+def api_providers():
+    return jsonify({
+        "current": _default_provider(),
+        "available": ["parler", "elevenlabs"],
+        "elevenlabs_configured": eleven_tts.is_configured(),
+    })
+
+
+@app.route("/api/providers/<name>/voices")
+def api_voices(name: str):
+    name = name.lower()
+    if name == "parler":
+        return jsonify({
+            "voices": PARLER_SPEAKERS,
+            "emotions_supported": False,
+            "speed_supported": True,
+            "pitch_supported": True,
+            "expressivity_supported": True,
+        })
+    if name == "elevenlabs":
+        return jsonify({
+            "voices": eleven_tts.list_voices(),
+            "emotions_supported": True,
+            "speed_supported": False,
+            "pitch_supported": False,
+            "expressivity_supported": False,
+        })
+    return jsonify({"error": "unknown provider"}), 404
 
 
 if __name__ == "__main__":
