@@ -59,9 +59,13 @@ def align(audio_path: str) -> list[dict]:
 
 
 # Margin used when matching whisper word count vs expected text word count.
-# 1.0 = strict (any extra word is repetition). 1.3 = allow 30% over before
-# treating as repetition (whisper sometimes splits words).
+# Above REPETITION_RATIO * expected = treat tail as repetition, cut at the
+# expected_word_count'th word.
+# Below MIN_WHISPER_RATIO * expected = whisper likely missed words at the
+# end (low accuracy on tiny model). Skip trim entirely so we don't cut
+# real spoken content.
 REPETITION_RATIO = 1.3
+MIN_WHISPER_RATIO = 0.8
 TAIL_PAD_SEC = 0.20
 
 
@@ -77,6 +81,16 @@ def trim_audio_to_words(audio_path: str, words: list[dict],
     Returns the (possibly truncated) word list reflecting the new audio.
     """
     if not words:
+        return words
+
+    # Safety: if whisper detected significantly fewer words than the input
+    # has, it likely missed some at the end (whisper-tiny is fast but less
+    # accurate). Trimming at the last detected word would cut off real
+    # spoken content. Better to keep the raw audio (possibly with some
+    # trailing junk) than risk losing actual words.
+    if expected_word_count > 0 and len(words) < expected_word_count * MIN_WHISPER_RATIO:
+        print(f"[aligner] whisper found {len(words)}/{expected_word_count} words "
+              f"(<{int(MIN_WHISPER_RATIO * 100)}%) — skipping trim")
         return words
 
     cut_idx = len(words) - 1
