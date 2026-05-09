@@ -22,7 +22,7 @@ _load_env_file()
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from normalizer import normalize_text, OllamaError
-from tts_engine import synthesize, build_description
+from tts_engine import synthesize, build_description, load_model
 
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
@@ -151,4 +151,10 @@ def serve_audio(filename):
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5000"))
+    print("[startup] warming up TTS model...")
+    try:
+        load_model()
+        print("[startup] TTS model ready")
+    except Exception as e:
+        print(f"[startup] TTS model warmup failed: {e} (will retry on first request)")
     app.run(host=host, port=port, debug=False, threaded=True)

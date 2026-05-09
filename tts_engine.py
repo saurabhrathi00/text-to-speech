@@ -6,7 +6,7 @@ from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
 MODEL_ID = "ai4bharat/indic-parler-tts"
-MAX_CHARS_PER_CHUNK = 500
+MAX_CHARS_PER_CHUNK = 900
 
 SPEAKERS = {
     "rohit": "deep, mature male",
@@ -68,11 +68,16 @@ def load_model():
     if _model is not None:
         return
     _device = _pick_device()
-    _model = ParlerTTSForConditionalGeneration.from_pretrained(MODEL_ID).to(_device)
+    dtype = torch.bfloat16 if _device.startswith("cuda") else torch.float32
+    _model = ParlerTTSForConditionalGeneration.from_pretrained(
+        MODEL_ID, torch_dtype=dtype
+    ).to(_device)
+    _model.eval()
     _tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     desc_name = getattr(_model.config, "text_encoder", None)
     desc_id = getattr(desc_name, "_name_or_path", MODEL_ID) if desc_name else MODEL_ID
     _desc_tokenizer = AutoTokenizer.from_pretrained(desc_id)
+    print(f"[tts] loaded on {_device} dtype={dtype}")
 
 
 def _split_text(text: str) -> list[str]:
@@ -104,12 +109,14 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
     desc = description or VOICE_DESCRIPTION
     desc_inputs = _desc_tokenizer(desc, return_tensors="pt").to(_device)
     prompt_inputs = _tokenizer(prompt, return_tensors="pt").to(_device)
-    with torch.no_grad():
+    with torch.inference_mode():
         audio = _model.generate(
             input_ids=desc_inputs.input_ids,
             attention_mask=desc_inputs.attention_mask,
             prompt_input_ids=prompt_inputs.input_ids,
             prompt_attention_mask=prompt_inputs.attention_mask,
+            do_sample=True,
+            temperature=1.0,
         )
     return audio.cpu().to(torch.float32).numpy().squeeze()
 
