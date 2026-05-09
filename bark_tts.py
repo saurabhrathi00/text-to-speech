@@ -9,7 +9,7 @@ import soundfile as sf
 _BarkModel = None
 _AutoProcessor = None
 
-MODEL_ID = os.getenv("BARK_MODEL", "suno/bark-small")
+MODEL_ID = os.getenv("BARK_MODEL", "suno/bark")
 DEFAULT_VOICE = os.getenv("BARK_VOICE", "v2/hi_speaker_0")
 
 # Bark generates roughly ~13s of audio per call. Keep chunks small enough
@@ -27,9 +27,12 @@ VOICES = [
     {"id": "v2/en_speaker_9", "label": "English narrator (female)"},
 ]
 
-# Bark uses inline tags for emotion / non-speech cues. We inject these
-# at the start of the prompt based on the user's emotion choice.
-EMOTION_TAGS = {
+# Bark inline tags ([laughs], [sighs], [gasps], [music] etc.) literally
+# trigger those non-speech sounds in the audio, which produces noisy
+# output for narration. We don't inject emotion tags by default —
+# emotional tone comes from the voice preset itself. Set BARK_USE_TAGS=1
+# to opt in if you want the experimental tag-driven emotion.
+EMOTION_TAGS_RAW = {
     "none": "",
     "happy": "[laughs]",
     "sad": "[sighs]",
@@ -39,6 +42,12 @@ EMOTION_TAGS = {
     "whisper": "[whispers]",
     "serious": "",
 }
+
+
+def _emotion_tag(emotion: str) -> str:
+    if os.getenv("BARK_USE_TAGS") != "1":
+        return ""
+    return EMOTION_TAGS_RAW.get(emotion.lower(), "")
 
 
 _model = None
@@ -122,7 +131,7 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     voice_config = voice_config or {}
     voice_preset = voice_config.get("voice_id") or DEFAULT_VOICE
     emotion = (voice_config.get("emotion") or "none").lower()
-    tag = EMOTION_TAGS.get(emotion, "")
+    tag = _emotion_tag(emotion)
 
     chunks = _split_text(text)
     if not chunks:
