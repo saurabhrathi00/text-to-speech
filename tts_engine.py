@@ -8,15 +8,14 @@ from transformers import AutoTokenizer
 MODEL_ID = "ai4bharat/indic-parler-tts"
 MAX_CHARS_PER_CHUNK = 400
 # Parler-TTS audio frame rate ~ 86 tokens / sec.
-TOKENS_PER_CHAR = 6
+TOKENS_PER_CHAR = 10
 MIN_NEW_TOKENS = 256
-MAX_NEW_TOKENS_CAP = 3500
+MAX_NEW_TOKENS_CAP = 4096
 
-# Trailing silence / loop trim params
+# Trailing silence trim params
 TRIM_FRAME_MS = 30
-TRIM_SILENCE_THRESHOLD = 0.012  # RMS below this is "silence"
-TRIM_MIN_SILENCE_MS = 400       # cut after this much continuous silence at end
-TRIM_TAIL_PAD_MS = 150          # keep this much padding after last speech
+TRIM_SILENCE_THRESHOLD = 0.008  # RMS below this is "silence"
+TRIM_TAIL_PAD_MS = 200          # keep this much padding after last speech
 
 SPEAKERS = {
     "rohit": "deep, mature male",
@@ -116,22 +115,18 @@ def _split_text(text: str) -> list[str]:
 
 
 def _trim_trailing(audio: np.ndarray, sr: int) -> np.ndarray:
-    """Remove trailing silence and repeated/looped tail from generated audio.
+    """Remove only trailing silence from the very end of generated audio.
 
-    Strategy: walk frames from the end, find the last "speech" frame where
-    short-window RMS exceeds the silence threshold. Cut everything after
-    that frame plus a small pad. Also detects long silence gap interior
-    near the end (model often emits N seconds of speech then silence then
-    a hallucinated repeat) and cuts at the start of that gap.
+    Walks frames from the end backwards, finds the last frame whose RMS
+    exceeds the silence threshold, and cuts after that + a small pad.
+    Does not touch any interior silence (sentence/comma pauses).
     """
     if audio.size == 0:
         return audio
 
     frame = max(1, int(sr * TRIM_FRAME_MS / 1000))
     pad_samples = int(sr * TRIM_TAIL_PAD_MS / 1000)
-    min_silence_frames = max(1, int(TRIM_MIN_SILENCE_MS / TRIM_FRAME_MS))
 
-    # Frame-wise RMS
     n_frames = audio.size // frame
     if n_frames == 0:
         return audio
@@ -140,31 +135,11 @@ def _trim_trailing(audio: np.ndarray, sr: int) -> np.ndarray:
         audio[:trimmed_len].reshape(n_frames, frame).astype(np.float32) ** 2,
         axis=1,
     ))
-    speech_mask = rms > TRIM_SILENCE_THRESHOLD
-    if not speech_mask.any():
+    speech_idx = np.where(rms > TRIM_SILENCE_THRESHOLD)[0]
+    if speech_idx.size == 0:
         return audio
-
-    # Find first long silence gap after first speech, cut at its start
-    in_silence = 0
-    cut_at_frame = None
-    started = False
-    for i, is_speech in enumerate(speech_mask):
-        if is_speech:
-            started = True
-            in_silence = 0
-        else:
-            if started:
-                in_silence += 1
-                if in_silence >= min_silence_frames:
-                    cut_at_frame = i - in_silence + 1
-                    break
-
-    if cut_at_frame is None:
-        # Just trim trailing silence
-        last_speech = np.where(speech_mask)[0][-1]
-        cut_at_frame = last_speech + 1
-
-    end_sample = min(audio.size, cut_at_frame * frame + pad_samples)
+    last_speech = int(speech_idx[-1])
+    end_sample = min(audio.size, (last_speech + 1) * frame + pad_samples)
     return audio[:end_sample]
 
 
@@ -184,7 +159,7 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
             do_sample=True,
             temperature=1.0,
             max_new_tokens=budget,
-            repetition_penalty=1.5,
+            repetition_penalty=2.0,
         )
     arr = audio.cpu().to(torch.float32).numpy().squeeze()
     sr = _model.config.sampling_rate
