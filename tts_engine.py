@@ -6,7 +6,11 @@ from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
 MODEL_ID = "ai4bharat/indic-parler-tts"
-MAX_CHARS_PER_CHUNK = 900
+# Parler-TTS default max_new_tokens caps audio at ~30s (~2580 tokens).
+# Hindi at ~13 chars/sec → keep chunks under ~350 chars so each chunk's
+# audio fits well within the default token budget. Larger chunks cause
+# token-cap garbling that sounds like a different language.
+MAX_CHARS_PER_CHUNK = 350
 
 SPEAKERS = {
     "rohit": "deep, mature male",
