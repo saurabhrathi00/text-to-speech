@@ -77,6 +77,14 @@ def _pick_device() -> str:
     return "cpu"
 
 
+def _triton_available() -> bool:
+    try:
+        import triton  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
 def load_model():
     global _model, _tokenizer, _desc_tokenizer, _device
     if _model is not None:
@@ -93,10 +101,12 @@ def load_model():
     _desc_tokenizer = AutoTokenizer.from_pretrained(desc_id)
     print(f"[tts] loaded on {_device} dtype={dtype}")
 
-    # torch.compile speeds up subsequent generations ~1.2x on CUDA after a
-    # one-time compilation cost on the first call. Disabled on CPU since
-    # the gain is small and the overhead is large.
-    if _device.startswith("cuda") and os.getenv("TTS_NO_COMPILE") != "1":
+    # torch.compile speeds up generation ~1.2x on CUDA but requires Triton,
+    # which has no official Windows builds. Off by default; opt-in via
+    # TTS_COMPILE=1 (only enable on Linux with triton installed).
+    if (_device.startswith("cuda")
+            and os.getenv("TTS_COMPILE") == "1"
+            and _triton_available()):
         try:
             _model.forward = torch.compile(_model.forward, mode="reduce-overhead", fullgraph=False)
             print("[tts] torch.compile applied (first request will be slower)")
