@@ -8,11 +8,11 @@ from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
 MODEL_ID = "ai4bharat/indic-parler-tts"
-# Parler-TTS default max_new_tokens caps audio at ~30s (~2580 tokens).
-# Hindi at ~13 chars/sec → keep chunks under ~350 chars so each chunk's
-# audio fits well within the default token budget. Larger chunks cause
-# token-cap garbling that sounds like a different language.
-MAX_CHARS_PER_CHUNK = 350
+# Strategy: always break into small chunks for safety. Smaller chunks
+# generate more reliably (no token-cap garbling, less interior repetition,
+# easier per-chunk trim). Default ~250 chars ≈ 18s audio per chunk —
+# comfortably within Parler-TTS's ~30s per-call budget.
+MAX_CHARS_PER_CHUNK = 250
 
 SPEAKERS = {
     "rohit": "deep, mature male",
@@ -87,11 +87,57 @@ def load_model():
 
 
 def _split_text(text: str) -> list[str]:
+    """Break text into <=MAX_CHARS_PER_CHUNK pieces along natural boundaries.
+
+    Tier 1: split on sentence enders (। . ! ?)
+    Tier 2: if a sentence is still too long, split it on commas / semicolons
+    Tier 3: if a comma-clause is still too long, split on whitespace word
+            boundaries (never breaks mid-word)
+    """
     text = text.strip()
     if len(text) <= MAX_CHARS_PER_CHUNK:
         return [text]
+
+    chunks: list[str] = []
+
+    def add(piece: str):
+        piece = piece.strip()
+        if not piece:
+            return
+        if len(piece) <= MAX_CHARS_PER_CHUNK:
+            chunks.append(piece)
+            return
+        # Tier 2: comma split
+        sub = re.split(r"(?<=[,;])\s+", piece)
+        if len(sub) > 1:
+            buf = ""
+            for s in sub:
+                if not s:
+                    continue
+                if len(buf) + len(s) + 1 <= MAX_CHARS_PER_CHUNK:
+                    buf = (buf + " " + s).strip()
+                else:
+                    if buf:
+                        add(buf)
+                    buf = s
+            if buf:
+                add(buf)
+            return
+        # Tier 3: word-level split
+        words = piece.split()
+        buf = ""
+        for w in words:
+            if len(buf) + len(w) + 1 <= MAX_CHARS_PER_CHUNK:
+                buf = (buf + " " + w).strip()
+            else:
+                if buf:
+                    chunks.append(buf)
+                buf = w
+        if buf:
+            chunks.append(buf)
+
     sentences = re.split(r"(?<=[।.!?])\s+", text)
-    chunks, cur = [], ""
+    cur = ""
     for s in sentences:
         if not s:
             continue
@@ -99,15 +145,10 @@ def _split_text(text: str) -> list[str]:
             cur = (cur + " " + s).strip()
         else:
             if cur:
-                chunks.append(cur)
-            if len(s) > MAX_CHARS_PER_CHUNK:
-                for i in range(0, len(s), MAX_CHARS_PER_CHUNK):
-                    chunks.append(s[i : i + MAX_CHARS_PER_CHUNK])
-                cur = ""
-            else:
-                cur = s
+                add(cur)
+            cur = s
     if cur:
-        chunks.append(cur)
+        add(cur)
     return chunks
 
 
