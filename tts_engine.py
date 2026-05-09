@@ -1,4 +1,6 @@
+import os
 import re
+import tempfile
 import numpy as np
 import torch
 import soundfile as sf
@@ -125,21 +127,49 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
     return audio.cpu().to(torch.float32).numpy().squeeze()
 
 
+def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray:
+    """Run whisper on a single chunk's audio and trim trailing silence /
+    repetition. Returns trimmed audio. Falls back to raw audio on failure.
+    """
+    from aligner import align as _align, trim_audio_to_words
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        sf.write(tmp_path, audio, sr)
+        words = _align(tmp_path)
+        trim_audio_to_words(tmp_path, words, expected_word_count=len(chunk_text.split()))
+        trimmed, _ = sf.read(tmp_path)
+        return trimmed.astype(np.float32)
+    except Exception as e:
+        print(f"[tts] chunk trim failed: {e} — using raw audio")
+        return audio
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
 def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     global _device
     load_model()
 
     chunks = _split_text(text)
     audio_parts = []
+    sr = _model.config.sampling_rate
     try:
         for c in chunks:
-            audio_parts.append(_generate_chunk(c, description))
+            raw = _generate_chunk(c, description)
+            audio_parts.append(_trim_chunk_audio(raw, sr, c))
     except torch.cuda.OutOfMemoryError:
         torch.cuda.empty_cache()
         _move_to_cpu()
-        audio_parts = [_generate_chunk(c, description) for c in chunks]
+        audio_parts = []
+        for c in chunks:
+            raw = _generate_chunk(c, description)
+            audio_parts.append(_trim_chunk_audio(raw, sr, c))
 
-    sr = _model.config.sampling_rate
     if len(audio_parts) == 1:
         final = audio_parts[0]
     else:

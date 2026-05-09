@@ -24,7 +24,7 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from normalizer import normalize_text, OllamaError
 from tts_engine import synthesize, build_description, load_model
-from aligner import align as align_words, load_aligner, trim_audio_to_words
+from aligner import align as align_words, load_aligner
 
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
@@ -102,7 +102,6 @@ def tts():
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
     words = align_words(str(out_path))
-    words = trim_audio_to_words(str(out_path), words, expected_word_count=len(text.split()))
     _prune_old_audio()
 
     return jsonify({
@@ -140,7 +139,6 @@ def generate():
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
     words = align_words(str(out_path))
-    words = trim_audio_to_words(str(out_path), words, expected_word_count=len(normalized.split()))
     _prune_old_audio()
 
     return jsonify({
