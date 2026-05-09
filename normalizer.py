@@ -53,15 +53,23 @@ WHAT YOU MUST NEVER DO:
    or anything that wasn't in the input. No "शिक्षा:", "moral:",
    "in conclusion", "to summarize", etc. unless the user wrote it.
 2. NEVER remove sentences, words, or phrases — even if repeated.
-3. NEVER change a word's spelling, even if it looks like a typo or has
-   broken/invalid Unicode (like double matras). The user's spelling is
-   FINAL. Examples that MUST pass through unchanged:
-   - "रातोदिन" → "रातोदिन" (do NOT make it "रात-दिन")
-   - "कोशश" → "कोशश" (do NOT fix to "कोशिश")
-   - "शाीशे" → "शाीशे" (do NOT "fix" to "शीशे" or "शामे" or anything
-     else — even if the Unicode is invalid, leave the bytes alone)
-   If a word looks wrong, you ALWAYS leave it alone. Spelling fixes are
-   NOT your job. The narrator will pronounce whatever you output.
+3. SPELLING — small pronunciation fixes are ALLOWED, full substitution
+   is FORBIDDEN.
+   Allowed (encouraged for cleaner audio):
+   - Add nukta (़) to Urdu-origin Hindi words for correct pronunciation.
+     "जरा" → "ज़रा", "जिंदगी" → "ज़िंदगी", "खुशी" → "ख़ुशी".
+   - Fix obvious adjacent-letter typos / matra swaps where the intended
+     word is unambiguous: "इतंजार" → "इंतज़ार", "इंजिनियर" → "इंजीनियर".
+   Forbidden (catastrophic content change):
+   - DO NOT replace a word with a different word that has different
+     letters: "शाीशे" → "शामे" is FORBIDDEN. The base consonants must
+     stay the same; you only adjust matras/nukta/letter-order.
+   - DO NOT make hyphenated forms: "छोटे छोटे" stays "छोटे छोटे", do
+     NOT make it "छोटे-छोटे".
+   - DO NOT modernize/standardize spellings unless adding a nukta or
+     fixing an obvious typo: "रातोदिन" stays "रातोदिन".
+   If you are unsure whether a fix is a small adjustment or a full
+   substitution, LEAVE THE WORD ALONE.
 4. NEVER add hyphens between repeated words. "छोटे छोटे" stays
    "छोटे छोटे" — do NOT make it "छोटे-छोटे".
 5. NEVER paraphrase, simplify, or reword. Word order is sacred.
@@ -109,20 +117,28 @@ class OllamaError(Exception):
     pass
 
 
-def _devanagari_words(text: str) -> set[str]:
-    """Extract the set of Devanagari-only words from text."""
-    return set(re.findall(r"[ऀ-ॿ]+", text))
+# If Qwen's output preserves at least this fraction of input Devanagari
+# words, we accept it. Below this, we assume Qwen rewrote too much and
+# fall back to the input. Tuned to allow small per-word fixes (nukta,
+# typo correction) while catching wholesale substitutions or drops.
+DEVANAGARI_PRESERVE_THRESHOLD = 0.85
 
 
-def _verify_no_devanagari_loss(input_text: str, output_text: str) -> bool:
-    """Check that every Devanagari word in input also appears in output.
-    Returns True if the output preserves all Devanagari words.
-    """
+def _devanagari_words(text: str) -> list[str]:
+    return re.findall(r"[ऀ-ॿ]+", text)
+
+
+def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     in_words = _devanagari_words(input_text)
-    out_words = _devanagari_words(output_text)
-    missing = in_words - out_words
-    if missing:
-        print(f"[normalizer] Qwen dropped/changed Devanagari words: {missing}")
+    if not in_words:
+        return True
+    out_set = set(_devanagari_words(output_text))
+    preserved = sum(1 for w in in_words if w in out_set)
+    ratio = preserved / len(in_words)
+    if ratio < DEVANAGARI_PRESERVE_THRESHOLD:
+        missing = [w for w in in_words if w not in out_set][:8]
+        print(f"[normalizer] only {preserved}/{len(in_words)} ({ratio:.0%}) "
+              f"Devanagari words preserved — examples missing: {missing}")
         return False
     return True
 
@@ -152,7 +168,7 @@ def normalize_text(text: str, timeout: int = 120) -> str:
     # in the original input, fall back to the input text. We trust Qwen on
     # script conversion (Roman → Devanagari) and on punctuation, but not
     # on rewriting Devanagari words.
-    if not _verify_no_devanagari_loss(text, content):
+    if not _verify_devanagari_preserved(text, content):
         print("[normalizer] falling back to original input (no Qwen edits applied)")
         return text
 
