@@ -67,6 +67,11 @@
         </div>
       </details>
 
+      <label class="checkbox-row">
+        <input type="checkbox" id="skipNormalize" />
+        <span>Qwen skip karo — mera text bilkul exact bolo (no auto-correction)</span>
+      </label>
+
       <button id="generateBtn" class="primary">🎵 Awaaz Banao</button>
 
       <div id="status" class="status hidden">
@@ -78,10 +83,9 @@
     </section>
 
     <section id="resultSection" class="card hidden">
-      <details open>
-        <summary>Normalized text (preview)</summary>
-        <p id="normalizedText" class="normalized"></p>
-      </details>
+      <label class="label" for="normalizedEdit">Normalized text — yahan edit karke dobara bana sakte ho</label>
+      <textarea id="normalizedEdit" rows="4" class="normalized-edit"></textarea>
+      <button id="regenBtn" class="secondary">🔁 Is text se dobara banao</button>
 
       <div class="player-row">
         <audio id="audioPlayer" controls></audio>
@@ -98,14 +102,26 @@
     }
 
     const btn = document.getElementById('generateBtn');
+    const regenBtn = document.getElementById('regenBtn');
     const scriptEl = document.getElementById('script');
+    const skipEl = document.getElementById('skipNormalize');
     const status = document.getElementById('status');
     const statusText = document.getElementById('statusText');
     const errorEl = document.getElementById('error');
     const result = document.getElementById('resultSection');
-    const normalizedEl = document.getElementById('normalizedText');
+    const normalizedEdit = document.getElementById('normalizedEdit');
     const audio = document.getElementById('audioPlayer');
     const downloadBtn = document.getElementById('downloadBtn');
+
+    function getVoice() {
+      return {
+        speaker: document.getElementById('speaker').value,
+        speed: document.getElementById('speed').value,
+        pitch: document.getElementById('pitch').value,
+        expressivity: document.getElementById('expressivity').value,
+        custom: document.getElementById('customDesc').value.trim(),
+      };
+    }
 
     function showError(msg) {
       errorEl.textContent = msg;
@@ -114,6 +130,7 @@
     function clearError() { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
     function setLoading(on) {
       btn.disabled = on;
+      regenBtn.disabled = on;
       status.classList.toggle('hidden', !on);
     }
 
@@ -123,28 +140,46 @@
       result.classList.add('hidden');
       if (!text) { showError('Pehle kuch type karein'); return; }
 
+      const skip = skipEl.checked;
       setLoading(true);
-      statusText.textContent = 'Qwen text ko clean kar raha hai...';
+      statusText.textContent = skip ? 'Awaaz ban rahi hai...' : 'Qwen text ko clean kar raha hai...';
       try {
-        const voice = {
-          speaker: document.getElementById('speaker').value,
-          speed: document.getElementById('speed').value,
-          pitch: document.getElementById('pitch').value,
-          expressivity: document.getElementById('expressivity').value,
-          custom: document.getElementById('customDesc').value.trim(),
-        };
         const res = await fetch('/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice })
+          body: JSON.stringify({ text, voice: getVoice(), skip_normalize: skip })
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error || 'Kuch galat ho gaya, dobara koshish karein'); return; }
 
-        normalizedEl.textContent = data.normalized_text;
+        normalizedEdit.value = data.normalized_text;
         audio.src = data.audio_url;
         downloadBtn.href = data.audio_url;
         result.classList.remove('hidden');
+      } catch (e) {
+        showError('Server se connect nahi ho paya');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    regenBtn.addEventListener('click', async () => {
+      const text = normalizedEdit.value.trim();
+      clearError();
+      if (!text) { showError('Normalized text khali hai'); return; }
+
+      setLoading(true);
+      statusText.textContent = 'Edited text se awaaz bana raha hai...';
+      try {
+        const res = await fetch('/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: getVoice() })
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Kuch galat ho gaya'); return; }
+        audio.src = data.audio_url;
+        downloadBtn.href = data.audio_url;
       } catch (e) {
         showError('Server se connect nahi ho paya');
       } finally {

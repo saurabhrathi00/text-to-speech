@@ -57,6 +57,56 @@ def manifest():
     return send_from_directory(BASE_DIR / "static", "manifest.json", mimetype="application/manifest+json")
 
 
+def _build_voice_description(voice: dict) -> str:
+    custom_desc = (voice.get("custom") or "").strip()
+    if custom_desc:
+        return custom_desc
+    return build_description(
+        speaker=voice.get("speaker", "rohit"),
+        speed=voice.get("speed", "moderate"),
+        pitch=voice.get("pitch", "low"),
+        expressivity=voice.get("expressivity", "expressive"),
+    )
+
+
+@app.route("/normalize", methods=["POST"])
+def normalize():
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Pehle kuch type karein"}), 400
+    try:
+        normalized = normalize_text(text)
+    except OllamaError:
+        return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
+    return jsonify({"normalized_text": normalized})
+
+
+@app.route("/tts", methods=["POST"])
+def tts():
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Pehle kuch type karein"}), 400
+
+    description = _build_voice_description(data.get("voice") or {})
+    filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
+    out_path = AUDIO_DIR / filename
+
+    try:
+        synthesize(text, str(out_path), description=description)
+    except Exception:
+        traceback.print_exc()
+        return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
+
+    _prune_old_audio()
+
+    return jsonify({
+        "audio_url": f"/audio/{filename}",
+        "description_used": description,
+    })
+
+
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json(silent=True) or {}
@@ -64,22 +114,16 @@ def generate():
     if not text:
         return jsonify({"error": "Pehle kuch type karein"}), 400
 
-    voice = data.get("voice") or {}
-    custom_desc = (voice.get("custom") or "").strip()
-    if custom_desc:
-        description = custom_desc
-    else:
-        description = build_description(
-            speaker=voice.get("speaker", "rohit"),
-            speed=voice.get("speed", "moderate"),
-            pitch=voice.get("pitch", "low"),
-            expressivity=voice.get("expressivity", "expressive"),
-        )
+    skip_normalize = bool(data.get("skip_normalize"))
+    description = _build_voice_description(data.get("voice") or {})
 
-    try:
-        normalized = normalize_text(text)
-    except OllamaError:
-        return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
+    if skip_normalize:
+        normalized = text
+    else:
+        try:
+            normalized = normalize_text(text)
+        except OllamaError:
+            return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
 
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename
