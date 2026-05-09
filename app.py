@@ -58,6 +58,16 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/sw.js")
+def service_worker():
+    return send_from_directory(BASE_DIR / "static", "sw.js", mimetype="application/javascript")
+
+
+@app.route("/manifest.json")
+def manifest():
+    return send_from_directory(BASE_DIR / "static", "manifest.json", mimetype="application/manifest+json")
+
+
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.get_json(silent=True) or {}
