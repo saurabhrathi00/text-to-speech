@@ -115,7 +115,8 @@ def tts():
     if not text:
         return jsonify({"error": "Pehle kuch type karein"}), 400
 
-    description = _build_voice_description(data.get("voice") or {})
+    voice = data.get("voice") or {}
+    description = _build_voice_description(voice)
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename
 
