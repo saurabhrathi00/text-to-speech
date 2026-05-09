@@ -1,6 +1,7 @@
 import os
 import time
 import uuid
+import threading
 import traceback
 from pathlib import Path
 
@@ -148,13 +149,24 @@ def serve_audio(filename):
     return send_from_directory(AUDIO_DIR, filename, mimetype="audio/wav")
 
 
+def _warmup_in_background():
+    print("[startup] TTS model warmup starting in background...")
+    t0 = time.time()
+    try:
+        load_model()
+        print(f"[startup] TTS model ready in {time.time() - t0:.1f}s")
+    except Exception as e:
+        print(f"[startup] TTS warmup failed: {e} (will retry on first request)")
+
+
+@app.route("/health")
+def health():
+    from tts_engine import _model
+    return jsonify({"server": "up", "tts_ready": _model is not None})
+
+
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5000"))
-    print("[startup] warming up TTS model...")
-    try:
-        load_model()
-        print("[startup] TTS model ready")
-    except Exception as e:
-        print(f"[startup] TTS model warmup failed: {e} (will retry on first request)")
+    threading.Thread(target=_warmup_in_background, daemon=True).start()
     app.run(host=host, port=port, debug=False, threaded=True)
