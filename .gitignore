@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+audio/*.wav
+.venv/
+venv/
+.DS_Store
+.env
+.claude/

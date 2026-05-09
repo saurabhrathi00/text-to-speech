@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Narrator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <h1>🎙️ YouTube Narrator</h1>
+      <p class="subtitle">Papa ke liye — Local & Free</p>
+    </header>
+
+    <section class="card">
+      <label for="script" class="label">Apna script likhein (Hindi / Hinglish / English)</label>
+      <textarea id="script" rows="12" placeholder="Aaj hum baat karenge photosynthesis ke baare mein..."></textarea>
+
+      <details class="voice-controls">
+        <summary>🎚️ Voice tune karein (advanced)</summary>
+        <div class="controls-grid">
+          <div class="control">
+            <label for="speaker">Speaker</label>
+            <select id="speaker">
+              <option value="rohit" selected>Rohit (deep male)</option>
+              <option value="aman">Aman (young male)</option>
+              <option value="divya">Divya (warm female)</option>
+              <option value="rani">Rani (news anchor)</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="speed">Speed</label>
+            <select id="speed">
+              <option value="slow">Slow</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="fast">Fast</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="pitch">Pitch</label>
+            <select id="pitch">
+              <option value="low" selected>Low / Deep</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="control">
+            <label for="expressivity">Tone</label>
+            <select id="expressivity">
+              <option value="expressive" selected>Expressive</option>
+              <option value="neutral">Neutral</option>
+              <option value="calm">Calm</option>
+            </select>
+          </div>
+        </div>
+        <div class="control full">
+          <label for="customDesc">Custom description (optional — overrides above)</label>
+          <textarea id="customDesc" rows="2" placeholder="e.g. Rohit speaks slowly with a deep voice..."></textarea>
+        </div>
+      </details>
+
+      <button id="generateBtn" class="primary">🎵 Awaaz Banao</button>
+
+      <div id="status" class="status hidden">
+        <div class="spinner"></div>
+        <span id="statusText">Awaaz ban rahi hai...</span>
+      </div>
+
+      <div id="error" class="error hidden"></div>
+    </section>
+
+    <section id="resultSection" class="card hidden">
+      <details open>
+        <summary>Normalized text (preview)</summary>
+        <p id="normalizedText" class="normalized"></p>
+      </details>
+
+      <div class="player-row">
+        <audio id="audioPlayer" controls></audio>
+        <a id="downloadBtn" class="primary download" download>📥 Download .wav</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const btn = document.getElementById('generateBtn');
+    const scriptEl = document.getElementById('script');
+    const status = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    const errorEl = document.getElementById('error');
+    const result = document.getElementById('resultSection');
+    const normalizedEl = document.getElementById('normalizedText');
+    const audio = document.getElementById('audioPlayer');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
+    }
+    function clearError() { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
+    function setLoading(on) {
+      btn.disabled = on;
+      status.classList.toggle('hidden', !on);
+    }
+
+    btn.addEventListener('click', async () => {
+      const text = scriptEl.value.trim();
+      clearError();
+      result.classList.add('hidden');
+      if (!text) { showError('Pehle kuch type karein'); return; }
+
+      setLoading(true);
+      statusText.textContent = 'Qwen text ko clean kar raha hai...';
+      try {
+        const voice = {
+          speaker: document.getElementById('speaker').value,
+          speed: document.getElementById('speed').value,
+          pitch: document.getElementById('pitch').value,
+          expressivity: document.getElementById('expressivity').value,
+          custom: document.getElementById('customDesc').value.trim(),
+        };
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice })
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Kuch galat ho gaya, dobara koshish karein'); return; }
+
+        normalizedEl.textContent = data.normalized_text;
+        audio.src = data.audio_url;
+        downloadBtn.href = data.audio_url;
+        result.classList.remove('hidden');
+      } catch (e) {
+        showError('Server se connect nahi ho paya');
+      } finally {
+        setLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>

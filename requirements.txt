@@ -1,0 +1,7 @@
+flask
+torch
+torchaudio
+transformers
+parler-tts
+soundfile
+requests
