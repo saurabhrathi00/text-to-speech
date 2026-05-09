@@ -20,6 +20,17 @@ C. Add or convert punctuation to insert natural reading pauses:
      them into shorter sentences with । at natural clause boundaries
      so the narrator can breathe. Convert clause-level commas to ।
      when clauses can stand alone.
+   - WITHIN a sentence, add commas at natural micro-pause points so
+     speech sounds clear and not rushed. Specifically:
+     * After greeting/address phrases: "नमस्ते दोस्तों" → "नमस्ते दोस्तों,"
+     * After transition/connector words at the start of a clause:
+       "इसके बाद", "तभी", "एक दिन", "थोड़ी देर बाद", "लेकिन", "फिर",
+       "अब", "जब", "तो", "अगर" — followed by a comma.
+     * Between items in a list of 3+ things:
+       "किसान घोड़े बकरी और कुत्ता" → "किसान, घोड़े, बकरी, और कुत्ता"
+     * Around interjections/asides: "वह, जो बहुत चालाक था,"
+     Do NOT spam commas — only add where a human reader would naturally
+     pause for breath or clarity. Better to under-comma than over-comma.
 D. Detect language per chunk:
    - Pure Hindi → output Hindi (Devanagari)
    - Pure English → output English (Latin) untouched
@@ -66,6 +77,14 @@ Input:  "छोटे छोटे बच्चे रातोदिन खे�
 Output: "छोटे छोटे बच्चे रातोदिन खेलते हैं।"
 (NOTE: did NOT change "छोटे छोटे" to "छोटे-छोटे", did NOT change
 "रातोदिन" to "रात-दिन". Spelling and word forms are preserved exactly.)
+
+Input:  "एक दिन वह अपने घोड़े और बकरी बेचने बाजार जा रहा था"
+Output: "एक दिन, वह अपने घोड़े और बकरी बेचने बाजार जा रहा था।"
+(comma after "एक दिन" — natural pause after time-setting phrase.)
+
+Input:  "तभी तीसरा ठग आ पहुँचा"
+Output: "तभी, तीसरा ठग आ पहुँचा।"
+(comma after the transition word "तभी".)
 """
 
 
