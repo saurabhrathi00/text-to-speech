@@ -23,8 +23,27 @@ _load_env_file()
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from normalizer import normalize_text, OllamaError
-from tts_engine import synthesize, build_description, load_model
+from tts_engine import synthesize as parler_synthesize, build_description, load_model
 from aligner import align as align_words, load_aligner
+import eleven_tts
+
+
+def _provider() -> str:
+    """Active TTS provider — 'parler' (default, local) or 'elevenlabs'."""
+    return (os.getenv("TTS_PROVIDER") or "parler").strip().lower()
+
+
+def _tts_synthesize(text: str, out_path: str, description: str,
+                     voice: dict) -> str:
+    """Dispatch to the configured TTS provider. Returns the actual saved
+    file path (extension may differ between providers)."""
+    if _provider() == "elevenlabs":
+        if not eleven_tts.is_configured():
+            raise RuntimeError(
+                "TTS_PROVIDER=elevenlabs but ELEVENLABS_API_KEY not set in .env"
+            )
+        return eleven_tts.synthesize(text, out_path, voice_config=voice)
+    return parler_synthesize(text, out_path, description=description)
 
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
@@ -36,7 +55,11 @@ app = Flask(__name__)
 
 
 def _prune_old_audio(keep: int = MAX_AUDIO_FILES):
-    files = sorted(AUDIO_DIR.glob("*.wav"), key=lambda f: f.stat().st_mtime, reverse=True)
+    files = sorted(
+        list(AUDIO_DIR.glob("*.wav")) + list(AUDIO_DIR.glob("*.mp3")),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
     for f in files[keep:]:
         try:
             f.unlink()
@@ -97,18 +120,20 @@ def tts():
     out_path = AUDIO_DIR / filename
 
     try:
-        synthesize(text, str(out_path), description=description)
+        actual_path = _tts_synthesize(text, str(out_path), description, voice)
     except Exception:
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
-    words = align_words(str(out_path))
+    actual_filename = Path(actual_path).name
+    words = align_words(actual_path) if _provider() == "parler" else []
     _prune_old_audio()
 
     return jsonify({
-        "audio_url": f"/audio/{filename}",
+        "audio_url": f"/audio/{actual_filename}",
         "description_used": description,
         "words": words,
+        "provider": _provider(),
     })
 
 
@@ -134,41 +159,52 @@ def generate():
     out_path = AUDIO_DIR / filename
 
     try:
-        synthesize(normalized, str(out_path), description=description)
+        actual_path = _tts_synthesize(normalized, str(out_path), description, voice)
     except Exception:
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
-    words = align_words(str(out_path))
+    actual_filename = Path(actual_path).name
+    words = align_words(actual_path) if _provider() == "parler" else []
     _prune_old_audio()
 
     return jsonify({
         "normalized_text": normalized,
-        "audio_url": f"/audio/{filename}",
+        "audio_url": f"/audio/{actual_filename}",
         "description_used": description,
         "words": words,
+        "provider": _provider(),
     })
 
 
 @app.route("/audio/<path:filename>")
 def serve_audio(filename):
-    return send_from_directory(AUDIO_DIR, filename, mimetype="audio/wav")
+    mimetype = "audio/mpeg" if filename.lower().endswith(".mp3") else "audio/wav"
+    return send_from_directory(AUDIO_DIR, filename, mimetype=mimetype)
 
 
 def _warmup_in_background():
-    print("[startup] TTS + aligner warmup starting in background...")
-    t0 = time.time()
-    try:
-        load_model()
-        print(f"[startup] TTS ready in {time.time() - t0:.1f}s")
-    except Exception as e:
-        print(f"[startup] TTS warmup failed: {e} (will retry on first request)")
-    t1 = time.time()
-    try:
-        load_aligner()
-        print(f"[startup] aligner ready in {time.time() - t1:.1f}s")
-    except Exception as e:
-        print(f"[startup] aligner warmup failed: {e}")
+    provider = _provider()
+    print(f"[startup] TTS provider: {provider}")
+    if provider == "parler":
+        print("[startup] Parler + aligner warmup in background...")
+        t0 = time.time()
+        try:
+            load_model()
+            print(f"[startup] Parler ready in {time.time() - t0:.1f}s")
+        except Exception as e:
+            print(f"[startup] Parler warmup failed: {e} (will retry on first request)")
+        t1 = time.time()
+        try:
+            load_aligner()
+            print(f"[startup] aligner ready in {time.time() - t1:.1f}s")
+        except Exception as e:
+            print(f"[startup] aligner warmup failed: {e}")
+    else:
+        if not eleven_tts.is_configured():
+            print("[startup] WARNING: TTS_PROVIDER=elevenlabs but ELEVENLABS_API_KEY not set")
+        else:
+            print("[startup] using ElevenLabs API — no local model load needed")
 
 
 @app.route("/health")
