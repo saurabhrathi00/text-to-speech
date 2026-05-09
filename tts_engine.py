@@ -8,11 +8,16 @@ from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
 MODEL_ID = "ai4bharat/indic-parler-tts"
-# Strategy: always break into small chunks for safety. Smaller chunks
-# generate more reliably (no token-cap garbling, less interior repetition,
-# easier per-chunk trim). Default ~250 chars ≈ 18s audio per chunk —
-# comfortably within Parler-TTS's ~30s per-call budget.
+# Soft cap on combined chunk size. Multiple short sentences may be merged
+# up to this limit. A single sentence longer than this becomes its own
+# chunk and is NEVER split mid-sentence.
 MAX_CHARS_PER_CHUNK = 250
+# Per-chunk token budget for max_new_tokens. Sized generously so a single
+# long sentence has room to complete without hitting the model's default
+# ~2580 token cap (which causes garbled output).
+TOKENS_PER_CHAR = 8
+MIN_NEW_TOKENS = 256
+MAX_NEW_TOKENS_CAP = 5000
 
 SPEAKERS = {
     "rohit": "deep, mature male",
@@ -87,68 +92,36 @@ def load_model():
 
 
 def _split_text(text: str) -> list[str]:
-    """Break text into <=MAX_CHARS_PER_CHUNK pieces along natural boundaries.
+    """Break text into chunks along sentence boundaries.
 
-    Tier 1: split on sentence enders (। . ! ?)
-    Tier 2: if a sentence is still too long, split it on commas / semicolons
-    Tier 3: if a comma-clause is still too long, split on whitespace word
-            boundaries (never breaks mid-word)
+    Rules:
+    - Each chunk is one or more complete sentences.
+    - A sentence is NEVER split across chunks, even if it exceeds
+      MAX_CHARS_PER_CHUNK on its own (it becomes its own oversized chunk).
+    - Multiple short sentences are merged into the same chunk only while
+      the running total stays within MAX_CHARS_PER_CHUNK.
     """
     text = text.strip()
-    if len(text) <= MAX_CHARS_PER_CHUNK:
+    if not text:
+        return []
+
+    sentences = [s for s in re.split(r"(?<=[।.!?])\s+", text) if s]
+    if not sentences:
         return [text]
 
     chunks: list[str] = []
-
-    def add(piece: str):
-        piece = piece.strip()
-        if not piece:
-            return
-        if len(piece) <= MAX_CHARS_PER_CHUNK:
-            chunks.append(piece)
-            return
-        # Tier 2: comma split
-        sub = re.split(r"(?<=[,;])\s+", piece)
-        if len(sub) > 1:
-            buf = ""
-            for s in sub:
-                if not s:
-                    continue
-                if len(buf) + len(s) + 1 <= MAX_CHARS_PER_CHUNK:
-                    buf = (buf + " " + s).strip()
-                else:
-                    if buf:
-                        add(buf)
-                    buf = s
-            if buf:
-                add(buf)
-            return
-        # Tier 3: word-level split
-        words = piece.split()
-        buf = ""
-        for w in words:
-            if len(buf) + len(w) + 1 <= MAX_CHARS_PER_CHUNK:
-                buf = (buf + " " + w).strip()
-            else:
-                if buf:
-                    chunks.append(buf)
-                buf = w
-        if buf:
-            chunks.append(buf)
-
-    sentences = re.split(r"(?<=[।.!?])\s+", text)
     cur = ""
     for s in sentences:
-        if not s:
+        if not cur:
+            cur = s
             continue
-        if len(cur) + len(s) + 1 <= MAX_CHARS_PER_CHUNK:
-            cur = (cur + " " + s).strip()
+        if len(cur) + 1 + len(s) <= MAX_CHARS_PER_CHUNK:
+            cur = cur + " " + s
         else:
-            if cur:
-                add(cur)
+            chunks.append(cur)
             cur = s
     if cur:
-        add(cur)
+        chunks.append(cur)
     return chunks
 
 
@@ -156,6 +129,9 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
     desc = description or VOICE_DESCRIPTION
     desc_inputs = _desc_tokenizer(desc, return_tensors="pt").to(_device)
     prompt_inputs = _tokenizer(prompt, return_tensors="pt").to(_device)
+
+    budget = max(MIN_NEW_TOKENS, min(MAX_NEW_TOKENS_CAP, len(prompt) * TOKENS_PER_CHAR))
+
     with torch.inference_mode():
         audio = _model.generate(
             input_ids=desc_inputs.input_ids,
@@ -164,6 +140,7 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
             prompt_attention_mask=prompt_inputs.attention_mask,
             do_sample=True,
             temperature=1.0,
+            max_new_tokens=budget,
         )
     return audio.cpu().to(torch.float32).numpy().squeeze()
 
