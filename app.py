@@ -26,6 +26,7 @@ from normalizer import normalize_text, OllamaError
 from tts_engine import synthesize as parler_synthesize, build_description, load_model
 from aligner import align as align_words, load_aligner
 import eleven_tts
+import bark_tts
 
 
 PARLER_SPEAKERS = [
@@ -41,10 +42,13 @@ def _default_provider() -> str:
     return (os.getenv("TTS_PROVIDER") or "parler").strip().lower()
 
 
+PROVIDERS = ("parler", "elevenlabs", "bark")
+
+
 def _resolve_provider(requested: str | None) -> str:
     """Provider for THIS request. If client passed one, use it; else env."""
     p = (requested or "").strip().lower()
-    if p in ("parler", "elevenlabs"):
+    if p in PROVIDERS:
         return p
     return _default_provider()
 
@@ -55,6 +59,8 @@ def _tts_synthesize(text: str, out_path: str, description: str,
         if not eleven_tts.is_configured():
             raise RuntimeError("ELEVENLABS_API_KEY not set in .env")
         return eleven_tts.synthesize(text, out_path, voice_config=voice)
+    if provider == "bark":
+        return bark_tts.synthesize(text, out_path, voice_config=voice)
     return parler_synthesize(text, out_path, description=description)
 
 BASE_DIR = Path(__file__).parent.resolve()
@@ -145,7 +151,7 @@ def tts():
 
     return jsonify({
         "audio_url": f"/audio/{actual_filename}",
-        "description_used": description,
+        "description_used": description if provider == "parler" else "",
         "words": words,
         "provider": provider,
     })
@@ -187,7 +193,7 @@ def generate():
     return jsonify({
         "normalized_text": normalized,
         "audio_url": f"/audio/{actual_filename}",
-        "description_used": description,
+        "description_used": description if provider == "parler" else "",
         "words": words,
         "provider": provider,
     })
@@ -216,7 +222,15 @@ def _warmup_in_background():
             print(f"[startup] aligner ready in {time.time() - t1:.1f}s")
         except Exception as e:
             print(f"[startup] aligner warmup failed: {e}")
-    else:
+    elif provider == "bark":
+        print("[startup] Bark warmup in background...")
+        t0 = time.time()
+        try:
+            bark_tts.load_model()
+            print(f"[startup] Bark ready in {time.time() - t0:.1f}s")
+        except Exception as e:
+            print(f"[startup] Bark warmup failed: {e} (will retry on first request)")
+    elif provider == "elevenlabs":
         if not eleven_tts.is_configured():
             print("[startup] WARNING: TTS_PROVIDER=elevenlabs but ELEVENLABS_API_KEY not set")
         else:
@@ -233,7 +247,7 @@ def health():
 def api_providers():
     return jsonify({
         "current": _default_provider(),
-        "available": ["parler", "elevenlabs"],
+        "available": list(PROVIDERS),
         "elevenlabs_configured": eleven_tts.is_configured(),
     })
 
@@ -252,6 +266,14 @@ def api_voices(name: str):
     if name == "elevenlabs":
         return jsonify({
             "voices": eleven_tts.list_voices(),
+            "emotions_supported": True,
+            "speed_supported": False,
+            "pitch_supported": False,
+            "expressivity_supported": False,
+        })
+    if name == "bark":
+        return jsonify({
+            "voices": bark_tts.list_voices(),
             "emotions_supported": True,
             "speed_supported": False,
             "pitch_supported": False,

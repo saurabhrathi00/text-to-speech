@@ -22,7 +22,8 @@
 
     <section class="card">
       <div class="provider-toggle">
-        <button type="button" class="prov-btn active" data-provider="parler">💻 Local (Parler)</button>
+        <button type="button" class="prov-btn active" data-provider="parler">💻 Parler</button>
+        <button type="button" class="prov-btn" data-provider="bark">🎭 Bark</button>
         <button type="button" class="prov-btn" data-provider="elevenlabs">☁️ ElevenLabs</button>
       </div>
       <p id="providerNote" class="provider-note hidden"></p>
@@ -175,11 +176,13 @@
         const info = await r.json();
         if (!info.elevenlabs_configured) {
           providerNote.textContent = '⚠️ ELEVENLABS_API_KEY .env mein set nahi hai. Generate fail hoga.';
-          providerNote.classList.remove('hidden');
         } else {
           providerNote.textContent = 'ElevenLabs API mode — emotions supported, billing active.';
-          providerNote.classList.remove('hidden');
         }
+        providerNote.classList.remove('hidden');
+      } else if (provider === 'bark') {
+        providerNote.textContent = 'Bark local mode — slow on first request (~2-3 min for model load + ~30s per chunk). Hindi voices ka quality variable.';
+        providerNote.classList.remove('hidden');
       } else {
         providerNote.classList.add('hidden');
       }
