@@ -1,7 +1,6 @@
 import os
 import time
 import uuid
-import threading
 import traceback
 from pathlib import Path
 
@@ -29,28 +28,18 @@ BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
 AUDIO_DIR.mkdir(exist_ok=True)
 
-CLEANUP_AGE_SECONDS = 60 * 60  # 1 hour
-CLEANUP_INTERVAL_SECONDS = 10 * 60  # every 10 min
+MAX_AUDIO_FILES = 1
 
 app = Flask(__name__)
 
 
-def _cleanup_loop():
-    while True:
+def _prune_old_audio(keep: int = MAX_AUDIO_FILES):
+    files = sorted(AUDIO_DIR.glob("*.wav"), key=lambda f: f.stat().st_mtime, reverse=True)
+    for f in files[keep:]:
         try:
-            now = time.time()
-            for f in AUDIO_DIR.glob("*.wav"):
-                if now - f.stat().st_mtime > CLEANUP_AGE_SECONDS:
-                    try:
-                        f.unlink()
-                    except OSError:
-                        pass
-        except Exception:
+            f.unlink()
+        except OSError:
             pass
-        time.sleep(CLEANUP_INTERVAL_SECONDS)
-
-
-threading.Thread(target=_cleanup_loop, daemon=True).start()
 
 
 @app.route("/")
@@ -100,6 +89,8 @@ def generate():
     except Exception:
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
+
+    _prune_old_audio()
 
     return jsonify({
         "normalized_text": normalized,
