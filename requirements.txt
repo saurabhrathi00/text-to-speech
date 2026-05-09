@@ -5,3 +5,4 @@ transformers
 parler-tts
 soundfile
 requests
+faster-whisper

@@ -24,6 +24,7 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from normalizer import normalize_text, OllamaError
 from tts_engine import synthesize, build_description, load_model
+from aligner import align as align_words, load_aligner
 
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
@@ -100,11 +101,13 @@ def tts():
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
+    words = align_words(str(out_path))
     _prune_old_audio()
 
     return jsonify({
         "audio_url": f"/audio/{filename}",
         "description_used": description,
+        "words": words,
     })
 
 
@@ -135,12 +138,14 @@ def generate():
         traceback.print_exc()
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
+    words = align_words(str(out_path))
     _prune_old_audio()
 
     return jsonify({
         "normalized_text": normalized,
         "audio_url": f"/audio/{filename}",
         "description_used": description,
+        "words": words,
     })
 
 
@@ -150,13 +155,19 @@ def serve_audio(filename):
 
 
 def _warmup_in_background():
-    print("[startup] TTS model warmup starting in background...")
+    print("[startup] TTS + aligner warmup starting in background...")
     t0 = time.time()
     try:
         load_model()
-        print(f"[startup] TTS model ready in {time.time() - t0:.1f}s")
+        print(f"[startup] TTS ready in {time.time() - t0:.1f}s")
     except Exception as e:
         print(f"[startup] TTS warmup failed: {e} (will retry on first request)")
+    t1 = time.time()
+    try:
+        load_aligner()
+        print(f"[startup] aligner ready in {time.time() - t1:.1f}s")
+    except Exception as e:
+        print(f"[startup] aligner warmup failed: {e}")
 
 
 @app.route("/health")

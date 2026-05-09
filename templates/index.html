@@ -87,6 +87,8 @@
       <textarea id="normalizedEdit" rows="4" class="normalized-edit"></textarea>
       <button id="regenBtn" class="secondary">🔁 Is text se dobara banao</button>
 
+      <div id="karaoke" class="karaoke hidden"></div>
+
       <div class="player-row">
         <audio id="audioPlayer" controls></audio>
         <a id="downloadBtn" class="primary download" download>📥 Download .wav</a>
@@ -112,6 +114,57 @@
     const normalizedEdit = document.getElementById('normalizedEdit');
     const audio = document.getElementById('audioPlayer');
     const downloadBtn = document.getElementById('downloadBtn');
+    const karaoke = document.getElementById('karaoke');
+
+    let currentWords = [];
+    let activeIdx = -1;
+
+    function renderKaraoke(words) {
+      currentWords = words || [];
+      karaoke.innerHTML = '';
+      activeIdx = -1;
+      if (!currentWords.length) {
+        karaoke.classList.add('hidden');
+        return;
+      }
+      currentWords.forEach((w, i) => {
+        const span = document.createElement('span');
+        span.className = 'kw';
+        span.textContent = w.word;
+        span.dataset.i = i;
+        span.addEventListener('click', () => {
+          audio.currentTime = w.start;
+          audio.play();
+        });
+        karaoke.appendChild(span);
+        karaoke.appendChild(document.createTextNode(' '));
+      });
+      karaoke.classList.remove('hidden');
+    }
+
+    audio.addEventListener('timeupdate', () => {
+      if (!currentWords.length) return;
+      const t = audio.currentTime;
+      let idx = -1;
+      for (let i = 0; i < currentWords.length; i++) {
+        if (t >= currentWords[i].start && t < currentWords[i].end) { idx = i; break; }
+        if (t < currentWords[i].start) { idx = Math.max(0, i - 1); break; }
+        if (i === currentWords.length - 1 && t >= currentWords[i].end) idx = i;
+      }
+      if (idx === activeIdx) return;
+      if (activeIdx >= 0) karaoke.children[activeIdx]?.classList.remove('active');
+      activeIdx = idx;
+      if (activeIdx >= 0) {
+        const el = karaoke.children[activeIdx];
+        el?.classList.add('active');
+        el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+
+    audio.addEventListener('ended', () => {
+      if (activeIdx >= 0) karaoke.children[activeIdx]?.classList.remove('active');
+      activeIdx = -1;
+    });
 
     function getVoice() {
       return {
@@ -155,6 +208,7 @@
         normalizedEdit.value = data.normalized_text;
         audio.src = data.audio_url;
         downloadBtn.href = data.audio_url;
+        renderKaraoke(data.words);
         result.classList.remove('hidden');
       } catch (e) {
         showError('Server se connect nahi ho paya');
@@ -180,6 +234,7 @@
         if (!res.ok) { showError(data.error || 'Kuch galat ho gaya'); return; }
         audio.src = data.audio_url;
         downloadBtn.href = data.audio_url;
+        renderKaraoke(data.words);
       } catch (e) {
         showError('Server se connect nahi ho paya');
       } finally {
