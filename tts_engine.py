@@ -194,6 +194,10 @@ def synthesize(text: str, out_path: str, description: str | None = None) -> str:
         return out_path
     sr = _model.config.sampling_rate
 
+    print(f"[tts] split into {len(chunks)} chunk(s):")
+    for i, c in enumerate(chunks, 1):
+        print(f"  [{i}/{len(chunks)}] ({len(c)} chars) {c}")
+
     # Tokenize description once and reuse across all chunks of this request.
     desc_inputs = _tokenize_description(description)
 

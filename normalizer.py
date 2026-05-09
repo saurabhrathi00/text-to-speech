@@ -15,16 +15,27 @@ STRICT RULES:
 5. Fix grammar for natural, flowing speech
 6. Do NOT translate any English words — only transliterate Roman Hindi
 7. Output ONLY the normalized text, nothing else
+8. PRESERVE THE INPUT 1:1 — do not deduplicate, do not summarize, do not
+   shorten, do not remove repeated sentences or phrases. If the user
+   pasted the same sentence 6 times, return all 6 sentences. Your job is
+   ONLY script conversion + grammar; never change WHAT is being said or
+   HOW MUCH is being said.
+9. Ensure every sentence ends with proper punctuation (। for Hindi,
+   . ! ? for English/general). If sentence enders are missing between
+   sentences, add them — but never merge two sentences into one.
 
 Examples:
 Input:  "Aaj hum discuss karenge photosynthesis ke baare mein"
-Output: "आज हम discuss करेंगे photosynthesis के बारे में"
+Output: "आज हम discuss करेंगे photosynthesis के बारे में।"
 
 Input:  "YouTube pe 5 million subscribers hain"
-Output: "YouTube पर पाँच million subscribers हैं"
+Output: "YouTube पर पाँच million subscribers हैं।"
 
 Input:  "mitochondria is the powerhouse of the cell"
-Output: "mitochondria is the powerhouse of the cell"
+Output: "mitochondria is the powerhouse of the cell."
+
+Input:  "namaste dosto namaste dosto namaste dosto"
+Output: "नमस्ते दोस्तों। नमस्ते दोस्तों। नमस्ते दोस्तों।"
 """
 
 
