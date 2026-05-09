@@ -6,7 +6,12 @@ from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
 MODEL_ID = "ai4bharat/indic-parler-tts"
-MAX_CHARS_PER_CHUNK = 900
+MAX_CHARS_PER_CHUNK = 400
+# Parler-TTS audio frame rate ~ 86 tokens / sec.
+# Roughly 7 audio tokens per Hindi/English character (with margin).
+TOKENS_PER_CHAR = 8
+MIN_NEW_TOKENS = 256
+MAX_NEW_TOKENS_CAP = 4096
 
 SPEAKERS = {
     "rohit": "deep, mature male",
@@ -109,6 +114,9 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
     desc = description or VOICE_DESCRIPTION
     desc_inputs = _desc_tokenizer(desc, return_tensors="pt").to(_device)
     prompt_inputs = _tokenizer(prompt, return_tensors="pt").to(_device)
+
+    budget = max(MIN_NEW_TOKENS, min(MAX_NEW_TOKENS_CAP, len(prompt) * TOKENS_PER_CHAR))
+
     with torch.inference_mode():
         audio = _model.generate(
             input_ids=desc_inputs.input_ids,
@@ -117,6 +125,8 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
             prompt_attention_mask=prompt_inputs.attention_mask,
             do_sample=True,
             temperature=1.0,
+            max_new_tokens=budget,
+            repetition_penalty=1.2,
         )
     return audio.cpu().to(torch.float32).numpy().squeeze()
 
