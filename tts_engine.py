@@ -8,16 +8,17 @@ from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
 MODEL_ID = "ai4bharat/indic-parler-tts"
-# Soft cap on combined chunk size. Multiple short sentences may be merged
-# up to this limit. A single sentence longer than this becomes its own
-# chunk and is NEVER split mid-sentence.
-MAX_CHARS_PER_CHUNK = 250
+# Strategy: one sentence per chunk. No merging, no splitting mid-sentence.
+# Each chunk goes through Parler-TTS independently and gets its own
+# whisper-based trim, then chunks are joined with a small pause.
 # Per-chunk token budget for max_new_tokens. Sized generously so a single
-# long sentence has room to complete without hitting the model's default
+# long sentence has room to complete without hitting Parler's default
 # ~2580 token cap (which causes garbled output).
 TOKENS_PER_CHAR = 8
 MIN_NEW_TOKENS = 256
 MAX_NEW_TOKENS_CAP = 5000
+# Pause inserted between consecutive sentence-chunks when joining audio.
+INTER_CHUNK_SILENCE_SEC = 0.18
 
 SPEAKERS = {
     "rohit": "deep, mature male",
@@ -92,37 +93,15 @@ def load_model():
 
 
 def _split_text(text: str) -> list[str]:
-    """Break text into chunks along sentence boundaries.
-
-    Rules:
-    - Each chunk is one or more complete sentences.
-    - A sentence is NEVER split across chunks, even if it exceeds
-      MAX_CHARS_PER_CHUNK on its own (it becomes its own oversized chunk).
-    - Multiple short sentences are merged into the same chunk only while
-      the running total stays within MAX_CHARS_PER_CHUNK.
+    """One sentence per chunk. Sentences are detected by terminal
+    punctuation (। . ! ?). Sentences are never merged together and never
+    split internally.
     """
     text = text.strip()
     if not text:
         return []
-
-    sentences = [s for s in re.split(r"(?<=[।.!?])\s+", text) if s]
-    if not sentences:
-        return [text]
-
-    chunks: list[str] = []
-    cur = ""
-    for s in sentences:
-        if not cur:
-            cur = s
-            continue
-        if len(cur) + 1 + len(s) <= MAX_CHARS_PER_CHUNK:
-            cur = cur + " " + s
-        else:
-            chunks.append(cur)
-            cur = s
-    if cur:
-        chunks.append(cur)
-    return chunks
+    sentences = [s.strip() for s in re.split(r"(?<=[।.!?])\s+", text) if s.strip()]
+    return sentences or [text]
 
 
 def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
@@ -191,7 +170,7 @@ def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     if len(audio_parts) == 1:
         final = audio_parts[0]
     else:
-        silence = np.zeros(int(sr * 0.25), dtype=np.float32)
+        silence = np.zeros(int(sr * INTER_CHUNK_SILENCE_SEC), dtype=np.float32)
         joined = []
         for i, a in enumerate(audio_parts):
             if i:
