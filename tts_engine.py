@@ -12,11 +12,6 @@ TOKENS_PER_CHAR = 10
 MIN_NEW_TOKENS = 256
 MAX_NEW_TOKENS_CAP = 4096
 
-# Trailing silence trim params
-TRIM_FRAME_MS = 30
-TRIM_SILENCE_THRESHOLD = 0.008  # RMS below this is "silence"
-TRIM_TAIL_PAD_MS = 200          # keep this much padding after last speech
-
 SPEAKERS = {
     "rohit": "deep, mature male",
     "aman": "energetic young male",
@@ -114,35 +109,6 @@ def _split_text(text: str) -> list[str]:
     return chunks
 
 
-def _trim_trailing(audio: np.ndarray, sr: int) -> np.ndarray:
-    """Remove only trailing silence from the very end of generated audio.
-
-    Walks frames from the end backwards, finds the last frame whose RMS
-    exceeds the silence threshold, and cuts after that + a small pad.
-    Does not touch any interior silence (sentence/comma pauses).
-    """
-    if audio.size == 0:
-        return audio
-
-    frame = max(1, int(sr * TRIM_FRAME_MS / 1000))
-    pad_samples = int(sr * TRIM_TAIL_PAD_MS / 1000)
-
-    n_frames = audio.size // frame
-    if n_frames == 0:
-        return audio
-    trimmed_len = n_frames * frame
-    rms = np.sqrt(np.mean(
-        audio[:trimmed_len].reshape(n_frames, frame).astype(np.float32) ** 2,
-        axis=1,
-    ))
-    speech_idx = np.where(rms > TRIM_SILENCE_THRESHOLD)[0]
-    if speech_idx.size == 0:
-        return audio
-    last_speech = int(speech_idx[-1])
-    end_sample = min(audio.size, (last_speech + 1) * frame + pad_samples)
-    return audio[:end_sample]
-
-
 def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
     desc = description or VOICE_DESCRIPTION
     desc_inputs = _desc_tokenizer(desc, return_tensors="pt").to(_device)
@@ -161,9 +127,7 @@ def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
             max_new_tokens=budget,
             repetition_penalty=2.0,
         )
-    arr = audio.cpu().to(torch.float32).numpy().squeeze()
-    sr = _model.config.sampling_rate
-    return _trim_trailing(arr, sr)
+    return audio.cpu().to(torch.float32).numpy().squeeze()
 
 
 def synthesize(text: str, out_path: str, description: str | None = None) -> str:
