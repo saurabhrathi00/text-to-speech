@@ -53,28 +53,45 @@ class OllamaError(Exception):
     pass
 
 
-# If Qwen's output preserves at least this fraction of input Devanagari
-# words, we accept it. Below this, we assume Qwen rewrote too much and
-# fall back to the input. Tuned to allow small per-word fixes (nukta,
-# typo correction) while catching wholesale substitutions or drops.
-DEVANAGARI_PRESERVE_THRESHOLD = 0.85
-
-
 def _devanagari_words(text: str) -> list[str]:
     return re.findall(r"[ऀ-ॿ]+", text)
+
+
+def _letter_skeleton(word: str) -> str:
+    """Extract the letter skeleton of a Devanagari word — independent
+    vowels and consonants only, dropping matras, nukta, and anusvara/
+    chandrabindu.
+
+    The skeleton is the part of a word that cannot legitimately change
+    during pronunciation-based formatting. Adding a nukta, swapping
+    matras, or moving an anusvara are allowed; changing the consonant
+    sequence is not.
+
+    Letters: U+0904–U+0939 (अ–ह) + U+0958–U+0961 (extended consonants).
+    """
+    return "".join(
+        c for c in word
+        if "ऄ" <= c <= "ह" or "क़" <= c <= "ॡ"
+    )
 
 
 def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     in_words = _devanagari_words(input_text)
     if not in_words:
         return True
-    out_set = set(_devanagari_words(output_text))
-    preserved = sum(1 for w in in_words if w in out_set)
-    ratio = preserved / len(in_words)
-    if ratio < DEVANAGARI_PRESERVE_THRESHOLD:
-        missing = [w for w in in_words if w not in out_set][:8]
-        print(f"[normalizer] only {preserved}/{len(in_words)} ({ratio:.0%}) "
-              f"Devanagari words preserved — examples missing: {missing}")
+    out_skels: dict[str, list[str]] = {}
+    for w in _devanagari_words(output_text):
+        out_skels.setdefault(_letter_skeleton(w), []).append(w)
+
+    substituted: list[str] = []
+    for w in in_words:
+        skel = _letter_skeleton(w)
+        if skel in out_skels:
+            continue
+        substituted.append(w)
+
+    if substituted:
+        print(f"[normalizer] Qwen changed letter skeleton of {len(substituted)} word(s): {substituted[:5]}")
         return False
     return True
 
