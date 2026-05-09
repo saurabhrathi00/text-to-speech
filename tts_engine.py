@@ -93,6 +93,16 @@ def load_model():
     _desc_tokenizer = AutoTokenizer.from_pretrained(desc_id)
     print(f"[tts] loaded on {_device} dtype={dtype}")
 
+    # torch.compile speeds up subsequent generations ~1.2x on CUDA after a
+    # one-time compilation cost on the first call. Disabled on CPU since
+    # the gain is small and the overhead is large.
+    if _device.startswith("cuda") and os.getenv("TTS_NO_COMPILE") != "1":
+        try:
+            _model.forward = torch.compile(_model.forward, mode="reduce-overhead", fullgraph=False)
+            print("[tts] torch.compile applied (first request will be slower)")
+        except Exception as e:
+            print(f"[tts] torch.compile skipped: {e}")
+
 
 def _split_text(text: str) -> list[str]:
     """One sentence per chunk. Sentences are detected by terminal
@@ -106,9 +116,14 @@ def _split_text(text: str) -> list[str]:
     return sentences or [text]
 
 
-def _generate_chunk(prompt: str, description: str | None = None) -> np.ndarray:
+def _tokenize_description(description: str | None):
     desc = description or VOICE_DESCRIPTION
-    desc_inputs = _desc_tokenizer(desc, return_tensors="pt").to(_device)
+    return _desc_tokenizer(desc, return_tensors="pt").to(_device)
+
+
+def _generate_chunk(prompt: str, desc_inputs=None, description: str | None = None) -> np.ndarray:
+    if desc_inputs is None:
+        desc_inputs = _tokenize_description(description)
     prompt_inputs = _tokenizer(prompt, return_tensors="pt").to(_device)
 
     budget = max(MIN_NEW_TOKENS, min(MAX_NEW_TOKENS_CAP, len(prompt) * TOKENS_PER_CHAR))
@@ -150,28 +165,15 @@ def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray
             pass
 
 
-def _generate_all_chunks(chunks: list[str], description: str | None) -> list[np.ndarray]:
-    """Sequentially generate raw audio for each chunk via Parler.
-    Parler's generate() is not safe to call concurrently on the same model,
-    so we keep it sequential and let trimming happen in a background thread.
-    """
-    raws: list[np.ndarray] = []
-    try:
-        for c in chunks:
-            raws.append(_generate_chunk(c, description))
-    except torch.cuda.OutOfMemoryError:
-        torch.cuda.empty_cache()
-        _move_to_cpu()
-        raws = [_generate_chunk(c, description) for c in chunks]
-    return raws
-
-
 def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     load_model()
     chunks = _split_text(text)
     if not chunks:
         return out_path
     sr = _model.config.sampling_rate
+
+    # Tokenize description once and reuse across all chunks of this request.
+    desc_inputs = _tokenize_description(description)
 
     n = len(chunks)
     audio_parts: list[np.ndarray | None] = [None] * n
@@ -199,14 +201,15 @@ def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     # Producer: generate Parler chunks sequentially, queue each for trim
     try:
         for i, c in enumerate(chunks):
-            raw = _generate_chunk(c, description)
+            raw = _generate_chunk(c, desc_inputs=desc_inputs)
             work_q.put((i, raw, c))
     except torch.cuda.OutOfMemoryError:
         torch.cuda.empty_cache()
         _move_to_cpu()
+        desc_inputs = _tokenize_description(description)  # re-tokenize on new device
         for i, c in enumerate(chunks):
             if audio_parts[i] is None and not any(idx == i for idx, *_ in list(work_q.queue)):
-                raw = _generate_chunk(c, description)
+                raw = _generate_chunk(c, desc_inputs=desc_inputs)
                 work_q.put((i, raw, c))
 
     work_q.put(None)

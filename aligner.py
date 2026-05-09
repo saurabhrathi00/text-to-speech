@@ -3,7 +3,7 @@ import torch
 import soundfile as sf
 from faster_whisper import WhisperModel
 
-MODEL_SIZE = os.getenv("WHISPER_MODEL", "small")
+MODEL_SIZE = os.getenv("WHISPER_MODEL", "tiny")
 
 _model = None
 _device = None
