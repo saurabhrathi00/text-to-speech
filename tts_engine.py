@@ -1,6 +1,8 @@
 import os
 import re
+import queue
 import tempfile
+import threading
 import numpy as np
 import torch
 import soundfile as sf
@@ -148,31 +150,82 @@ def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray
             pass
 
 
-def synthesize(text: str, out_path: str, description: str | None = None) -> str:
-    global _device
-    load_model()
-
-    chunks = _split_text(text)
-    audio_parts = []
-    sr = _model.config.sampling_rate
+def _generate_all_chunks(chunks: list[str], description: str | None) -> list[np.ndarray]:
+    """Sequentially generate raw audio for each chunk via Parler.
+    Parler's generate() is not safe to call concurrently on the same model,
+    so we keep it sequential and let trimming happen in a background thread.
+    """
+    raws: list[np.ndarray] = []
     try:
         for c in chunks:
-            raw = _generate_chunk(c, description)
-            audio_parts.append(_trim_chunk_audio(raw, sr, c))
+            raws.append(_generate_chunk(c, description))
     except torch.cuda.OutOfMemoryError:
         torch.cuda.empty_cache()
         _move_to_cpu()
-        audio_parts = []
-        for c in chunks:
-            raw = _generate_chunk(c, description)
-            audio_parts.append(_trim_chunk_audio(raw, sr, c))
+        raws = [_generate_chunk(c, description) for c in chunks]
+    return raws
 
-    if len(audio_parts) == 1:
-        final = audio_parts[0]
+
+def synthesize(text: str, out_path: str, description: str | None = None) -> str:
+    load_model()
+    chunks = _split_text(text)
+    if not chunks:
+        return out_path
+    sr = _model.config.sampling_rate
+
+    n = len(chunks)
+    audio_parts: list[np.ndarray | None] = [None] * n
+    work_q: queue.Queue = queue.Queue()
+    error_box: list[BaseException] = []
+
+    def worker():
+        while True:
+            item = work_q.get()
+            if item is None:
+                work_q.task_done()
+                return
+            idx, raw, ctext = item
+            try:
+                audio_parts[idx] = _trim_chunk_audio(raw, sr, ctext)
+            except BaseException as e:
+                error_box.append(e)
+                audio_parts[idx] = raw
+            finally:
+                work_q.task_done()
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+    # Producer: generate Parler chunks sequentially, queue each for trim
+    try:
+        for i, c in enumerate(chunks):
+            raw = _generate_chunk(c, description)
+            work_q.put((i, raw, c))
+    except torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        _move_to_cpu()
+        for i, c in enumerate(chunks):
+            if audio_parts[i] is None and not any(idx == i for idx, *_ in list(work_q.queue)):
+                raw = _generate_chunk(c, description)
+                work_q.put((i, raw, c))
+
+    work_q.put(None)
+    work_q.join()
+    t.join()
+
+    if error_box:
+        print(f"[tts] worker errors: {error_box[0]} (and {len(error_box) - 1} more)")
+
+    parts = [a for a in audio_parts if a is not None and a.size > 0]
+    if not parts:
+        raise RuntimeError("no audio chunks produced")
+
+    if len(parts) == 1:
+        final = parts[0]
     else:
         silence = np.zeros(int(sr * INTER_CHUNK_SILENCE_SEC), dtype=np.float32)
         joined = []
-        for i, a in enumerate(audio_parts):
+        for i, a in enumerate(parts):
             if i:
                 joined.append(silence)
             joined.append(a)
