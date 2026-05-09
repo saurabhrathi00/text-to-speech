@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.10:11434/api/chat")
@@ -52,9 +53,15 @@ WHAT YOU MUST NEVER DO:
    or anything that wasn't in the input. No "शिक्षा:", "moral:",
    "in conclusion", "to summarize", etc. unless the user wrote it.
 2. NEVER remove sentences, words, or phrases — even if repeated.
-3. NEVER change a word's spelling, even if it looks like a typo.
-   "रातोदिन" stays "रातोदिन". "कोशश" stays "कोशश". Spelling fixes are
-   NOT your job.
+3. NEVER change a word's spelling, even if it looks like a typo or has
+   broken/invalid Unicode (like double matras). The user's spelling is
+   FINAL. Examples that MUST pass through unchanged:
+   - "रातोदिन" → "रातोदिन" (do NOT make it "रात-दिन")
+   - "कोशश" → "कोशश" (do NOT fix to "कोशिश")
+   - "शाीशे" → "शाीशे" (do NOT "fix" to "शीशे" or "शामे" or anything
+     else — even if the Unicode is invalid, leave the bytes alone)
+   If a word looks wrong, you ALWAYS leave it alone. Spelling fixes are
+   NOT your job. The narrator will pronounce whatever you output.
 4. NEVER add hyphens between repeated words. "छोटे छोटे" stays
    "छोटे छोटे" — do NOT make it "छोटे-छोटे".
 5. NEVER paraphrase, simplify, or reword. Word order is sacred.
@@ -102,6 +109,24 @@ class OllamaError(Exception):
     pass
 
 
+def _devanagari_words(text: str) -> set[str]:
+    """Extract the set of Devanagari-only words from text."""
+    return set(re.findall(r"[ऀ-ॿ]+", text))
+
+
+def _verify_no_devanagari_loss(input_text: str, output_text: str) -> bool:
+    """Check that every Devanagari word in input also appears in output.
+    Returns True if the output preserves all Devanagari words.
+    """
+    in_words = _devanagari_words(input_text)
+    out_words = _devanagari_words(output_text)
+    missing = in_words - out_words
+    if missing:
+        print(f"[normalizer] Qwen dropped/changed Devanagari words: {missing}")
+        return False
+    return True
+
+
 def normalize_text(text: str, timeout: int = 120) -> str:
     payload = {
         "model": MODEL_NAME,
@@ -122,4 +147,13 @@ def normalize_text(text: str, timeout: int = 120) -> str:
     content = data.get("message", {}).get("content", "").strip()
     if not content:
         raise OllamaError("Empty response from Qwen")
+
+    # Safety net: if Qwen modified or dropped any Devanagari word that was
+    # in the original input, fall back to the input text. We trust Qwen on
+    # script conversion (Roman → Devanagari) and on punctuation, but not
+    # on rewriting Devanagari words.
+    if not _verify_no_devanagari_loss(text, content):
+        print("[normalizer] falling back to original input (no Qwen edits applied)")
+        return text
+
     return content
