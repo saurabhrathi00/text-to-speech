@@ -113,8 +113,9 @@ def normalize():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "Pehle kuch type karein"}), 400
+    provider = _resolve_provider(data.get("provider"))
     try:
-        normalized = normalize_text(text)
+        normalized = normalize_text(text, target_provider=provider)
     except OllamaError:
         return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
     return jsonify({"normalized_text": normalized})
@@ -167,7 +168,7 @@ def generate():
         normalized = text
     else:
         try:
-            normalized = normalize_text(text)
+            normalized = normalize_text(text, target_provider=provider)
         except OllamaError:
             return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
 

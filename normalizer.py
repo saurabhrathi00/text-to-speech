@@ -4,6 +4,7 @@ import requests
 
 from config import (
     QWEN_SYSTEM_PROMPT as SYSTEM_PROMPT,
+    QWEN_ELEVENLABS_EMOTION_ADDENDUM,
     QWEN_TIMEOUT_SECONDS,
     QWEN_TEMPERATURE,
 )
@@ -58,11 +59,20 @@ def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     return True
 
 
-def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS) -> str:
+def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
+                    target_provider: str = "parler") -> str:
+    """Normalize text for TTS. If target_provider is 'elevenlabs', also
+    ask Qwen to insert inline emotion tags ([cry], [whispers], etc.)
+    at strong emotional moments — those tags are direction for v3 voice
+    and won't be spoken literally."""
+    system_prompt = SYSTEM_PROMPT
+    if target_provider.lower() == "elevenlabs":
+        system_prompt = SYSTEM_PROMPT + QWEN_ELEVENLABS_EMOTION_ADDENDUM
+
     payload = {
         "model": MODEL_NAME,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
         ],
         "stream": False,

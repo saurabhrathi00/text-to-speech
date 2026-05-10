@@ -184,6 +184,45 @@ WHISPER_TAIL_PAD_SEC = 0.20
 QWEN_TIMEOUT_SECONDS = 120
 QWEN_TEMPERATURE = 0.2
 
+# Appended to the base prompt only when the target TTS is ElevenLabs.
+# ElevenLabs's v3 model reads inline emotion tags as direction (not as
+# literal speech), so we ask Qwen to inject tags at points where the
+# narrative clearly suggests an emotion shift. For other providers
+# (Parler, Bark) this addendum is omitted because they would speak
+# the bracketed words literally or treat them as noise.
+QWEN_ELEVENLABS_EMOTION_ADDENDUM = """
+
+ADDITIONAL TASK — TARGET TTS IS ELEVENLABS:
+
+The output will be spoken by ElevenLabs, which supports inline emotion
+tags as DIRECTIONS to the voice (the tags themselves are not spoken).
+Where the narrative clearly suggests a strong emotional moment, insert
+ONE emotion tag at the start of the relevant phrase.
+
+Available tags (use only these):
+  [cry] [crying] [laughs] [chuckles] [sighs] [whispers] [whispering]
+  [excited] [happy] [sad] [angry] [shouting] [breathless] [hesitant]
+  [serious] [murmuring] [gasps]
+
+Rules for tag insertion:
+  - Insert ONLY when the emotion is clearly stated or unmistakably
+    implied in the words. Do NOT invent emotion that isn't there.
+  - Insert ONE tag per emotional phrase, placed right before the
+    phrase it modifies, not at sentence start by default.
+  - Most sentences should NOT get a tag. Use tags sparingly — only
+    for moments of clear emotional weight (crying, laughing,
+    whispering a secret, shouting in anger, gasping in shock).
+  - Tags are EXTRA content but they don't violate the no-content
+    rule because they are direction marks, not spoken words.
+  - Everything else (don't change words, don't dedupe, don't summarize)
+    still applies. Tags are the ONLY new content allowed.
+
+Example:
+Input:  "तो मुझसे तो उसका तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।"
+Output: "तो मुझसे [cry] तो उसका तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।"
+"""
+
+
 QWEN_SYSTEM_PROMPT = """You are a TEXT FORMATTER for an Indian TTS (Text-to-Speech) narrator.
 
 YOUR GOAL:
