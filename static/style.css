@@ -160,40 +160,6 @@ button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .normalized-edit:focus { outline: 2px solid #818cf8; }
 
-.emotion-row {
-  margin-top: 14px;
-}
-.emotion-label {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #c7d2fe;
-  margin-bottom: 8px;
-}
-.emotion-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.emo-btn {
-  padding: 6px 12px;
-  font-size: 0.9rem;
-  background: rgba(255,255,255,0.05);
-  color: #e0e7ff;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: inherit;
-}
-.emo-btn:hover { background: rgba(255,255,255,0.10); }
-.emo-btn.active {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  border-color: transparent;
-  color: white;
-  font-weight: 600;
-}
-
 .checkbox-row {
   display: flex;
   align-items: center;
