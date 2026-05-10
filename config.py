@@ -181,7 +181,7 @@ WHISPER_TAIL_PAD_SEC = 0.20
 # Qwen normalizer
 # ──────────────────────────────────────────────────────────────────────
 
-QWEN_TIMEOUT_SECONDS = 120
+QWEN_TIMEOUT_SECONDS = 300
 QWEN_TEMPERATURE = 0.2
 
 # Appended to the base prompt only when the target TTS is ElevenLabs.

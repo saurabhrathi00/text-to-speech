@@ -152,7 +152,13 @@ def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
 
 
 def _qwen_call(system_prompt: str, user_text: str, timeout: int,
-               temperature: float | None = None) -> str:
+               temperature: float | None = None,
+               keep_alive: int | str = 0) -> str:
+    """Single chat completion call against Ollama.
+    keep_alive=0 unloads model from GPU after response (frees VRAM for
+    Parler/Bark). Pass a duration like "30s" if a follow-up Qwen call
+    is coming so we don't pay the reload cost twice.
+    """
     payload = {
         "model": MODEL_NAME,
         "messages": [
@@ -161,10 +167,7 @@ def _qwen_call(system_prompt: str, user_text: str, timeout: int,
         ],
         "stream": False,
         "options": {"temperature": QWEN_TEMPERATURE if temperature is None else temperature},
-        # Unload the model from GPU after responding so Parler+Whisper
-        # have room. Otherwise qwen3:14b ~9GB + Parler ~3GB exceeds
-        # the RTX 3060's 12GB and Parler hangs.
-        "keep_alive": 0,
+        "keep_alive": keep_alive,
     }
     try:
         r = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
@@ -189,8 +192,12 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
                 supported tags are kept; Parler skips entirely since it
                 speaks bracketed text literally.
     """
-    # Pass 1: Qwen normalize
-    content = _qwen_call(SYSTEM_PROMPT, text, timeout)
+    will_classify = add_emotion_tags and target_provider.lower() in ("elevenlabs", "bark")
+
+    # Pass 1: Qwen normalize. Keep model loaded if a classify call
+    # follows so we don't pay the reload cost twice.
+    content = _qwen_call(SYSTEM_PROMPT, text, timeout,
+                          keep_alive="30s" if will_classify else 0)
     if not _verify_devanagari_preserved(text, content):
         print("[normalizer] pass-1 substitution detected — falling back to original input")
         content = text
