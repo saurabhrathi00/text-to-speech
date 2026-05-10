@@ -76,19 +76,20 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     voice_id = voice_config.get("voice_id") or DEFAULT_VOICE_ID
     model_id = voice_config.get("model_id") or DEFAULT_MODEL
 
-    # Map our generic emotion → ElevenLabs style slider (0..1).
-    # Higher = more expressive/emotional. Lower = neutral.
+    # Map emotion → ElevenLabs voice settings. Lower stability + higher
+    # style produces more expressive output. The defaults (stability=0.5)
+    # were too anchored to neutral; tuned per emotion below.
     emotion = (voice_config.get("emotion") or "none").lower()
-    style = {
-        "none": 0.0,
-        "happy": 0.6,
-        "sad": 0.5,
-        "excited": 0.8,
-        "angry": 0.7,
-        "fearful": 0.5,
-        "whisper": 0.3,
-        "serious": 0.2,
-    }.get(emotion, 0.0)
+    settings = {
+        "none":     {"stability": 0.50, "style": 0.00},
+        "happy":    {"stability": 0.30, "style": 0.75},
+        "sad":      {"stability": 0.35, "style": 0.65},
+        "excited":  {"stability": 0.20, "style": 0.95},
+        "angry":    {"stability": 0.20, "style": 0.85},
+        "fearful":  {"stability": 0.30, "style": 0.65},
+        "whisper":  {"stability": 0.45, "style": 0.30},
+        "serious":  {"stability": 0.65, "style": 0.20},
+    }.get(emotion, {"stability": 0.50, "style": 0.00})
 
     url = f"{API_BASE}/text-to-speech/{voice_id}"
     headers = {
@@ -100,9 +101,9 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
         "text": text,
         "model_id": model_id,
         "voice_settings": {
-            "stability": voice_config.get("stability", 0.5),
+            "stability": voice_config.get("stability", settings["stability"]),
             "similarity_boost": voice_config.get("similarity_boost", 0.75),
-            "style": style,
+            "style": voice_config.get("style", settings["style"]),
             "use_speaker_boost": True,
         },
     }
