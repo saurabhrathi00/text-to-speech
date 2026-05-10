@@ -1,5 +1,7 @@
 import os
 import re
+import time
+import traceback
 import numpy as np
 import torch
 import soundfile as sf
@@ -89,11 +91,9 @@ def _split_text(text: str) -> list[str]:
 
 
 def _generate_chunk(text: str, voice_preset: str) -> tuple[np.ndarray, int]:
+    t0 = time.time()
     inputs = _processor(text=text, voice_preset=voice_preset, return_tensors="pt").to(_device)
 
-    # Bark's processor doesn't always include attention_mask, so transformers
-    # warns and falls back to inferring from pad_token_id. Provide it
-    # explicitly to silence the warning and ensure deterministic behavior.
     if "attention_mask" not in inputs:
         inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
 
@@ -107,15 +107,22 @@ def _generate_chunk(text: str, voice_preset: str) -> tuple[np.ndarray, int]:
         audio = _model.generate(**inputs, do_sample=True, pad_token_id=pad_id)
     sr = _model.generation_config.sample_rate
     arr = audio.cpu().to(torch.float32).numpy().squeeze()
+    dur = arr.size / sr if arr.size else 0
+    print(f"[bark] chunk {len(text):>4} chars → {dur:.1f}s audio in {time.time() - t0:.1f}s")
     return arr, sr
 
 
 def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> str:
     """Generate audio with Bark. Saves WAV to out_path. Returns path written."""
+    t_start = time.time()
+    print(f"[bark] synthesize entered → {len(text)} chars")
+    print("[bark] load_model...")
+    t_load = time.time()
     try:
         load_model()
     except Exception as e:
         raise BarkError(f"Bark model load failed: {e}") from e
+    print(f"[bark] load_model done in {time.time() - t_load:.1f}s on {_device}")
 
     voice_config = voice_config or {}
     voice_preset = voice_config.get("voice_id") or DEFAULT_VOICE
@@ -126,11 +133,20 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     if not chunks:
         chunks = [text]
 
+    print(f"[bark] split into {len(chunks)} chunk(s):")
+    for i, c in enumerate(chunks, 1):
+        print(f"  [{i}/{len(chunks)}] ({len(c)} chars) {c}")
+
     audio_parts: list[np.ndarray] = []
     sr = None
     for i, c in enumerate(chunks):
         prompt = f"{tag} {c}".strip() if i == 0 and tag else c
-        arr, sr = _generate_chunk(prompt, voice_preset)
+        try:
+            arr, sr = _generate_chunk(prompt, voice_preset)
+        except Exception as e:
+            print(f"[bark] chunk {i + 1}/{len(chunks)} FAILED: {e}")
+            traceback.print_exc()
+            raise BarkError(f"chunk {i + 1} generation failed: {e}") from e
         audio_parts.append(arr)
 
     if sr is None:
@@ -148,4 +164,5 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
         final = np.concatenate(joined)
 
     sf.write(out_path, final, sr)
+    print(f"[bark] done synthesize in {time.time() - t_start:.1f}s → {out_path}")
     return out_path
