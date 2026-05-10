@@ -190,6 +190,39 @@ QWEN_TEMPERATURE = 0.2
 # narrative clearly suggests an emotion shift. For other providers
 # (Parler, Bark) this addendum is omitted because they would speak
 # the bracketed words literally or treat them as noise.
+# Deterministic regex-based emotion tag injector. When the target is
+# ElevenLabs, after Qwen normalizes the text, we run these patterns over
+# the output and insert the matching tag right before each trigger.
+# Order matters — earlier entries win when multiple match the same span.
+# Each entry: (compile-able pattern, tag, optional comment)
+ELEVEN_EMOTION_TRIGGERS = [
+    (r"रोना|रो रही|रो रहा|आँसू|सिसकी|तड़पना|वेदना|दिल हिला देने वाली|दर्द से कराह|cry\b|sob|tears|weeping",
+     "[crying]"),
+    (r"हँसी|ठहाका|खिलखिला|हँसकर|हँसते हुए|laugh|chuckle|giggle",
+     "[laughs]"),
+    (r"फुसफुसा|धीरे से कहा|कान में कहा|चुपके से बोला|whisper|murmur",
+     "[whispers]"),
+    (r"चिल्लाया|चिल्लाई|गरजा|गरजी|ज़ोर से बोला|चीख पड़ा|चीख पड़ी|shouted|yelled",
+     "[shouting]"),
+    (r"उत्साह से|चहक उठा|खुशी से उछल|excited|thrilled",
+     "[excited]"),
+    (r"हाँफते हुए|हाँफते-हाँफते|साँस फूल|स्तब्ध रह|gasped|breathless",
+     "[gasps]"),
+    (r"गुस्से|क्रोधित|नाराज़ होकर|angrily|furious",
+     "[angry]"),
+    (r"दुखी|उदास|मायूस|गमगीन|बचेगी नहीं|बच पाएगी नहीं|sadly|sorrowfully",
+     "[sad]"),
+    (r"हिचकिचा|रुक-रुककर|अटक-अटककर|hesitant",
+     "[hesitant]"),
+    (r"आह भर|गहरी साँस|ठंडी आह|sighed",
+     "[sighs]"),
+    (r"मुस्कुराते हुए|खुशी से कहा|happy|joyful",
+     "[happy]"),
+    (r"गंभीर स्वर|संजीदगी से|solemnly",
+     "[serious]"),
+]
+
+
 QWEN_EMOTION_TAG_PROMPT = """YOU MUST insert ElevenLabs emotion tags into Hindi/Hinglish/English
 text. This is your ONLY job. Output without tags is FAILURE.
 

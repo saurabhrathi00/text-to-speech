@@ -4,10 +4,35 @@ import requests
 
 from config import (
     QWEN_SYSTEM_PROMPT as SYSTEM_PROMPT,
-    QWEN_EMOTION_TAG_PROMPT,
     QWEN_TIMEOUT_SECONDS,
     QWEN_TEMPERATURE,
+    ELEVEN_EMOTION_TRIGGERS,
 )
+
+_COMPILED_TRIGGERS = [(re.compile(p, re.IGNORECASE), tag) for p, tag in ELEVEN_EMOTION_TRIGGERS]
+
+
+def _inject_emotion_tags(text: str) -> str:
+    """Insert ElevenLabs emotion tags before any trigger phrase from
+    ELEVEN_EMOTION_TRIGGERS. Tags are only inserted at positions that
+    don't already have a tag immediately before them (so re-running is
+    idempotent).
+    """
+    inserted = 0
+    for pattern, tag in _COMPILED_TRIGGERS:
+        def _repl(m: re.Match) -> str:
+            nonlocal inserted
+            start = m.start()
+            preceding = text[max(0, start - len(tag) - 2):start]
+            if tag in preceding:
+                return m.group(0)
+            inserted += 1
+            return f"{tag} {m.group(0)}"
+
+        text = pattern.sub(_repl, text)
+    if inserted:
+        print(f"[normalizer] regex injected {inserted} emotion tag(s)")
+    return text
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.10:11434/api/chat")
 MODEL_NAME = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
@@ -88,15 +113,15 @@ def _qwen_call(system_prompt: str, user_text: str, timeout: int,
 
 def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
                     target_provider: str = "parler") -> str:
-    """Normalize text for TTS. Two-pass when target_provider is
-    'elevenlabs':
-      Pass 1 — script + punctuation cleanup (same as other providers)
-      Pass 2 — insert ElevenLabs emotion tags at vocal-emotion moments
+    """Normalize text for TTS:
+      Pass 1 — Qwen script + punctuation cleanup (all providers)
+      Pass 2 — Deterministic regex emotion-tag injection (ElevenLabs only)
 
-    Splitting into two focused calls works better than one large
-    combined prompt for a 14B local model.
+    The Qwen second-pass approach was unreliable on a 14B local model;
+    swapped out for a regex pass driven by ELEVEN_EMOTION_TRIGGERS in
+    config.py — predictable, fast, no LLM dependency.
     """
-    # Pass 1: normalize
+    # Pass 1: Qwen normalize
     content = _qwen_call(SYSTEM_PROMPT, text, timeout)
     if not _verify_devanagari_preserved(text, content):
         print("[normalizer] pass-1 substitution detected — falling back to original input")
@@ -105,23 +130,6 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
     if target_provider.lower() != "elevenlabs":
         return content
 
-    # Pass 2: emotion tags (ElevenLabs only)
-    print("[normalizer] pass-2: emotion-tag injection for ElevenLabs")
-    print(f"[normalizer] pass-2 INPUT  ({len(content)} chars): {content[:200]}{'...' if len(content) > 200 else ''}")
-    try:
-        tagged = _qwen_call(QWEN_EMOTION_TAG_PROMPT, content, timeout, temperature=0.4)
-    except OllamaError as e:
-        print(f"[normalizer] pass-2 FAILED: {e} — using untagged text")
-        return content
-
-    tag_count = tagged.count("[")
-    print(f"[normalizer] pass-2 OUTPUT ({len(tagged)} chars, {tag_count} tag(s)): {tagged[:200]}{'...' if len(tagged) > 200 else ''}")
-
-    if not _verify_devanagari_preserved(content, tagged):
-        print("[normalizer] pass-2 substitution detected — using untagged text")
-        return content
-
-    if tag_count == 0:
-        print("[normalizer] pass-2 produced 0 tags — model didn't follow instructions")
-
+    # Pass 2: regex-based emotion tag injection
+    tagged = _inject_emotion_tags(content)
     return tagged
