@@ -134,13 +134,20 @@ def _generate_chunk(prompt: str, desc_inputs=None, description: str | None = Non
 
     budget = max(MIN_NEW_TOKENS, min(MAX_NEW_TOKENS_CAP, len(prompt) * TOKENS_PER_CHAR))
 
+    desc_mask = getattr(desc_inputs, "attention_mask", None)
+    if desc_mask is None:
+        desc_mask = torch.ones_like(desc_inputs.input_ids)
+    prompt_mask = getattr(prompt_inputs, "attention_mask", None)
+    if prompt_mask is None:
+        prompt_mask = torch.ones_like(prompt_inputs.input_ids)
+
     t0 = time.time()
     with torch.inference_mode():
         audio = _model.generate(
             input_ids=desc_inputs.input_ids,
-            attention_mask=desc_inputs.attention_mask,
+            attention_mask=desc_mask,
             prompt_input_ids=prompt_inputs.input_ids,
-            prompt_attention_mask=prompt_inputs.attention_mask,
+            prompt_attention_mask=prompt_mask,
             do_sample=True,
             temperature=1.0,
             max_new_tokens=budget,
