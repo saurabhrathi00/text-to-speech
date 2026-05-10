@@ -69,9 +69,9 @@
         </div>
       </details>
 
-      <label class="checkbox-row">
+      <label class="checkbox-row tag-toggle-row">
         <input type="checkbox" id="emotionTags" />
-        <span>🎭 Emotion tags add karo — Qwen classify karega aur tags lagayega (ElevenLabs / Bark)</span>
+        <span>🎭 Emotion tags add karo — Qwen classify karega aur tags lagayega</span>
       </label>
 
       <label class="checkbox-row">
@@ -141,6 +141,12 @@
         document.querySelectorAll('.parler-only').forEach(el => {
           el.style.display = (provider === 'parler') ? '' : 'none';
         });
+        // Emotion tags toggle: visible only when provider supports inline tags
+        const supportsTags = (provider === 'elevenlabs' || provider === 'bark');
+        document.querySelector('.tag-toggle-row').style.display = supportsTags ? '' : 'none';
+        if (!supportsTags) {
+          document.getElementById('emotionTags').checked = false;
+        }
       } catch (e) {
         showError('Voice list load nahi hua');
       }
