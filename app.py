@@ -173,20 +173,22 @@ def generate():
         return jsonify({"error": "Pehle kuch type karein"}), 400
 
     skip_normalize = bool(data.get("skip_normalize"))
+    add_emotion_tags = bool(data.get("emotion_tags"))
     voice = data.get("voice") or {}
     description = _build_voice_description(voice)
     provider = _resolve_provider(data.get("provider"))
 
     t_req = time.time()
     print(f"[app] /generate request → {len(text)} chars, provider={provider}, "
-          f"skip_normalize={skip_normalize}, voice={voice}")
+          f"skip_normalize={skip_normalize}, emotion_tags={add_emotion_tags}, voice={voice}")
 
     if skip_normalize:
         normalized = text
     else:
         t_qwen = time.time()
         try:
-            normalized = normalize_text(text, target_provider=provider)
+            normalized = normalize_text(text, target_provider=provider,
+                                         add_emotion_tags=add_emotion_tags)
             print(f"[app] qwen done in {time.time() - t_qwen:.1f}s → {len(normalized)} chars")
         except OllamaError as e:
             print(f"[app] qwen FAILED in {time.time() - t_qwen:.1f}s: {e}")

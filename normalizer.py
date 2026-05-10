@@ -179,15 +179,15 @@ def _qwen_call(system_prompt: str, user_text: str, timeout: int,
 
 
 def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
-                    target_provider: str = "parler") -> str:
+                    target_provider: str = "parler",
+                    add_emotion_tags: bool = False) -> str:
     """Normalize text for TTS:
       Pass 1 — Qwen script + punctuation cleanup (all providers)
-      Pass 2 — Qwen-driven emotion classification per sentence,
-               then prepend the chosen tag to each emotional sentence:
-                 ElevenLabs: always (tags are direction)
-                 Bark:       only when BARK_USE_TAGS=1, and only Bark-
-                             supported tags are kept
-                 Parler:     never (no inline tag support)
+      Pass 2 — Qwen-driven emotion classification per sentence
+               (only when add_emotion_tags is True AND the provider
+                actually renders inline tags). For Bark, only Bark-
+                supported tags are kept; Parler skips entirely since it
+                speaks bracketed text literally.
     """
     # Pass 1: Qwen normalize
     content = _qwen_call(SYSTEM_PROMPT, text, timeout)
@@ -195,9 +195,14 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
         print("[normalizer] pass-1 substitution detected — falling back to original input")
         content = text
 
+    if not add_emotion_tags:
+        return content
+
     provider = target_provider.lower()
     if provider == "elevenlabs":
         return _add_emotion_tags(content, "elevenlabs", timeout)
-    if provider == "bark" and os.getenv("BARK_USE_TAGS") == "1":
+    if provider == "bark":
         return _add_emotion_tags(content, "bark", timeout)
+    # parler: skip — would speak the tag literally
+    print(f"[normalizer] emotion-tags requested but provider={provider} doesn't support inline tags — skipping")
     return content

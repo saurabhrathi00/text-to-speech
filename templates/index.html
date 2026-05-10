@@ -84,6 +84,11 @@
       </div>
 
       <label class="checkbox-row">
+        <input type="checkbox" id="emotionTags" />
+        <span>🎭 Emotion tags add karo — Qwen classify karega aur tags lagayega (ElevenLabs / Bark)</span>
+      </label>
+
+      <label class="checkbox-row">
         <input type="checkbox" id="skipNormalize" />
         <span>Qwen skip karo — mera text bilkul exact bolo (no auto-correction)</span>
       </label>
@@ -221,6 +226,8 @@
       status.classList.toggle('hidden', !on);
     }
 
+    const emotionTagsEl = document.getElementById('emotionTags');
+
     btn.addEventListener('click', async () => {
       const text = scriptEl.value.trim();
       clearError();
@@ -228,6 +235,7 @@
       if (!text) { showError('Pehle kuch type karein'); return; }
 
       const skip = skipEl.checked;
+      const useEmotionTags = emotionTagsEl.checked;
       setLoading(true);
       statusText.textContent = skip ? 'Awaaz ban rahi hai...' : 'Qwen text ko clean kar raha hai...';
       try {
@@ -238,7 +246,13 @@
           res = await fetch('/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, voice: getVoice(), skip_normalize: skip, provider: activeProvider }),
+            body: JSON.stringify({
+              text,
+              voice: getVoice(),
+              skip_normalize: skip,
+              provider: activeProvider,
+              emotion_tags: useEmotionTags,
+            }),
             signal: ctrl.signal,
           });
         } finally {
@@ -269,7 +283,12 @@
         const res = await fetch('/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, voice: getVoice(), provider: activeProvider })
+          body: JSON.stringify({
+            text,
+            voice: getVoice(),
+            provider: activeProvider,
+            emotion_tags: emotionTagsEl.checked,
+          })
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error || 'Kuch galat ho gaya'); return; }
