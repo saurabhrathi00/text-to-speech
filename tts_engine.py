@@ -182,13 +182,18 @@ def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray
 
 def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     t_start = time.time()
+    print(f"[tts] synthesize entered → {len(text)} chars")
+    print("[tts] load_model...")
+    t_load = time.time()
     load_model()
+    print(f"[tts] load_model done in {time.time() - t_load:.1f}s on {_device}")
+
     chunks = _split_text(text)
     if not chunks:
         return out_path
     sr = _model.config.sampling_rate
 
-    print(f"[tts] start synthesize → {len(text)} chars, {len(chunks)} chunk(s)")
+    print(f"[tts] split into {len(chunks)} chunk(s):")
     for i, c in enumerate(chunks, 1):
         print(f"  [{i}/{len(chunks)}] ({len(c)} chars) {c}")
 

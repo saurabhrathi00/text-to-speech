@@ -77,6 +77,11 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
         ],
         "stream": False,
         "options": {"temperature": QWEN_TEMPERATURE},
+        # Tell Ollama to unload the model from GPU immediately after
+        # responding. Otherwise a 14B Qwen + Parler + Whisper together
+        # exceed the RTX 3060's 12GB VRAM and Parler hangs / OOMs
+        # silently. 0 = unload now, "5m" = keep loaded 5 min, etc.
+        "keep_alive": 0,
     }
     try:
         r = requests.post(OLLAMA_URL, json=payload, timeout=timeout)
