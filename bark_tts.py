@@ -9,39 +9,15 @@ import soundfile as sf
 _BarkModel = None
 _AutoProcessor = None
 
+from config import (
+    BARK_MAX_CHARS_PER_CHUNK as MAX_CHARS_PER_CHUNK,
+    BARK_VOICES as VOICES,
+    BARK_EMOTION_TAGS as EMOTION_TAGS_RAW,
+    INTER_CHUNK_SILENCE_SEC,
+)
+
 MODEL_ID = os.getenv("BARK_MODEL", "suno/bark")
 DEFAULT_VOICE = os.getenv("BARK_VOICE", "v2/hi_speaker_0")
-
-# Bark generates roughly ~13s of audio per call. Keep chunks small enough
-# that one sentence fits comfortably within the budget.
-MAX_CHARS_PER_CHUNK = 200
-
-VOICES = [
-    {"id": "v2/hi_speaker_0", "label": "Hindi 0 (male)"},
-    {"id": "v2/hi_speaker_1", "label": "Hindi 1 (female)"},
-    {"id": "v2/hi_speaker_2", "label": "Hindi 2 (male)"},
-    {"id": "v2/hi_speaker_3", "label": "Hindi 3 (female)"},
-    {"id": "v2/hi_speaker_4", "label": "Hindi 4 (male)"},
-    {"id": "v2/hi_speaker_5", "label": "Hindi 5 (female)"},
-    {"id": "v2/en_speaker_6", "label": "English narrator (male)"},
-    {"id": "v2/en_speaker_9", "label": "English narrator (female)"},
-]
-
-# Bark inline tags ([laughs], [sighs], [gasps], [music] etc.) literally
-# trigger those non-speech sounds in the audio, which produces noisy
-# output for narration. We don't inject emotion tags by default —
-# emotional tone comes from the voice preset itself. Set BARK_USE_TAGS=1
-# to opt in if you want the experimental tag-driven emotion.
-EMOTION_TAGS_RAW = {
-    "none": "",
-    "happy": "[laughs]",
-    "sad": "[sighs]",
-    "excited": "[gasps]",
-    "angry": "",
-    "fearful": "[breathes shakily]",
-    "whisper": "[whispers]",
-    "serious": "",
-}
 
 
 def _emotion_tag(emotion: str) -> str:
@@ -150,7 +126,7 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     if len(audio_parts) == 1:
         final = audio_parts[0]
     else:
-        silence = np.zeros(int(sr * 0.18), dtype=np.float32)
+        silence = np.zeros(int(sr * INTER_CHUNK_SILENCE_SEC), dtype=np.float32)
         joined = []
         for i, a in enumerate(audio_parts):
             if i:

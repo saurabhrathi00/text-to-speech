@@ -9,54 +9,18 @@ import soundfile as sf
 from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 
-MODEL_ID = "ai4bharat/indic-parler-tts"
-# Strategy: one sentence per chunk. No merging, no splitting mid-sentence.
-# Each chunk goes through Parler-TTS independently and gets its own
-# whisper-based trim, then chunks are joined with a small pause.
-# Per-chunk token budget for max_new_tokens. Sized generously so a single
-# long sentence has room to complete without hitting Parler's default
-# ~2580 token cap (which causes garbled output).
-TOKENS_PER_CHAR = 8
-MIN_NEW_TOKENS = 256
-MAX_NEW_TOKENS_CAP = 5000
-# Pause inserted between consecutive sentence-chunks when joining audio.
-INTER_CHUNK_SILENCE_SEC = 0.18
-
-SPEAKERS = {
-    "rohit": "deep, mature male",
-    "aman": "energetic young male",
-    "divya": "warm, clear female",
-    "rani": "formal news-anchor female",
-}
-
-SPEED_PHRASES = {
-    "slow": "at a slow, deliberate pace",
-    "moderate": "at a moderate, natural pace",
-    "fast": "at a fast, brisk pace",
-}
-
-PITCH_PHRASES = {
-    "low": "with a low, deep pitch",
-    "normal": "with a natural pitch",
-    "high": "with a slightly higher pitch",
-}
-
-EXPRESSIVITY_PHRASES = {
-    "expressive": "in a very expressive, engaging tone like a professional documentary narrator",
-    "neutral": "in a neutral, balanced tone",
-    "calm": "in a calm, steady, soothing tone",
-}
-
-EMOTION_PHRASES = {
-    "none": "",
-    "happy": "with a cheerful, upbeat, happy mood",
-    "sad": "with a sad, melancholic, sorrowful mood",
-    "angry": "with an angry, forceful, intense mood",
-    "excited": "with enthusiastic, energetic, excited emotion",
-    "fearful": "with a fearful, tense, hesitant mood",
-    "whisper": "in a quiet, intimate, whispering voice",
-    "serious": "in a serious, formal, authoritative mood",
-}
+from config import (
+    PARLER_MODEL_ID as MODEL_ID,
+    PARLER_TOKENS_PER_CHAR as TOKENS_PER_CHAR,
+    PARLER_MIN_NEW_TOKENS as MIN_NEW_TOKENS,
+    PARLER_MAX_NEW_TOKENS_CAP as MAX_NEW_TOKENS_CAP,
+    PARLER_SPEAKER_DESCRIPTIONS as SPEAKERS,
+    PARLER_SPEED_PHRASES as SPEED_PHRASES,
+    PARLER_PITCH_PHRASES as PITCH_PHRASES,
+    PARLER_EXPRESSIVITY_PHRASES as EXPRESSIVITY_PHRASES,
+    PARLER_EMOTION_PHRASES as EMOTION_PHRASES,
+    INTER_CHUNK_SILENCE_SEC,
+)
 
 
 def build_description(speaker: str = "rohit", speed: str = "moderate",

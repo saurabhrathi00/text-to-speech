@@ -22,6 +22,7 @@ _load_env_file()
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
+from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
 from normalizer import normalize_text, OllamaError
 from tts_engine import synthesize as parler_synthesize, build_description, load_model
 from aligner import align as align_words, load_aligner
@@ -29,12 +30,7 @@ import eleven_tts
 import bark_tts
 
 
-PARLER_SPEAKERS = [
-    {"id": "rohit", "label": "Rohit (deep male)"},
-    {"id": "aman", "label": "Aman (young male)"},
-    {"id": "divya", "label": "Divya (warm female)"},
-    {"id": "rani", "label": "Rani (news anchor female)"},
-]
+PARLER_SPEAKERS = _CONFIG_PARLER_SPEAKERS
 
 
 def _default_provider() -> str:
@@ -42,7 +38,7 @@ def _default_provider() -> str:
     return (os.getenv("TTS_PROVIDER") or "parler").strip().lower()
 
 
-PROVIDERS = ("parler", "elevenlabs", "bark")
+PROVIDERS = _CONFIG_PROVIDERS
 
 
 def _resolve_provider(requested: str | None) -> str:
@@ -66,8 +62,6 @@ def _tts_synthesize(text: str, out_path: str, description: str,
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
 AUDIO_DIR.mkdir(exist_ok=True)
-
-MAX_AUDIO_FILES = 1
 
 app = Flask(__name__)
 

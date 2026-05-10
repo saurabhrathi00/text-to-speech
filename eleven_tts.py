@@ -1,22 +1,16 @@
 import os
 import requests
 
-API_BASE = "https://api.elevenlabs.io/v1"
-DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
-DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGBDnXBQb")  # Adam — English-leaning
+from config import (
+    ELEVEN_API_BASE as API_BASE,
+    ELEVEN_CURATED_VOICES as CURATED_VOICES,
+    ELEVEN_EMOTION_SETTINGS,
+    ELEVEN_DEFAULT_SIMILARITY_BOOST,
+    ELEVEN_V3_EMOTION_TAGS,
+)
 
-# Curated multilingual voices that handle Hindi reasonably well using
-# eleven_multilingual_v2. User can override via voice library.
-CURATED_VOICES = [
-    {"id": "pNInz6obpgDQGBDnXBQb", "label": "Adam (male, deep)"},
-    {"id": "ErXwobaYiN019PkySvjV", "label": "Antoni (male, warm)"},
-    {"id": "VR6AewLTigWG4xSOukaG", "label": "Arnold (male, narrator)"},
-    {"id": "21m00Tcm4TlvDq8ikWAM", "label": "Rachel (female, calm)"},
-    {"id": "EXAVITQu4vr4xnSDxMaL", "label": "Sarah (female, soft)"},
-    {"id": "AZnzlk1XvdvUeBnXmlld", "label": "Domi (female, strong)"},
-    {"id": "MF3mGyEYCl7XYWbV9V6O", "label": "Elli (female, young)"},
-    {"id": "TxGEqnHWrfWFTfGW9XjX", "label": "Josh (male, deep)"},
-]
+DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
+DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGBDnXBQb")
 
 
 def list_voices() -> list[dict]:
@@ -79,34 +73,17 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     # v3 model supports inline emotion tags directly in the text. v2 does
     # not — tags would be read literally. Inject only on v3.
     if "v3" in model_id.lower():
-        emotion_tag_map = {
-            "happy":   "[happy]",
-            "sad":     "[sad]",
-            "excited": "[excited]",
-            "angry":   "[angry]",
-            "fearful": "[scared]",
-            "whisper": "[whispering]",
-            "serious": "[serious]",
-        }
         e = (voice_config.get("emotion") or "none").lower()
-        tag = emotion_tag_map.get(e, "")
+        tag = ELEVEN_V3_EMOTION_TAGS.get(e, "")
         if tag and not text.lstrip().startswith("["):
             text = f"{tag} {text}"
 
     # Map emotion → ElevenLabs voice settings. Lower stability + higher
-    # style produces more expressive output. The defaults (stability=0.5)
-    # were too anchored to neutral; tuned per emotion below.
+    # style produces more expressive output.
     emotion = (voice_config.get("emotion") or "none").lower()
-    settings = {
-        "none":     {"stability": 0.50, "style": 0.00},
-        "happy":    {"stability": 0.30, "style": 0.75},
-        "sad":      {"stability": 0.35, "style": 0.65},
-        "excited":  {"stability": 0.20, "style": 0.95},
-        "angry":    {"stability": 0.20, "style": 0.85},
-        "fearful":  {"stability": 0.30, "style": 0.65},
-        "whisper":  {"stability": 0.45, "style": 0.30},
-        "serious":  {"stability": 0.65, "style": 0.20},
-    }.get(emotion, {"stability": 0.50, "style": 0.00})
+    settings = ELEVEN_EMOTION_SETTINGS.get(
+        emotion, ELEVEN_EMOTION_SETTINGS["none"]
+    )
 
     url = f"{API_BASE}/text-to-speech/{voice_id}"
     headers = {
@@ -119,7 +96,7 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
         "model_id": model_id,
         "voice_settings": {
             "stability": voice_config.get("stability", settings["stability"]),
-            "similarity_boost": voice_config.get("similarity_boost", 0.75),
+            "similarity_boost": voice_config.get("similarity_boost", ELEVEN_DEFAULT_SIMILARITY_BOOST),
             "style": voice_config.get("style", settings["style"]),
             "use_speaker_boost": True,
         },

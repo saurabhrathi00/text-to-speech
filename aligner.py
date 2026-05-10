@@ -3,6 +3,12 @@ import torch
 import soundfile as sf
 from faster_whisper import WhisperModel
 
+from config import (
+    WHISPER_REPETITION_RATIO as REPETITION_RATIO,
+    WHISPER_MIN_RATIO as MIN_WHISPER_RATIO,
+    WHISPER_TAIL_PAD_SEC as TAIL_PAD_SEC,
+)
+
 MODEL_SIZE = os.getenv("WHISPER_MODEL", "tiny")
 
 _model = None
@@ -56,17 +62,6 @@ def align(audio_path: str) -> list[dict]:
     except Exception as e:
         print(f"[aligner] alignment failed: {e}")
         return []
-
-
-# Margin used when matching whisper word count vs expected text word count.
-# Above REPETITION_RATIO * expected = treat tail as repetition, cut at the
-# expected_word_count'th word.
-# Below MIN_WHISPER_RATIO * expected = whisper likely missed words at the
-# end (low accuracy on tiny model). Skip trim entirely so we don't cut
-# real spoken content.
-REPETITION_RATIO = 1.3
-MIN_WHISPER_RATIO = 0.8
-TAIL_PAD_SEC = 0.20
 
 
 def trim_audio_to_words(audio_path: str, words: list[dict],
