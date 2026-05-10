@@ -76,6 +76,23 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     voice_id = voice_config.get("voice_id") or DEFAULT_VOICE_ID
     model_id = voice_config.get("model_id") or DEFAULT_MODEL
 
+    # v3 model supports inline emotion tags directly in the text. v2 does
+    # not — tags would be read literally. Inject only on v3.
+    if "v3" in model_id.lower():
+        emotion_tag_map = {
+            "happy":   "[happy]",
+            "sad":     "[sad]",
+            "excited": "[excited]",
+            "angry":   "[angry]",
+            "fearful": "[scared]",
+            "whisper": "[whispering]",
+            "serious": "[serious]",
+        }
+        e = (voice_config.get("emotion") or "none").lower()
+        tag = emotion_tag_map.get(e, "")
+        if tag and not text.lstrip().startswith("["):
+            text = f"{tag} {text}"
+
     # Map emotion → ElevenLabs voice settings. Lower stability + higher
     # style produces more expressive output. The defaults (stability=0.5)
     # were too anchored to neutral; tuned per emotion below.
