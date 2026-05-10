@@ -7,19 +7,30 @@ from config import (
     QWEN_TIMEOUT_SECONDS,
     QWEN_TEMPERATURE,
     ELEVEN_EMOTION_TRIGGERS,
+    BARK_EMOTION_TRIGGERS,
 )
 
-_COMPILED_TRIGGERS = [(re.compile(p, re.IGNORECASE), tag) for p, tag in ELEVEN_EMOTION_TRIGGERS]
+
+def _compile(triggers: list) -> list:
+    return [(re.compile(p, re.IGNORECASE), tag) for p, tag in triggers]
 
 
-def _inject_emotion_tags(text: str) -> str:
-    """Insert ElevenLabs emotion tags before any trigger phrase from
-    ELEVEN_EMOTION_TRIGGERS. Tags are only inserted at positions that
-    don't already have a tag immediately before them (so re-running is
-    idempotent).
+_COMPILED_BY_PROVIDER = {
+    "elevenlabs": _compile(ELEVEN_EMOTION_TRIGGERS),
+    "bark": _compile(BARK_EMOTION_TRIGGERS),
+}
+
+
+def _inject_emotion_tags(text: str, provider: str) -> str:
+    """Insert provider-appropriate emotion tags before any trigger
+    phrase from the matching trigger list. Idempotent — won't double-tag
+    if a tag is already present immediately before a match.
     """
+    triggers = _COMPILED_BY_PROVIDER.get(provider, [])
+    if not triggers:
+        return text
     inserted = 0
-    for pattern, tag in _COMPILED_TRIGGERS:
+    for pattern, tag in triggers:
         def _repl(m: re.Match) -> str:
             nonlocal inserted
             start = m.start()
@@ -31,7 +42,7 @@ def _inject_emotion_tags(text: str) -> str:
 
         text = pattern.sub(_repl, text)
     if inserted:
-        print(f"[normalizer] regex injected {inserted} emotion tag(s)")
+        print(f"[normalizer] regex injected {inserted} {provider} tag(s)")
     return text
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.10:11434/api/chat")
@@ -115,11 +126,11 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
                     target_provider: str = "parler") -> str:
     """Normalize text for TTS:
       Pass 1 — Qwen script + punctuation cleanup (all providers)
-      Pass 2 — Deterministic regex emotion-tag injection (ElevenLabs only)
-
-    The Qwen second-pass approach was unreliable on a 14B local model;
-    swapped out for a regex pass driven by ELEVEN_EMOTION_TRIGGERS in
-    config.py — predictable, fast, no LLM dependency.
+      Pass 2 — Regex emotion-tag injection
+                 ElevenLabs: always (tags are direction, no extra noise)
+                 Bark:       only when BARK_USE_TAGS=1 (tags produce
+                             literal non-speech sounds)
+                 Parler:     never (no inline tag support)
     """
     # Pass 1: Qwen normalize
     content = _qwen_call(SYSTEM_PROMPT, text, timeout)
@@ -127,9 +138,9 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
         print("[normalizer] pass-1 substitution detected — falling back to original input")
         content = text
 
-    if target_provider.lower() != "elevenlabs":
-        return content
-
-    # Pass 2: regex-based emotion tag injection
-    tagged = _inject_emotion_tags(content)
-    return tagged
+    provider = target_provider.lower()
+    if provider == "elevenlabs":
+        return _inject_emotion_tags(content, "elevenlabs")
+    if provider == "bark" and os.getenv("BARK_USE_TAGS") == "1":
+        return _inject_emotion_tags(content, "bark")
+    return content

@@ -190,6 +190,27 @@ QWEN_TEMPERATURE = 0.2
 # narrative clearly suggests an emotion shift. For other providers
 # (Parler, Bark) this addendum is omitted because they would speak
 # the bracketed words literally or treat them as noise.
+# Bark's inline tags produce the literal non-speech sound, so they're
+# more "intrusive" than ElevenLabs's direction-style tags. We inject a
+# narrower subset and only when BARK_USE_TAGS=1 is set in .env.
+BARK_EMOTION_TRIGGERS = [
+    (r"रोना|रो रही|रो रहा|आँसू|सिसकी|दिल हिला देने वाली|cry\b|sob",
+     "[crying]"),
+    (r"हँसी|ठहाका|खिलखिला|हँसकर|हँसते हुए|laugh",
+     "[laughs]"),
+    (r"फुसफुसा|धीरे से कहा|कान में कहा|whisper|murmur",
+     "[whispers]"),
+    (r"आह भर|गहरी साँस|ठंडी आह|sighed",
+     "[sighs]"),
+    (r"हाँफते हुए|हाँफते-हाँफते|gasped",
+     "[gasps]"),
+    (r"मुस्कुराते हुए|खुशी से कहा",
+     "[smiles]"),
+    (r"साफ़ करते हुए गला|cleared throat",
+     "[clears throat]"),
+]
+
+
 # Deterministic regex-based emotion tag injector. When the target is
 # ElevenLabs, after Qwen normalizes the text, we run these patterns over
 # the output and insert the matching tag right before each trigger.
