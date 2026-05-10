@@ -1,8 +1,10 @@
 import os
 import re
+import time
 import queue
 import tempfile
 import threading
+import traceback
 import numpy as np
 import torch
 import soundfile as sf
@@ -132,6 +134,7 @@ def _generate_chunk(prompt: str, desc_inputs=None, description: str | None = Non
 
     budget = max(MIN_NEW_TOKENS, min(MAX_NEW_TOKENS_CAP, len(prompt) * TOKENS_PER_CHAR))
 
+    t0 = time.time()
     with torch.inference_mode():
         audio = _model.generate(
             input_ids=desc_inputs.input_ids,
@@ -142,7 +145,10 @@ def _generate_chunk(prompt: str, desc_inputs=None, description: str | None = Non
             temperature=1.0,
             max_new_tokens=budget,
         )
-    return audio.cpu().to(torch.float32).numpy().squeeze()
+    arr = audio.cpu().to(torch.float32).numpy().squeeze()
+    dur_audio = arr.size / _model.config.sampling_rate if arr.size else 0
+    print(f"[parler] chunk {len(prompt):>4} chars → {dur_audio:.1f}s audio in {time.time() - t0:.1f}s")
+    return arr
 
 
 def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray:
@@ -153,14 +159,19 @@ def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray
 
     fd, tmp_path = tempfile.mkstemp(suffix=".wav")
     os.close(fd)
+    t0 = time.time()
     try:
         sf.write(tmp_path, audio, sr)
         words = _align(tmp_path)
         trim_audio_to_words(tmp_path, words, expected_word_count=len(chunk_text.split()))
         trimmed, _ = sf.read(tmp_path)
+        dur_in = audio.size / sr
+        dur_out = trimmed.size / sr
+        print(f"[whisper] trim {dur_in:.1f}s → {dur_out:.1f}s, {len(words)} words, {time.time() - t0:.1f}s")
         return trimmed.astype(np.float32)
     except Exception as e:
-        print(f"[tts] chunk trim failed: {e} — using raw audio")
+        print(f"[whisper] trim FAILED: {e} — using raw audio")
+        traceback.print_exc()
         return audio
     finally:
         try:
@@ -170,13 +181,14 @@ def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray
 
 
 def synthesize(text: str, out_path: str, description: str | None = None) -> str:
+    t_start = time.time()
     load_model()
     chunks = _split_text(text)
     if not chunks:
         return out_path
     sr = _model.config.sampling_rate
 
-    print(f"[tts] split into {len(chunks)} chunk(s):")
+    print(f"[tts] start synthesize → {len(text)} chars, {len(chunks)} chunk(s)")
     for i, c in enumerate(chunks, 1):
         print(f"  [{i}/{len(chunks)}] ({len(c)} chars) {c}")
 
@@ -206,7 +218,11 @@ def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     t = threading.Thread(target=worker, daemon=True)
     t.start()
 
-    # Producer: generate Parler chunks sequentially, queue each for trim
+    # Producer: generate Parler chunks sequentially, queue each for trim.
+    # Whatever happens (success, OOM fallback, or unexpected exception),
+    # we MUST push the None sentinel + join the worker, otherwise the
+    # background thread becomes a zombie and accumulates across requests.
+    producer_error: Exception | None = None
     try:
         for i, c in enumerate(chunks):
             raw = _generate_chunk(c, desc_inputs=desc_inputs)
@@ -214,15 +230,25 @@ def synthesize(text: str, out_path: str, description: str | None = None) -> str:
     except torch.cuda.OutOfMemoryError:
         torch.cuda.empty_cache()
         _move_to_cpu()
-        desc_inputs = _tokenize_description(description)  # re-tokenize on new device
-        for i, c in enumerate(chunks):
-            if audio_parts[i] is None and not any(idx == i for idx, *_ in list(work_q.queue)):
-                raw = _generate_chunk(c, desc_inputs=desc_inputs)
-                work_q.put((i, raw, c))
+        desc_inputs = _tokenize_description(description)
+        try:
+            for i, c in enumerate(chunks):
+                if audio_parts[i] is None and not any(idx == i for idx, *_ in list(work_q.queue)):
+                    raw = _generate_chunk(c, desc_inputs=desc_inputs)
+                    work_q.put((i, raw, c))
+        except Exception as e:
+            producer_error = e
+            traceback.print_exc()
+    except Exception as e:
+        producer_error = e
+        traceback.print_exc()
+    finally:
+        work_q.put(None)
+        work_q.join()
+        t.join()
 
-    work_q.put(None)
-    work_q.join()
-    t.join()
+    if producer_error is not None:
+        raise producer_error
 
     if error_box:
         print(f"[tts] worker errors: {error_box[0]} (and {len(error_box) - 1} more)")
@@ -243,6 +269,7 @@ def synthesize(text: str, out_path: str, description: str | None = None) -> str:
         final = np.concatenate(joined)
 
     sf.write(out_path, final, sr)
+    print(f"[tts] done synthesize in {time.time() - t_start:.1f}s → {out_path}")
     return out_path
 
 

@@ -51,13 +51,23 @@ def _resolve_provider(requested: str | None) -> str:
 
 def _tts_synthesize(text: str, out_path: str, description: str,
                      voice: dict, provider: str) -> str:
-    if provider == "elevenlabs":
-        if not eleven_tts.is_configured():
-            raise RuntimeError("ELEVENLABS_API_KEY not set in .env")
-        return eleven_tts.synthesize(text, out_path, voice_config=voice)
-    if provider == "bark":
-        return bark_tts.synthesize(text, out_path, voice_config=voice)
-    return parler_synthesize(text, out_path, description=description)
+    t0 = time.time()
+    print(f"[app] dispatch → provider={provider}, text={len(text)} chars")
+    try:
+        if provider == "elevenlabs":
+            if not eleven_tts.is_configured():
+                raise RuntimeError("ELEVENLABS_API_KEY not set in .env")
+            result = eleven_tts.synthesize(text, out_path, voice_config=voice)
+        elif provider == "bark":
+            result = bark_tts.synthesize(text, out_path, voice_config=voice)
+        else:
+            result = parler_synthesize(text, out_path, description=description)
+        print(f"[app] {provider} done in {time.time() - t0:.1f}s → {result}")
+        return result
+    except Exception:
+        print(f"[app] {provider} FAILED after {time.time() - t0:.1f}s")
+        traceback.print_exc()
+        raise
 
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
@@ -134,6 +144,8 @@ def tts():
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename
 
+    t_req = time.time()
+    print(f"[app] /tts request → {len(text)} chars, provider={provider}, voice={voice}")
     try:
         actual_path = _tts_synthesize(text, str(out_path), description, voice, provider)
     except Exception:
@@ -144,6 +156,7 @@ def tts():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
+    print(f"[app] /tts response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
         "audio_url": f"/audio/{actual_filename}",
         "description_used": description if provider == "parler" else "",
@@ -164,12 +177,19 @@ def generate():
     description = _build_voice_description(voice)
     provider = _resolve_provider(data.get("provider"))
 
+    t_req = time.time()
+    print(f"[app] /generate request → {len(text)} chars, provider={provider}, "
+          f"skip_normalize={skip_normalize}, voice={voice}")
+
     if skip_normalize:
         normalized = text
     else:
+        t_qwen = time.time()
         try:
             normalized = normalize_text(text, target_provider=provider)
-        except OllamaError:
+            print(f"[app] qwen done in {time.time() - t_qwen:.1f}s → {len(normalized)} chars")
+        except OllamaError as e:
+            print(f"[app] qwen FAILED in {time.time() - t_qwen:.1f}s: {e}")
             return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
 
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
@@ -185,6 +205,7 @@ def generate():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
+    print(f"[app] /generate response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
         "normalized_text": normalized,
         "audio_url": f"/audio/{actual_filename}",
