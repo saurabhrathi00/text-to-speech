@@ -190,71 +190,87 @@ QWEN_TEMPERATURE = 0.2
 # narrative clearly suggests an emotion shift. For other providers
 # (Parler, Bark) this addendum is omitted because they would speak
 # the bracketed words literally or treat them as noise.
-QWEN_EMOTION_TAG_PROMPT = """You are an emotion-tagger for an ElevenLabs TTS narrator.
+QWEN_EMOTION_TAG_PROMPT = """YOU MUST insert ElevenLabs emotion tags into Hindi/Hinglish/English
+text. This is your ONLY job. Output without tags is FAILURE.
 
-INPUT: a piece of Hindi/Hinglish/English text that has already been
-formatted for TTS.
+Available tags:
+  [crying] [laughs] [sighs] [whispers] [excited] [happy] [sad]
+  [angry] [shouting] [gasps] [breathless] [hesitant] [serious]
 
-OUTPUT: the SAME text, unchanged word-for-word, with ElevenLabs
-inline emotion tags inserted at moments of clear vocal emotion.
+WHENEVER you see ANY of these phrases in the input, you MUST insert
+the matching tag IMMEDIATELY BEFORE that phrase. Do not skip. Do not
+think about whether it's needed. If a trigger appears, you tag it.
 
-Available tags (use only these):
-  [crying] [laughs] [chuckles] [sighs] [whispers] [excited] [happy]
-  [sad] [angry] [shouting] [gasps] [breathless] [hesitant] [serious]
+TRIGGER → TAG (mandatory):
 
-TRIGGER PHRASES → TAG mapping. When you see these in the input,
-INSERT the tag right before that phrase. Do not skip them.
+  रोना | रो रही | रो रहा | आँसू | सिसकी | तड़पना | वेदना |
+  "दिल हिला देने वाली" | दर्द से | cry | sob | tears | weeping
+    → [crying]
 
-  [crying]    : रोना, रो रही/रहा, आँसू, सिसकी, तड़पना, वेदना,
-                "दिल हिला देने वाली आवाज़", दर्द से कराहना,
-                cry, sob, tears, weeping
-  [laughs]    : हँसी, ठहाका, खिलखिलाना, "हँसकर बोला/कहा",
-                laugh, chuckle, giggle
-  [sighs]     : आह, "गहरी साँस", "ठंडी आह", sighed
-  [whispers]  : फुसफुसाया, "धीरे से कहा", "कान में कहा",
-                "चुपके से बोला", whispered, murmured
-  [excited]   : "उत्साह से", "चहक उठा", "खुशी से उछल पड़ा",
-                excitedly, thrilled
-  [happy]     : खुशी से, "मुस्कुराते हुए", happy, joyful
-  [sad]       : दुखी, उदास, मायूस, "गमगीन आवाज़",
-                "बचेगी नहीं" / similarly grim or hopeless dialogue,
-                sadly, sorrowfully
-  [angry]     : गुस्से से, क्रोधित, "नाराज़ होकर", angrily, furious
-  [shouting]  : चिल्लाया, गरजा, "ज़ोर से बोला", "चीख पड़ा",
-                shouted, yelled
-  [gasps]     : "हाँफते हुए", "साँस फूल गई", "स्तब्ध रह गया",
-                gasped
-  [breathless]: "हाँफते-हाँफते", out of breath, exhausted speech
-  [hesitant]  : "हिचकिचाते हुए", "रुक-रुककर", "अटक-अटककर",
-                hesitantly
-  [serious]   : "गंभीर स्वर", "संजीदगी से", solemnly
+  हँसी | ठहाका | खिलखिलाना | "हँसकर बोला/कहा" | laugh | chuckle
+    → [laughs]
 
-RULES:
-  1. Tag goes RIGHT BEFORE the emotional phrase, not at sentence start
-     by default.
-  2. Pure scene description (weather, setting, time of day) gets NO
-     tag. Tags are for vocal emotion only.
-  3. Whenever you see a trigger phrase from the table, ADD the tag.
-     Don't skip.
-  4. Do NOT change any words. Do NOT add or remove sentences. Tags
-     are the ONLY new content.
-  5. Output ONLY the tagged text. No explanation, no quotes around it.
+  आह | "गहरी साँस" | "ठंडी आह" | sighed
+    → [sighs]
 
-EXAMPLES:
+  फुसफुसाया | "धीरे से कहा" | "कान में कहा" | "चुपके से" |
+  whispered | murmured
+    → [whispers]
 
-Input:  "रह-रहकर उसके मुँह से ऐसी दिल हिला देने वाली आवाज़ निकलती थी।"
-Output: "रह-रहकर उसके मुँह से [crying] ऐसी दिल हिला देने वाली आवाज़ निकलती थी।"
+  "उत्साह से" | "चहक उठा" | "खुशी से उछल" | excitedly | thrilled
+    → [excited]
 
-Input:  "घीसू ने कहा—'मालूम होता है, बचेगी नहीं।'"
-Output: "घीसू ने कहा—[sad] 'मालूम होता है, बचेगी नहीं।'"
+  खुशी | "मुस्कुराते हुए" | happy | joyful
+    → [happy]
 
-Input:  "जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।"
-Output: "जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।"
+  दुखी | उदास | मायूस | "गमगीन" | "बचेगी नहीं" / hopeless news |
+  sadly | sorrowfully
+    → [sad]
 
-Input:  "वह हँसते हुए बोला—'अरे यार, क्या बात है!'"
-Output: "वह हँसते हुए बोला—[laughs] 'अरे यार, क्या बात है!'"
+  गुस्से | क्रोधित | "नाराज़ होकर" | angrily | furious
+    → [angry]
 
-Now process the input below."""
+  चिल्लाया | गरजा | "ज़ोर से बोला" | "चीख पड़ा" | shouted | yelled
+    → [shouting]
+
+  "हाँफते हुए" | "साँस फूल" | "स्तब्ध रह" | gasped
+    → [gasps]
+
+  "हाँफते-हाँफते" | out of breath
+    → [breathless]
+
+  "हिचकिचाते हुए" | "रुक-रुककर" | "अटक-अटककर" | hesitantly
+    → [hesitant]
+
+  "गंभीर स्वर" | "संजीदगी से" | solemnly
+    → [serious]
+
+DO NOT change any words. DO NOT add or remove sentences. Tags are
+the ONLY new content. Output ONLY the tagged text — no explanations.
+
+If a sentence has no trigger from the list, leave it untouched.
+Pure scene description (weather, setting, darkness, silence) gets
+NO tag.
+
+EXAMPLES (note how tags are placed RIGHT BEFORE the emotional phrase):
+
+Input:  रह-रहकर उसके मुँह से ऐसी दिल हिला देने वाली आवाज़ निकलती थी।
+Output: रह-रहकर उसके मुँह से [crying] ऐसी दिल हिला देने वाली आवाज़ निकलती थी।
+
+Input:  घीसू ने कहा—"मालूम होता है, बचेगी नहीं।"
+Output: घीसू ने कहा—[sad] "मालूम होता है, बचेगी नहीं।"
+
+Input:  वह तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।
+Output: वह [crying] तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।
+
+Input:  वह हँसते हुए बोला—"अरे यार!"
+Output: वह हँसते हुए बोला—[laughs] "अरे यार!"
+
+Input:  जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।
+Output: जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।
+
+Now insert tags into the input below. REMEMBER: every trigger phrase
+gets its tag. Output ONLY the tagged text."""
 
 
 QWEN_ELEVENLABS_EMOTION_ADDENDUM = """

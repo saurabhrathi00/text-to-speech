@@ -59,7 +59,8 @@ def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     return True
 
 
-def _qwen_call(system_prompt: str, user_text: str, timeout: int) -> str:
+def _qwen_call(system_prompt: str, user_text: str, timeout: int,
+               temperature: float | None = None) -> str:
     payload = {
         "model": MODEL_NAME,
         "messages": [
@@ -67,7 +68,7 @@ def _qwen_call(system_prompt: str, user_text: str, timeout: int) -> str:
             {"role": "user", "content": user_text},
         ],
         "stream": False,
-        "options": {"temperature": QWEN_TEMPERATURE},
+        "options": {"temperature": QWEN_TEMPERATURE if temperature is None else temperature},
         # Unload the model from GPU after responding so Parler+Whisper
         # have room. Otherwise qwen3:14b ~9GB + Parler ~3GB exceeds
         # the RTX 3060's 12GB and Parler hangs.
@@ -106,14 +107,21 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
 
     # Pass 2: emotion tags (ElevenLabs only)
     print("[normalizer] pass-2: emotion-tag injection for ElevenLabs")
+    print(f"[normalizer] pass-2 INPUT  ({len(content)} chars): {content[:200]}{'...' if len(content) > 200 else ''}")
     try:
-        tagged = _qwen_call(QWEN_EMOTION_TAG_PROMPT, content, timeout)
+        tagged = _qwen_call(QWEN_EMOTION_TAG_PROMPT, content, timeout, temperature=0.4)
     except OllamaError as e:
-        print(f"[normalizer] emotion-tag pass failed: {e} — using untagged text")
+        print(f"[normalizer] pass-2 FAILED: {e} — using untagged text")
         return content
+
+    tag_count = tagged.count("[")
+    print(f"[normalizer] pass-2 OUTPUT ({len(tagged)} chars, {tag_count} tag(s)): {tagged[:200]}{'...' if len(tagged) > 200 else ''}")
 
     if not _verify_devanagari_preserved(content, tagged):
         print("[normalizer] pass-2 substitution detected — using untagged text")
         return content
+
+    if tag_count == 0:
+        print("[normalizer] pass-2 produced 0 tags — model didn't follow instructions")
 
     return tagged
