@@ -4,7 +4,7 @@ import requests
 
 from config import (
     QWEN_SYSTEM_PROMPT as SYSTEM_PROMPT,
-    QWEN_ELEVENLABS_EMOTION_ADDENDUM,
+    QWEN_EMOTION_TAG_PROMPT,
     QWEN_TIMEOUT_SECONDS,
     QWEN_TEMPERATURE,
 )
@@ -59,28 +59,18 @@ def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     return True
 
 
-def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
-                    target_provider: str = "parler") -> str:
-    """Normalize text for TTS. If target_provider is 'elevenlabs', also
-    ask Qwen to insert inline emotion tags ([cry], [whispers], etc.)
-    at strong emotional moments — those tags are direction for v3 voice
-    and won't be spoken literally."""
-    system_prompt = SYSTEM_PROMPT
-    if target_provider.lower() == "elevenlabs":
-        system_prompt = SYSTEM_PROMPT + QWEN_ELEVENLABS_EMOTION_ADDENDUM
-
+def _qwen_call(system_prompt: str, user_text: str, timeout: int) -> str:
     payload = {
         "model": MODEL_NAME,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text},
+            {"role": "user", "content": user_text},
         ],
         "stream": False,
         "options": {"temperature": QWEN_TEMPERATURE},
-        # Tell Ollama to unload the model from GPU immediately after
-        # responding. Otherwise a 14B Qwen + Parler + Whisper together
-        # exceed the RTX 3060's 12GB VRAM and Parler hangs / OOMs
-        # silently. 0 = unload now, "5m" = keep loaded 5 min, etc.
+        # Unload the model from GPU after responding so Parler+Whisper
+        # have room. Otherwise qwen3:14b ~9GB + Parler ~3GB exceeds
+        # the RTX 3060's 12GB and Parler hangs.
         "keep_alive": 0,
     }
     try:
@@ -88,18 +78,42 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
         r.raise_for_status()
     except requests.RequestException as e:
         raise OllamaError(str(e)) from e
-
     data = r.json()
     content = data.get("message", {}).get("content", "").strip()
     if not content:
         raise OllamaError("Empty response from Qwen")
-
-    # Safety net: if Qwen modified or dropped any Devanagari word that was
-    # in the original input, fall back to the input text. We trust Qwen on
-    # script conversion (Roman → Devanagari) and on punctuation, but not
-    # on rewriting Devanagari words.
-    if not _verify_devanagari_preserved(text, content):
-        print("[normalizer] falling back to original input (no Qwen edits applied)")
-        return text
-
     return content
+
+
+def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
+                    target_provider: str = "parler") -> str:
+    """Normalize text for TTS. Two-pass when target_provider is
+    'elevenlabs':
+      Pass 1 — script + punctuation cleanup (same as other providers)
+      Pass 2 — insert ElevenLabs emotion tags at vocal-emotion moments
+
+    Splitting into two focused calls works better than one large
+    combined prompt for a 14B local model.
+    """
+    # Pass 1: normalize
+    content = _qwen_call(SYSTEM_PROMPT, text, timeout)
+    if not _verify_devanagari_preserved(text, content):
+        print("[normalizer] pass-1 substitution detected — falling back to original input")
+        content = text
+
+    if target_provider.lower() != "elevenlabs":
+        return content
+
+    # Pass 2: emotion tags (ElevenLabs only)
+    print("[normalizer] pass-2: emotion-tag injection for ElevenLabs")
+    try:
+        tagged = _qwen_call(QWEN_EMOTION_TAG_PROMPT, content, timeout)
+    except OllamaError as e:
+        print(f"[normalizer] emotion-tag pass failed: {e} — using untagged text")
+        return content
+
+    if not _verify_devanagari_preserved(content, tagged):
+        print("[normalizer] pass-2 substitution detected — using untagged text")
+        return content
+
+    return tagged

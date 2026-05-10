@@ -190,6 +190,73 @@ QWEN_TEMPERATURE = 0.2
 # narrative clearly suggests an emotion shift. For other providers
 # (Parler, Bark) this addendum is omitted because they would speak
 # the bracketed words literally or treat them as noise.
+QWEN_EMOTION_TAG_PROMPT = """You are an emotion-tagger for an ElevenLabs TTS narrator.
+
+INPUT: a piece of Hindi/Hinglish/English text that has already been
+formatted for TTS.
+
+OUTPUT: the SAME text, unchanged word-for-word, with ElevenLabs
+inline emotion tags inserted at moments of clear vocal emotion.
+
+Available tags (use only these):
+  [crying] [laughs] [chuckles] [sighs] [whispers] [excited] [happy]
+  [sad] [angry] [shouting] [gasps] [breathless] [hesitant] [serious]
+
+TRIGGER PHRASES → TAG mapping. When you see these in the input,
+INSERT the tag right before that phrase. Do not skip them.
+
+  [crying]    : रोना, रो रही/रहा, आँसू, सिसकी, तड़पना, वेदना,
+                "दिल हिला देने वाली आवाज़", दर्द से कराहना,
+                cry, sob, tears, weeping
+  [laughs]    : हँसी, ठहाका, खिलखिलाना, "हँसकर बोला/कहा",
+                laugh, chuckle, giggle
+  [sighs]     : आह, "गहरी साँस", "ठंडी आह", sighed
+  [whispers]  : फुसफुसाया, "धीरे से कहा", "कान में कहा",
+                "चुपके से बोला", whispered, murmured
+  [excited]   : "उत्साह से", "चहक उठा", "खुशी से उछल पड़ा",
+                excitedly, thrilled
+  [happy]     : खुशी से, "मुस्कुराते हुए", happy, joyful
+  [sad]       : दुखी, उदास, मायूस, "गमगीन आवाज़",
+                "बचेगी नहीं" / similarly grim or hopeless dialogue,
+                sadly, sorrowfully
+  [angry]     : गुस्से से, क्रोधित, "नाराज़ होकर", angrily, furious
+  [shouting]  : चिल्लाया, गरजा, "ज़ोर से बोला", "चीख पड़ा",
+                shouted, yelled
+  [gasps]     : "हाँफते हुए", "साँस फूल गई", "स्तब्ध रह गया",
+                gasped
+  [breathless]: "हाँफते-हाँफते", out of breath, exhausted speech
+  [hesitant]  : "हिचकिचाते हुए", "रुक-रुककर", "अटक-अटककर",
+                hesitantly
+  [serious]   : "गंभीर स्वर", "संजीदगी से", solemnly
+
+RULES:
+  1. Tag goes RIGHT BEFORE the emotional phrase, not at sentence start
+     by default.
+  2. Pure scene description (weather, setting, time of day) gets NO
+     tag. Tags are for vocal emotion only.
+  3. Whenever you see a trigger phrase from the table, ADD the tag.
+     Don't skip.
+  4. Do NOT change any words. Do NOT add or remove sentences. Tags
+     are the ONLY new content.
+  5. Output ONLY the tagged text. No explanation, no quotes around it.
+
+EXAMPLES:
+
+Input:  "रह-रहकर उसके मुँह से ऐसी दिल हिला देने वाली आवाज़ निकलती थी।"
+Output: "रह-रहकर उसके मुँह से [crying] ऐसी दिल हिला देने वाली आवाज़ निकलती थी।"
+
+Input:  "घीसू ने कहा—'मालूम होता है, बचेगी नहीं।'"
+Output: "घीसू ने कहा—[sad] 'मालूम होता है, बचेगी नहीं।'"
+
+Input:  "जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।"
+Output: "जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।"
+
+Input:  "वह हँसते हुए बोला—'अरे यार, क्या बात है!'"
+Output: "वह हँसते हुए बोला—[laughs] 'अरे यार, क्या बात है!'"
+
+Now process the input below."""
+
+
 QWEN_ELEVENLABS_EMOTION_ADDENDUM = """
 
 ADDITIONAL TASK — TARGET TTS IS ELEVENLABS:

@@ -9,7 +9,7 @@ from config import (
     WHISPER_TAIL_PAD_SEC as TAIL_PAD_SEC,
 )
 
-MODEL_SIZE = os.getenv("WHISPER_MODEL", "tiny")
+MODEL_SIZE = os.getenv("WHISPER_MODEL", "small")
 
 _model = None
 _device = None
