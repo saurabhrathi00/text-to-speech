@@ -1,49 +1,105 @@
 import os
 import re
+import json
 import requests
 
 from config import (
     QWEN_SYSTEM_PROMPT as SYSTEM_PROMPT,
+    QWEN_EMOTION_CLASSIFY_PROMPT,
     QWEN_TIMEOUT_SECONDS,
     QWEN_TEMPERATURE,
-    ELEVEN_EMOTION_TRIGGERS,
-    BARK_EMOTION_TRIGGERS,
 )
 
-
-def _compile(triggers: list) -> list:
-    return [(re.compile(p, re.IGNORECASE), tag) for p, tag in triggers]
-
-
-_COMPILED_BY_PROVIDER = {
-    "elevenlabs": _compile(ELEVEN_EMOTION_TRIGGERS),
-    "bark": _compile(BARK_EMOTION_TRIGGERS),
+# Tags Bark can render cleanly. ElevenLabs accepts the full tag set.
+BARK_SUPPORTED_TAGS = {
+    "[crying]", "[laughs]", "[chuckles]", "[sighs]", "[whispers]",
+    "[gasps]", "[breathless]",
 }
 
 
-def _inject_emotion_tags(text: str, provider: str) -> str:
-    """Insert provider-appropriate emotion tags before any trigger
-    phrase from the matching trigger list. Idempotent — won't double-tag
-    if a tag is already present immediately before a match.
+def _classify_emotions_via_qwen(sentences: list[str], timeout: int) -> list[str | None]:
+    """Ask Qwen to classify each sentence's vocal emotion. Returns a list
+    of tags (with brackets) or None per sentence. On any failure returns
+    [None, None, ...] of the right length (no tagging).
     """
-    triggers = _COMPILED_BY_PROVIDER.get(provider, [])
-    if not triggers:
-        return text
-    inserted = 0
-    for pattern, tag in triggers:
-        def _repl(m: re.Match) -> str:
-            nonlocal inserted
-            start = m.start()
-            preceding = text[max(0, start - len(tag) - 2):start]
-            if tag in preceding:
-                return m.group(0)
-            inserted += 1
-            return f"{tag} {m.group(0)}"
+    user_payload = json.dumps(sentences, ensure_ascii=False)
+    try:
+        raw = _qwen_call(QWEN_EMOTION_CLASSIFY_PROMPT, user_payload, timeout, temperature=0.3)
+    except OllamaError as e:
+        print(f"[normalizer] emotion classify FAILED: {e}")
+        return [None] * len(sentences)
 
-        text = pattern.sub(_repl, text)
-    if inserted:
-        print(f"[normalizer] regex injected {inserted} {provider} tag(s)")
-    return text
+    # Strip any surrounding code fences or commentary; pull out the first
+    # JSON object we can find.
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not m:
+        print(f"[normalizer] emotion classify: no JSON in output — {raw[:200]}")
+        return [None] * len(sentences)
+    try:
+        data = json.loads(m.group(0))
+        emotions = data.get("emotions") or []
+    except json.JSONDecodeError as e:
+        print(f"[normalizer] emotion classify: JSON parse error — {e}")
+        return [None] * len(sentences)
+
+    if not isinstance(emotions, list):
+        print(f"[normalizer] emotion classify: 'emotions' not a list")
+        return [None] * len(sentences)
+
+    # Pad / truncate to expected length
+    if len(emotions) < len(sentences):
+        emotions = emotions + [None] * (len(sentences) - len(emotions))
+    elif len(emotions) > len(sentences):
+        emotions = emotions[: len(sentences)]
+
+    # Normalize each entry — must be a tag string or None
+    cleaned: list[str | None] = []
+    for e in emotions:
+        if isinstance(e, str) and e.startswith("[") and e.endswith("]"):
+            cleaned.append(e)
+        else:
+            cleaned.append(None)
+    return cleaned
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences keeping the terminating punctuation."""
+    parts = re.split(r"(?<=[।.!?])\s*", text)
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def _apply_tags_per_sentence(text: str, tags: list[str | None],
+                              allowed: set[str] | None = None) -> tuple[str, int]:
+    """Rebuild text with each sentence prefixed by its emotion tag (if any
+    and if the tag is in `allowed`). Returns (new_text, tag_count).
+    """
+    sentences = _split_sentences(text)
+    if not sentences:
+        return text, 0
+    out_parts: list[str] = []
+    inserted = 0
+    for s, t in zip(sentences, tags):
+        if t and (allowed is None or t in allowed):
+            out_parts.append(f"{t} {s}")
+            inserted += 1
+        else:
+            out_parts.append(s)
+    return " ".join(out_parts), inserted
+
+
+def _add_emotion_tags(text: str, provider: str, timeout: int) -> str:
+    """Use Qwen to classify each sentence's emotion, then prepend the
+    chosen tag to that sentence.
+    """
+    sentences = _split_sentences(text)
+    if not sentences:
+        return text
+    print(f"[normalizer] classifying emotions for {len(sentences)} sentence(s) via Qwen...")
+    tags = _classify_emotions_via_qwen(sentences, timeout)
+    allowed = BARK_SUPPORTED_TAGS if provider == "bark" else None
+    new_text, count = _apply_tags_per_sentence(text, tags, allowed=allowed)
+    print(f"[normalizer] applied {count} {provider} tag(s)")
+    return new_text
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.10:11434/api/chat")
 MODEL_NAME = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
@@ -126,10 +182,11 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
                     target_provider: str = "parler") -> str:
     """Normalize text for TTS:
       Pass 1 — Qwen script + punctuation cleanup (all providers)
-      Pass 2 — Regex emotion-tag injection
-                 ElevenLabs: always (tags are direction, no extra noise)
-                 Bark:       only when BARK_USE_TAGS=1 (tags produce
-                             literal non-speech sounds)
+      Pass 2 — Qwen-driven emotion classification per sentence,
+               then prepend the chosen tag to each emotional sentence:
+                 ElevenLabs: always (tags are direction)
+                 Bark:       only when BARK_USE_TAGS=1, and only Bark-
+                             supported tags are kept
                  Parler:     never (no inline tag support)
     """
     # Pass 1: Qwen normalize
@@ -140,7 +197,7 @@ def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
 
     provider = target_provider.lower()
     if provider == "elevenlabs":
-        return _inject_emotion_tags(content, "elevenlabs")
+        return _add_emotion_tags(content, "elevenlabs", timeout)
     if provider == "bark" and os.getenv("BARK_USE_TAGS") == "1":
-        return _inject_emotion_tags(content, "bark")
+        return _add_emotion_tags(content, "bark", timeout)
     return content
