@@ -20,17 +20,30 @@ class AlignError(Exception):
 
 
 def load_aligner():
+    """Load whisper. Defaults to CPU even when CUDA is available so it
+    runs in true parallel with Parler/Bark on GPU instead of serializing
+    on the same device. Override with WHISPER_DEVICE=cuda if VRAM is
+    plentiful and you want max whisper speed.
+    """
     global _model, _device
     if _model is not None:
         return
-    if torch.cuda.is_available():
+    requested = (os.getenv("WHISPER_DEVICE") or "cpu").strip().lower()
+    if requested == "cuda" and torch.cuda.is_available():
         _device = "cuda"
         compute = "float16"
     else:
         _device = "cpu"
+        # int8 quantization on CPU is ~2x faster than float32 with
+        # negligible accuracy loss for whisper-tiny.
         compute = "int8"
-    _model = WhisperModel(MODEL_SIZE, device=_device, compute_type=compute)
-    print(f"[aligner] loaded whisper-{MODEL_SIZE} on {_device}")
+    _model = WhisperModel(
+        MODEL_SIZE,
+        device=_device,
+        compute_type=compute,
+        cpu_threads=int(os.getenv("WHISPER_CPU_THREADS", "4")),
+    )
+    print(f"[aligner] loaded whisper-{MODEL_SIZE} on {_device} ({compute})")
 
 
 def align(audio_path: str) -> list[dict]:
