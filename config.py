@@ -196,30 +196,64 @@ ADDITIONAL TASK — TARGET TTS IS ELEVENLABS:
 
 The output will be spoken by ElevenLabs, which supports inline emotion
 tags as DIRECTIONS to the voice (the tags themselves are not spoken).
-Where the narrative clearly suggests a strong emotional moment, insert
-ONE emotion tag at the start of the relevant phrase.
+Insert ONE tag immediately before any phrase that conveys a strong
+emotional moment. These tags improve the audio significantly — when
+you see a clear cue, ADD the tag. Don't be too sparing.
 
-Available tags (use only these):
-  [cry] [crying] [laughs] [chuckles] [sighs] [whispers] [whispering]
-  [excited] [happy] [sad] [angry] [shouting] [breathless] [hesitant]
-  [serious] [murmuring] [gasps]
+TRIGGER PHRASES → TAG mapping (add tag whenever you see these cues):
 
-Rules for tag insertion:
-  - Insert ONLY when the emotion is clearly stated or unmistakably
-    implied in the words. Do NOT invent emotion that isn't there.
-  - Insert ONE tag per emotional phrase, placed right before the
-    phrase it modifies, not at sentence start by default.
-  - Most sentences should NOT get a tag. Use tags sparingly — only
-    for moments of clear emotional weight (crying, laughing,
-    whispering a secret, shouting in anger, gasping in shock).
-  - Tags are EXTRA content but they don't violate the no-content
-    rule because they are direction marks, not spoken words.
-  - Everything else (don't change words, don't dedupe, don't summarize)
-    still applies. Tags are the ONLY new content allowed.
+  [crying]      ← any mention of: रोना, रो रही/रहा, आँसू, सिसकी, तड़पना,
+                  वेदना, दर्द से कराहना, "दिल हिला देने वाली आवाज़",
+                  cry, sob, tears, weeping
+  [laughs]      ← हँसी, ठहाका, खिलखिलाना, मुस्कुराते हुए कहा, laugh,
+                  chuckle, giggle, "हँसकर बोला"
+  [sighs]       ← आह, "गहरी साँस ली", "आह भरकर", sighed, "ठंडी आह"
+  [whispers]    ← फुसफुसाया, "धीरे से कहा", "कान में कहा", "चुपके से बोला",
+                  whispered, murmured
+  [excited]     ← "उत्साह से", "चहक उठा", "खुशी से उछल पड़ा", excitedly,
+                  thrilled
+  [happy]       ← खुशी से, "मुस्कुराते हुए", happy, joyful (less intense
+                  than [excited])
+  [sad]         ← दुखी, उदास, "मायूस होकर", "गमगीन आवाज़ में", "बचेगी नहीं"
+                  ya kisi tragic news ka delivery, sadly, sorrowfully
+  [angry]       ← गुस्से से, क्रोधित, "नाराज़ होकर", angrily, furious
+  [shouting]    ← चिल्लाया, गरजा, "ज़ोर से बोला", "चीख पड़ा", shouted, yelled
+  [gasps]       ← "हाँफते हुए", "साँस फूल गई", "स्तब्ध रह गया", gasped
+  [breathless]  ← "हाँफते-हाँफते", out of breath, exhausted speech
+  [hesitant]    ← "हिचकिचाते हुए", "रुक-रुककर", "अटक-अटककर", hesitantly
+  [serious]     ← "गंभीर स्वर में", "संजीदगी से", solemnly
 
-Example:
+Rules:
+  1. Tag goes IMMEDIATELY BEFORE the emotional phrase, not at sentence
+     start by default. Place it at the exact point where the emotion
+     begins.
+  2. Pure description / narration / atmospheric prose (weather, scene
+     setting, time of day) gets NO tag. Tags are for VOCAL emotion only.
+  3. ONE tag per emotional moment — don't stack [sad][crying] together.
+  4. If two emotional moments appear in the same sentence, you may use
+     two different tags at their respective positions.
+  5. When you see a trigger from the table above, ADD the tag — don't
+     skip it. The user wants emotional audio.
+  6. Everything else (don't change words, don't dedupe, don't summarize)
+     still applies. Tags are the ONLY new content allowed.
+
+Examples:
+
 Input:  "तो मुझसे तो उसका तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।"
-Output: "तो मुझसे [cry] तो उसका तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।"
+Output: "तो मुझसे [crying] तो उसका तड़पना और हाथ-पाँव पटकना नहीं देखा जाता।"
+
+Input:  "रह-रहकर उसके मुँह से ऐसी दिल हिला देने वाली आवाज़ निकलती थी।"
+Output: "रह-रहकर उसके मुँह से [crying] ऐसी दिल हिला देने वाली आवाज़ निकलती थी।"
+
+Input:  "घीसू ने कहा—'मालूम होता है, बचेगी नहीं।'"
+Output: "घीसू ने कहा—[sad] 'मालूम होता है, बचेगी नहीं।'"
+
+Input:  "जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।"
+Output: "जाड़ों की रात थी, सारा गाँव अंधकार में लय हो गया था।"
+(NO tag — pure scene description, no vocal emotion.)
+
+Input:  "वह हँसते हुए बोला—'अरे यार, क्या बात है!'"
+Output: "वह हँसते हुए बोला—[laughs] 'अरे यार, क्या बात है!'"
 """
 
 
