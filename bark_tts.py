@@ -90,8 +90,21 @@ def _split_text(text: str) -> list[str]:
 
 def _generate_chunk(text: str, voice_preset: str) -> tuple[np.ndarray, int]:
     inputs = _processor(text=text, voice_preset=voice_preset, return_tensors="pt").to(_device)
+
+    # Bark's processor doesn't always include attention_mask, so transformers
+    # warns and falls back to inferring from pad_token_id. Provide it
+    # explicitly to silence the warning and ensure deterministic behavior.
+    if "attention_mask" not in inputs:
+        inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
+
+    pad_id = (
+        getattr(_model.generation_config, "pad_token_id", None)
+        or getattr(_model.generation_config, "eos_token_id", None)
+        or 0
+    )
+
     with torch.inference_mode():
-        audio = _model.generate(**inputs, do_sample=True)
+        audio = _model.generate(**inputs, do_sample=True, pad_token_id=pad_id)
     sr = _model.generation_config.sample_rate
     arr = audio.cpu().to(torch.float32).numpy().squeeze()
     return arr, sr
