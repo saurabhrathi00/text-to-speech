@@ -68,6 +68,7 @@ def _build_workflow_ipadapter(prompt: str, negative: str, width: int, height: in
                 "weight": weight,
                 "start_at": 0.0,
                 "end_at": 1.0,
+                "weight_type": "linear",
             },
         },
         "6": {
