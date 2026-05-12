@@ -94,6 +94,15 @@
         <span>🎨 Image generation (ComfyUI + SDXL)</span>
         <span id="comfyStatus" class="comfy-status">checking...</span>
       </header>
+
+      <div id="anchorBanner" class="anchor-banner hidden">
+        <img id="anchorPreview" alt="character anchor" />
+        <div class="anchor-info">
+          <strong>Character anchor set</strong>
+          <span>Toggle below to use it for consistency.</span>
+        </div>
+        <button type="button" id="clearAnchorBtn" class="secondary">✖ Clear</button>
+      </div>
       <label class="label" for="sceneInput">Hindi/Hinglish script (Qwen will turn it into English image prompts)</label>
       <textarea id="sceneInput" rows="4" placeholder="एक गाँव में एक मूर्ख आदमी रहता था। एक दिन वह अपने घोड़े और बकरी बेचने बाज़ार जा रहा था..."></textarea>
       <div class="image-controls">
@@ -110,6 +119,11 @@
 
       <label class="label" for="imagePrompt">Or write English prompt directly</label>
       <textarea id="imagePrompt" rows="3" placeholder="A small Indian village at dawn, mud houses, soft golden light, photorealistic, cinematic"></textarea>
+      <label class="checkbox-row anchor-toggle-row hidden">
+        <input type="checkbox" id="useAnchor" />
+        <span>🎭 Use character anchor (IP-Adapter for consistency)</span>
+      </label>
+
       <div class="image-controls">
         <button type="button" id="imageBtn" class="primary">🖼️ Generate Image</button>
         <span id="imageStatus" class="image-status hidden">
@@ -120,7 +134,10 @@
       <div id="imageError" class="error hidden"></div>
       <div id="imageResult" class="image-result hidden">
         <img id="imagePreview" alt="generated image" />
-        <a id="imageDownload" class="secondary" download>📥 Download</a>
+        <div class="image-actions">
+          <a id="imageDownload" class="secondary" download>📥 Download</a>
+          <button type="button" id="setAnchorBtn" class="secondary">🎭 Set as character anchor</button>
+        </div>
       </div>
     </section>
 
@@ -224,21 +241,67 @@
     const imageDownload = document.getElementById('imageDownload');
     const comfyStatus = document.getElementById('comfyStatus');
 
+    const anchorBanner = document.getElementById('anchorBanner');
+    const anchorPreview = document.getElementById('anchorPreview');
+    const anchorToggleRow = document.querySelector('.anchor-toggle-row');
+    const useAnchorEl = document.getElementById('useAnchor');
+    const clearAnchorBtn = document.getElementById('clearAnchorBtn');
+    const setAnchorBtn = document.getElementById('setAnchorBtn');
+    let lastGeneratedFilename = null;
+
+    function applyStatus(s) {
+      if (s.comfy_reachable) {
+        comfyStatus.textContent = '🟢 connected';
+        comfyStatus.className = 'comfy-status ok';
+      } else {
+        comfyStatus.textContent = '🔴 not running';
+        comfyStatus.className = 'comfy-status bad';
+      }
+      const anchor = s.anchor || {};
+      if (anchor.set && anchor.local_filename) {
+        anchorPreview.src = `/images/${anchor.local_filename}`;
+        anchorBanner.classList.remove('hidden');
+        anchorToggleRow.classList.remove('hidden');
+      } else {
+        anchorBanner.classList.add('hidden');
+        anchorToggleRow.classList.add('hidden');
+        useAnchorEl.checked = false;
+      }
+    }
+
     function refreshComfyStatus() {
-      fetch('/api/image/status').then(r => r.json()).then(s => {
-        if (s.comfy_reachable) {
-          comfyStatus.textContent = '🟢 connected';
-          comfyStatus.className = 'comfy-status ok';
-        } else {
-          comfyStatus.textContent = '🔴 not running';
-          comfyStatus.className = 'comfy-status bad';
-        }
-      }).catch(() => {
+      fetch('/api/image/status').then(r => r.json()).then(applyStatus).catch(() => {
         comfyStatus.textContent = '⚠️ unknown';
       });
     }
     refreshComfyStatus();
     setInterval(refreshComfyStatus, 15000);
+
+    setAnchorBtn.addEventListener('click', async () => {
+      if (!lastGeneratedFilename) return;
+      setAnchorBtn.disabled = true;
+      try {
+        const res = await fetch('/api/image/anchor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: lastGeneratedFilename }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          imageError.textContent = data.error || 'Anchor set nahi hua';
+          imageError.classList.remove('hidden');
+          return;
+        }
+        refreshComfyStatus();
+      } finally {
+        setAnchorBtn.disabled = false;
+      }
+    });
+
+    clearAnchorBtn.addEventListener('click', async () => {
+      await fetch('/api/image/anchor', { method: 'DELETE' });
+      refreshComfyStatus();
+    });
 
     imageBtn.addEventListener('click', async () => {
       const prompt = imagePromptEl.value.trim();
@@ -254,7 +317,7 @@
         const res = await fetch('/api/image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ prompt, use_anchor: useAnchorEl.checked }),
           signal: ctrl.signal,
         });
         const data = await res.json();
@@ -265,6 +328,7 @@
         }
         imagePreview.src = data.image_url;
         imageDownload.href = data.image_url;
+        lastGeneratedFilename = data.image_url.split('/').pop();
         imageResult.classList.remove('hidden');
       } catch (e) {
         imageError.textContent = 'Server se connect nahi ho paya / timeout';

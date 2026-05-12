@@ -249,13 +249,23 @@ def api_image():
     negative = (data.get("negative") or "blurry, low quality, distorted, ugly").strip()
     seed = data.get("seed")
     seed = int(seed) if seed is not None else None
+    use_anchor = bool(data.get("use_anchor"))
+
+    reference_filename = None
+    if use_anchor:
+        anchor = _anchor_state()
+        if not anchor.get("set"):
+            return jsonify({"error": "Pehle ek anchor image set karein"}), 400
+        reference_filename = anchor.get("comfy_filename")
 
     t0 = time.time()
-    print(f"[app] /api/image → {len(prompt)} chars, {width}x{height}, {steps} steps")
+    print(f"[app] /api/image → {len(prompt)} chars, {width}x{height}, {steps} steps, "
+          f"anchor={'yes' if reference_filename else 'no'}")
     try:
         img_bytes = image_gen.generate(
             prompt=prompt, negative=negative,
             width=width, height=height, steps=steps, seed=seed,
+            reference_filename=reference_filename,
         )
     except image_gen.ComfyError as e:
         print(f"[app] image gen FAILED: {e}")
@@ -273,7 +283,66 @@ def api_image():
 
 @app.route("/api/image/status")
 def api_image_status():
-    return jsonify({"comfy_reachable": image_gen.is_configured()})
+    return jsonify({
+        "comfy_reachable": image_gen.is_configured(),
+        "anchor": _anchor_state(),
+    })
+
+
+# ── Character anchor (IP-Adapter reference) ────────────────────────────
+# Stored as a tiny state file so it survives server restarts.
+_ANCHOR_FILE = BASE_DIR / ".anchor.json"
+
+
+def _anchor_state() -> dict:
+    if not _ANCHOR_FILE.exists():
+        return {"set": False}
+    try:
+        import json as _json
+        return _json.loads(_ANCHOR_FILE.read_text())
+    except Exception:
+        return {"set": False}
+
+
+def _save_anchor(comfy_filename: str, local_filename: str):
+    import json as _json
+    _ANCHOR_FILE.write_text(_json.dumps({
+        "set": True,
+        "comfy_filename": comfy_filename,
+        "local_filename": local_filename,
+    }))
+
+
+@app.route("/api/image/anchor", methods=["POST"])
+def api_set_anchor():
+    """Set the current image (from /images/<file>) as the character
+    anchor — uploaded to ComfyUI and used as IP-Adapter reference for
+    subsequent generations."""
+    data = request.get_json(silent=True) or {}
+    filename = (data.get("filename") or "").strip()
+    if not filename:
+        return jsonify({"error": "filename required"}), 400
+    local_path = IMAGE_DIR / filename
+    if not local_path.exists():
+        return jsonify({"error": "image not found"}), 404
+
+    try:
+        comfy_name = image_gen.upload_reference(
+            local_path.read_bytes(),
+            suggested_name=f"anchor_{filename}",
+        )
+    except image_gen.ComfyError as e:
+        return jsonify({"error": str(e)}), 502
+
+    _save_anchor(comfy_name, filename)
+    return jsonify({"set": True, "comfy_filename": comfy_name, "local_filename": filename})
+
+
+@app.route("/api/image/anchor", methods=["DELETE"])
+def api_clear_anchor():
+    if _ANCHOR_FILE.exists():
+        _ANCHOR_FILE.unlink()
+    return jsonify({"set": False})
 
 
 @app.route("/api/scenes", methods=["POST"])

@@ -258,6 +258,37 @@ details summary {
   font-weight: 600;
 }
 
+.anchor-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(139,92,246,0.10);
+  border: 1px solid rgba(139,92,246,0.3);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+.anchor-banner img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.anchor-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.88rem;
+}
+.anchor-info strong { color: #c4b5fd; }
+.anchor-info span { color: #cbd5e1; font-size: 0.82rem; }
+
+.image-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .image-card .image-header {
   display: flex;
   justify-content: space-between;
