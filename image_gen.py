@@ -5,8 +5,9 @@ import requests
 
 COMFY_HOST = os.getenv("COMFY_HOST", "http://127.0.0.1:8188")
 COMFY_MODEL = os.getenv("COMFY_MODEL", "sd_xl_base_1.0.safetensors")
-IPADAPTER_PRESET = os.getenv("IPADAPTER_PRESET", "PLUS (high strength)")
-IPADAPTER_WEIGHT = float(os.getenv("IPADAPTER_WEIGHT", "0.8"))
+IPADAPTER_PRESET = os.getenv("IPADAPTER_PRESET", "STANDARD (medium strength)")
+IPADAPTER_WEIGHT = float(os.getenv("IPADAPTER_WEIGHT", "0.55"))
+IPADAPTER_WEIGHT_TYPE = os.getenv("IPADAPTER_WEIGHT_TYPE", "prompt is more important")
 
 
 class ComfyError(Exception):
@@ -68,7 +69,7 @@ def _build_workflow_ipadapter(prompt: str, negative: str, width: int, height: in
                 "weight": weight,
                 "start_at": 0.0,
                 "end_at": 1.0,
-                "weight_type": "standard",
+                "weight_type": IPADAPTER_WEIGHT_TYPE,
             },
         },
         "6": {
