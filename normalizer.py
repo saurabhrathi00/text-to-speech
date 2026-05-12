@@ -6,6 +6,7 @@ import requests
 from config import (
     QWEN_SYSTEM_PROMPT as SYSTEM_PROMPT,
     QWEN_EMOTION_CLASSIFY_PROMPT,
+    QWEN_SCENE_PROMPT_PROMPT,
     QWEN_TIMEOUT_SECONDS,
     QWEN_TEMPERATURE,
 )
@@ -85,6 +86,56 @@ def _apply_tags_per_sentence(text: str, tags: list[str | None],
         else:
             out_parts.append(s)
     return " ".join(out_parts), inserted
+
+
+def generate_scene_prompts(text: str, timeout: int = QWEN_TIMEOUT_SECONDS) -> dict:
+    """Use Qwen to split Hindi/Hinglish/English text into visual scenes
+    and produce an English SDXL image prompt per scene. Also returns a
+    `characters` list so the caller can keep character descriptions
+    consistent across scenes.
+
+    Returns a dict shaped like:
+      {"characters": [{"name": str, "description": str}, ...],
+       "scenes":     [{"hindi": str, "prompt": str}, ...]}
+
+    On failure (Ollama down, malformed JSON), returns
+      {"characters": [], "scenes": [], "error": "..."}.
+    """
+    try:
+        raw = _qwen_call(QWEN_SCENE_PROMPT_PROMPT, text, timeout, temperature=0.4)
+    except OllamaError as e:
+        print(f"[scenes] qwen FAILED: {e}")
+        return {"characters": [], "scenes": [], "error": str(e)}
+
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not m:
+        print(f"[scenes] no JSON in output — {raw[:200]}")
+        return {"characters": [], "scenes": [], "error": "no JSON in output"}
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError as e:
+        print(f"[scenes] JSON parse error — {e}")
+        return {"characters": [], "scenes": [], "error": f"JSON parse: {e}"}
+
+    characters = data.get("characters") or []
+    scenes = data.get("scenes") or []
+    # Validate shapes; drop malformed entries silently
+    clean_scenes = []
+    for s in scenes:
+        if isinstance(s, dict) and isinstance(s.get("prompt"), str):
+            clean_scenes.append({
+                "hindi": s.get("hindi", ""),
+                "prompt": s["prompt"].strip(),
+            })
+    clean_chars = []
+    for c in characters:
+        if isinstance(c, dict) and isinstance(c.get("description"), str):
+            clean_chars.append({
+                "name": c.get("name", ""),
+                "description": c["description"].strip(),
+            })
+    print(f"[scenes] produced {len(clean_scenes)} scene(s), {len(clean_chars)} character(s)")
+    return {"characters": clean_chars, "scenes": clean_scenes}
 
 
 def _add_emotion_tags(text: str, provider: str, timeout: int) -> str:

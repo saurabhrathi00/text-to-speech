@@ -94,7 +94,21 @@
         <span>🎨 Image generation (ComfyUI + SDXL)</span>
         <span id="comfyStatus" class="comfy-status">checking...</span>
       </header>
-      <label class="label" for="imagePrompt">Image prompt (English works best)</label>
+      <label class="label" for="sceneInput">Hindi/Hinglish script (Qwen will turn it into English image prompts)</label>
+      <textarea id="sceneInput" rows="4" placeholder="एक गाँव में एक मूर्ख आदमी रहता था। एक दिन वह अपने घोड़े और बकरी बेचने बाज़ार जा रहा था..."></textarea>
+      <div class="image-controls">
+        <button type="button" id="scenesBtn" class="secondary">🎬 Generate Scene Prompts</button>
+        <span id="scenesStatus" class="image-status hidden">
+          <span class="spinner"></span>
+          <span>Qwen prompts bana raha hai (~30-60 sec)...</span>
+        </span>
+      </div>
+      <div id="scenesError" class="error hidden"></div>
+      <div id="scenesResult" class="scenes-result hidden"></div>
+
+      <hr class="divider" />
+
+      <label class="label" for="imagePrompt">Or write English prompt directly</label>
       <textarea id="imagePrompt" rows="3" placeholder="A small Indian village at dawn, mud houses, soft golden light, photorealistic, cinematic"></textarea>
       <div class="image-controls">
         <button type="button" id="imageBtn" class="primary">🖼️ Generate Image</button>
@@ -123,6 +137,83 @@
   </main>
 
   <script>
+    // ── Scene-prompt generation (Hindi → English image prompts) ──────
+    const scenesBtn = document.getElementById('scenesBtn');
+    const sceneInputEl = document.getElementById('sceneInput');
+    const scenesStatus = document.getElementById('scenesStatus');
+    const scenesError = document.getElementById('scenesError');
+    const scenesResult = document.getElementById('scenesResult');
+
+    scenesBtn.addEventListener('click', async () => {
+      const text = sceneInputEl.value.trim();
+      scenesError.classList.add('hidden');
+      scenesResult.classList.add('hidden');
+      scenesResult.innerHTML = '';
+      if (!text) { scenesError.textContent = 'Pehle script likhein'; scenesError.classList.remove('hidden'); return; }
+
+      scenesBtn.disabled = true;
+      scenesStatus.classList.remove('hidden');
+      try {
+        const res = await fetch('/api/scenes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          scenesError.textContent = data.error || 'Scenes generate nahi hue';
+          scenesError.classList.remove('hidden');
+          return;
+        }
+        renderScenes(data);
+      } catch (e) {
+        scenesError.textContent = 'Server se connect nahi ho paya';
+        scenesError.classList.remove('hidden');
+      } finally {
+        scenesStatus.classList.add('hidden');
+        scenesBtn.disabled = false;
+      }
+    });
+
+    function renderScenes(data) {
+      scenesResult.innerHTML = '';
+      const chars = data.characters || [];
+      const scenes = data.scenes || [];
+
+      if (chars.length) {
+        const charBox = document.createElement('div');
+        charBox.className = 'characters-box';
+        charBox.innerHTML = '<div class="characters-label">Characters detected:</div>';
+        chars.forEach(c => {
+          const chip = document.createElement('div');
+          chip.className = 'character-chip';
+          chip.innerHTML = `<strong>${c.name}</strong>: ${c.description}`;
+          charBox.appendChild(chip);
+        });
+        scenesResult.appendChild(charBox);
+      }
+
+      scenes.forEach((s, i) => {
+        const card = document.createElement('div');
+        card.className = 'scene-card';
+        card.innerHTML = `
+          <div class="scene-header">Scene ${i + 1}</div>
+          <div class="scene-hindi">${s.hindi || ''}</div>
+          <div class="scene-prompt">${s.prompt}</div>
+        `;
+        const useBtn = document.createElement('button');
+        useBtn.className = 'secondary';
+        useBtn.textContent = '🖼️ Use this prompt';
+        useBtn.addEventListener('click', () => {
+          document.getElementById('imagePrompt').value = s.prompt;
+          document.getElementById('imagePrompt').scrollIntoView({ behavior: 'smooth' });
+        });
+        card.appendChild(useBtn);
+        scenesResult.appendChild(card);
+      });
+      scenesResult.classList.remove('hidden');
+    }
+
     // ── Image generation section ─────────────────────────────────────
     const imageBtn = document.getElementById('imageBtn');
     const imagePromptEl = document.getElementById('imagePrompt');

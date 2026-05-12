@@ -23,7 +23,7 @@ _load_env_file()
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
-from normalizer import normalize_text, OllamaError
+from normalizer import normalize_text, generate_scene_prompts, OllamaError
 from tts_engine import synthesize as parler_synthesize, build_description, load_model
 from aligner import align as align_words, load_aligner
 import eleven_tts
@@ -274,6 +274,26 @@ def api_image():
 @app.route("/api/image/status")
 def api_image_status():
     return jsonify({"comfy_reachable": image_gen.is_configured()})
+
+
+@app.route("/api/scenes", methods=["POST"])
+def api_scenes():
+    """Convert Hindi/Hinglish/English text into English image prompts
+    using Qwen. Returns scenes + characters arrays.
+    """
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"error": "Pehle kuch text dein"}), 400
+
+    t0 = time.time()
+    print(f"[app] /api/scenes → {len(text)} chars")
+    result = generate_scene_prompts(text)
+    print(f"[app] /api/scenes done in {time.time() - t0:.1f}s → "
+          f"{len(result.get('scenes', []))} scene(s)")
+    if result.get("error"):
+        return jsonify(result), 502
+    return jsonify(result)
 
 
 def _warmup_in_background():
