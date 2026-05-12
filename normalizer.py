@@ -107,9 +107,19 @@ def generate_scene_prompts(text: str, timeout: int = QWEN_TIMEOUT_SECONDS) -> di
         print(f"[scenes] qwen FAILED: {e}")
         return {"characters": [], "scenes": [], "error": str(e)}
 
-    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    print(f"[scenes] qwen raw output ({len(raw)} chars):\n{raw[:1000]}")
+    if len(raw) > 1000:
+        print(f"... [truncated, total {len(raw)} chars]")
+
+    # Strip common LLM artifacts before JSON extraction
+    cleaned = raw.strip()
+    # Remove markdown code fences
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+    cleaned = re.sub(r"\s*```\s*$", "", cleaned)
+
+    m = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if not m:
-        print(f"[scenes] no JSON in output — {raw[:200]}")
+        print(f"[scenes] no JSON braces found — model likely refused structured output")
         return {"characters": [], "scenes": [], "error": "no JSON in output"}
     try:
         data = json.loads(m.group(0))
