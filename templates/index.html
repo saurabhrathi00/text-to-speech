@@ -89,6 +89,27 @@
       <div id="error" class="error hidden"></div>
     </section>
 
+    <section class="card image-card">
+      <header class="image-header">
+        <span>🎨 Image generation (ComfyUI + SDXL)</span>
+        <span id="comfyStatus" class="comfy-status">checking...</span>
+      </header>
+      <label class="label" for="imagePrompt">Image prompt (English works best)</label>
+      <textarea id="imagePrompt" rows="3" placeholder="A small Indian village at dawn, mud houses, soft golden light, photorealistic, cinematic"></textarea>
+      <div class="image-controls">
+        <button type="button" id="imageBtn" class="primary">🖼️ Generate Image</button>
+        <span id="imageStatus" class="image-status hidden">
+          <span class="spinner"></span>
+          <span>Banayi ja rahi hai (~15-30 sec)...</span>
+        </span>
+      </div>
+      <div id="imageError" class="error hidden"></div>
+      <div id="imageResult" class="image-result hidden">
+        <img id="imagePreview" alt="generated image" />
+        <a id="imageDownload" class="secondary" download>📥 Download</a>
+      </div>
+    </section>
+
     <section id="resultSection" class="card hidden">
       <label class="label" for="normalizedEdit">Normalized text — yahan edit karke dobara bana sakte ho</label>
       <textarea id="normalizedEdit" rows="4" class="normalized-edit"></textarea>
@@ -102,6 +123,68 @@
   </main>
 
   <script>
+    // ── Image generation section ─────────────────────────────────────
+    const imageBtn = document.getElementById('imageBtn');
+    const imagePromptEl = document.getElementById('imagePrompt');
+    const imageStatus = document.getElementById('imageStatus');
+    const imageError = document.getElementById('imageError');
+    const imageResult = document.getElementById('imageResult');
+    const imagePreview = document.getElementById('imagePreview');
+    const imageDownload = document.getElementById('imageDownload');
+    const comfyStatus = document.getElementById('comfyStatus');
+
+    function refreshComfyStatus() {
+      fetch('/api/image/status').then(r => r.json()).then(s => {
+        if (s.comfy_reachable) {
+          comfyStatus.textContent = '🟢 connected';
+          comfyStatus.className = 'comfy-status ok';
+        } else {
+          comfyStatus.textContent = '🔴 not running';
+          comfyStatus.className = 'comfy-status bad';
+        }
+      }).catch(() => {
+        comfyStatus.textContent = '⚠️ unknown';
+      });
+    }
+    refreshComfyStatus();
+    setInterval(refreshComfyStatus, 15000);
+
+    imageBtn.addEventListener('click', async () => {
+      const prompt = imagePromptEl.value.trim();
+      imageError.classList.add('hidden');
+      imageResult.classList.add('hidden');
+      if (!prompt) { imageError.textContent = 'Pehle prompt likhein'; imageError.classList.remove('hidden'); return; }
+
+      imageBtn.disabled = true;
+      imageStatus.classList.remove('hidden');
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10 * 60 * 1000);
+      try {
+        const res = await fetch('/api/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+          signal: ctrl.signal,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          imageError.textContent = data.error || 'Image generate nahi hui';
+          imageError.classList.remove('hidden');
+          return;
+        }
+        imagePreview.src = data.image_url;
+        imageDownload.href = data.image_url;
+        imageResult.classList.remove('hidden');
+      } catch (e) {
+        imageError.textContent = 'Server se connect nahi ho paya / timeout';
+        imageError.classList.remove('hidden');
+      } finally {
+        clearTimeout(timer);
+        imageStatus.classList.add('hidden');
+        imageBtn.disabled = false;
+      }
+    });
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(() => {});

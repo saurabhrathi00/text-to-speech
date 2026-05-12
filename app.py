@@ -28,6 +28,7 @@ from tts_engine import synthesize as parler_synthesize, build_description, load_
 from aligner import align as align_words, load_aligner
 import eleven_tts
 import bark_tts
+import image_gen
 
 
 PARLER_SPEAKERS = _CONFIG_PARLER_SPEAKERS
@@ -72,6 +73,8 @@ def _tts_synthesize(text: str, out_path: str, description: str,
 BASE_DIR = Path(__file__).parent.resolve()
 AUDIO_DIR = BASE_DIR / "audio"
 AUDIO_DIR.mkdir(exist_ok=True)
+IMAGE_DIR = BASE_DIR / "images"
+IMAGE_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)
 
@@ -221,6 +224,56 @@ def generate():
 def serve_audio(filename):
     mimetype = "audio/mpeg" if filename.lower().endswith(".mp3") else "audio/wav"
     return send_from_directory(AUDIO_DIR, filename, mimetype=mimetype)
+
+
+@app.route("/images/<path:filename>")
+def serve_image(filename):
+    return send_from_directory(IMAGE_DIR, filename, mimetype="image/png")
+
+
+@app.route("/api/image", methods=["POST"])
+def api_image():
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "prompt required"}), 400
+
+    if not image_gen.is_configured():
+        return jsonify({
+            "error": "ComfyUI reachable nahi hai. Make sure run_nvidia_gpu.bat chal raha hai at localhost:8188"
+        }), 503
+
+    width = int(data.get("width", 1024))
+    height = int(data.get("height", 1024))
+    steps = int(data.get("steps", 20))
+    negative = (data.get("negative") or "blurry, low quality, distorted, ugly").strip()
+    seed = data.get("seed")
+    seed = int(seed) if seed is not None else None
+
+    t0 = time.time()
+    print(f"[app] /api/image → {len(prompt)} chars, {width}x{height}, {steps} steps")
+    try:
+        img_bytes = image_gen.generate(
+            prompt=prompt, negative=negative,
+            width=width, height=height, steps=steps, seed=seed,
+        )
+    except image_gen.ComfyError as e:
+        print(f"[app] image gen FAILED: {e}")
+        return jsonify({"error": f"Image generate nahi hui: {e}"}), 502
+    except Exception:
+        traceback.print_exc()
+        return jsonify({"error": "Image generate nahi hui"}), 500
+
+    filename = f"img_{int(time.time())}_{uuid.uuid4().hex[:6]}.png"
+    out_path = IMAGE_DIR / filename
+    out_path.write_bytes(img_bytes)
+    print(f"[app] /api/image done in {time.time() - t0:.1f}s → {filename}")
+    return jsonify({"image_url": f"/images/{filename}"})
+
+
+@app.route("/api/image/status")
+def api_image_status():
+    return jsonify({"comfy_reachable": image_gen.is_configured()})
 
 
 def _warmup_in_background():
