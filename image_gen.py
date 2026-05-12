@@ -189,9 +189,17 @@ def generate(prompt: str, negative: str = "",
             json={"prompt": workflow, "client_id": client_id},
             timeout=10,
         )
-        r.raise_for_status()
     except requests.RequestException as e:
         raise ComfyError(f"submit failed: {e}") from e
+    if r.status_code != 200:
+        # ComfyUI returns the validation error in the body — surface it
+        try:
+            err_body = r.json()
+            err_summary = err_body.get("error") or err_body
+        except ValueError:
+            err_summary = r.text[:500]
+        print(f"[comfy] submit rejected with {r.status_code}: {err_summary}")
+        raise ComfyError(f"submit rejected ({r.status_code}): {err_summary}")
 
     body = r.json()
     if "prompt_id" not in body:
