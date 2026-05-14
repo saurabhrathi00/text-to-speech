@@ -817,6 +817,16 @@
         llm_emotions: 'Emotions classify ho rahe hain',
         tts: 'Awaaz bana raha hai',
       };
+      // Vibe over numbers — pick an emoji based on how close we are to
+      // the stage's ETA. No raw seconds, no countdown — just a feel.
+      function progressEmoji(elapsed, eta) {
+        if (!eta || eta <= 0) return '⏳';
+        const r = elapsed / eta;
+        if (r < 0.5)  return '⏳';   // just started — patience
+        if (r < 0.85) return '⌛';   // working
+        if (r <= 1.1) return '😊';   // almost there
+        return '🐢';                  // slower than expected, still going
+      }
       const pollProgress = setInterval(async () => {
         try {
           const r = await fetch('/api/progress/' + jobId);
@@ -824,9 +834,8 @@
           const p = await r.json();
           if (!p.stage || p.stage === 'unknown') return;
           const label = STAGE_LABEL[p.stage] || p.stage;
-          const elapsed = Math.round(p.elapsed || 0);
-          const eta = Math.max(0, Math.round((p.eta_seconds || 0) - elapsed));
-          statusText.textContent = `${label}... ${elapsed}s / ~${p.eta_seconds}s` + (eta > 0 ? ` (≈${eta}s left)` : '');
+          const emoji = progressEmoji(p.elapsed || 0, p.eta_seconds || 0);
+          statusText.textContent = `${emoji} ${label}...`;
         } catch (e) { /* ignore */ }
       }, 5000);
 
