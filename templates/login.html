@@ -14,7 +14,12 @@
       <p class="subtitle">Sasta + Mast Text to Speech</p>
     </header>
 
-    <section class="card">
+    <div id="authChecking" class="card auth-checking">
+      <div class="spinner"></div>
+      <span>Checking session...</span>
+    </div>
+
+    <section id="authCard" class="card hidden">
       <div class="auth-tabs">
         <button type="button" class="auth-tab active" data-mode="signin">Sign in</button>
         <button type="button" class="auth-tab" data-mode="signup">Sign up</button>
@@ -56,8 +61,21 @@
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // If already logged in, skip the form — BUT only if backend
-    // accepts our token, otherwise we'd bounce back here forever.
+    // Decide whether to show the form or redirect — keep both hidden
+    // until we know. Avoids the auth-form flash before redirect.
+    const checkingEl = document.getElementById('authChecking');
+    const cardEl = document.getElementById('authCard');
+
+    function revealForm(errorMessage) {
+      checkingEl.classList.add('hidden');
+      cardEl.classList.remove('hidden');
+      if (errorMessage) {
+        const errEl = document.getElementById('authError');
+        errEl.textContent = errorMessage;
+        errEl.classList.remove('hidden');
+      }
+    }
+
     const { data: existing } = await supabase.auth.getSession();
     if (existing?.session) {
       try {
@@ -65,18 +83,19 @@
           headers: { Authorization: 'Bearer ' + existing.session.access_token },
         });
         if (probe.ok) {
-          window.location.href = '/';
+          window.location.replace('/');  // no history entry
         } else {
           const body = await probe.json().catch(() => ({}));
           await supabase.auth.signOut();
-          const errEl = document.getElementById('authError');
-          errEl.textContent = 'Session backend ne reject ki: ' + (body.error || probe.status)
-            + ' — sign in dobara karo.';
-          errEl.classList.remove('hidden');
+          revealForm('Session backend ne reject ki: ' + (body.error || probe.status)
+            + ' — sign in dobara karo.');
         }
       } catch (e) {
         await supabase.auth.signOut();
+        revealForm();
       }
+    } else {
+      revealForm();
     }
 
     let mode = 'signin'; // 'signin' | 'signup'

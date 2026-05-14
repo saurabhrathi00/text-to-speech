@@ -15,6 +15,12 @@
 </head>
 <body>
   <main class="container">
+    <div id="appBootCheck" class="card auth-checking">
+      <div class="spinner"></div>
+      <span>Loading...</span>
+    </div>
+
+    <div id="appRoot" class="hidden">
     <header class="hero">
       <h1>🎙️ SastaSpeech</h1>
       <p class="subtitle">Sasta + Mast Text to Speech</p>
@@ -157,6 +163,7 @@
         <a id="downloadBtn" class="primary download" download>📥 Download .wav</a>
       </div>
     </section>
+    </div> <!-- /#appRoot -->
   </main>
 
   <script type="module">
@@ -196,19 +203,34 @@
       return _origFetch(input, opts);
     };
 
-    // Redirect to /login if not authenticated; populate user bar otherwise.
-    if (!AUTH_DISABLED) {
+    const bootCheck = document.getElementById('appBootCheck');
+    const appRoot = document.getElementById('appRoot');
+
+    function revealApp() {
+      bootCheck.classList.add('hidden');
+      appRoot.classList.remove('hidden');
+    }
+
+    if (AUTH_DISABLED) {
+      revealApp();
+    } else {
       const token = await getJwt();
-      if (!token) { window.location.href = '/login'; }
-      else {
+      if (!token) {
+        window.location.replace('/login');
+      } else {
         try {
           const res = await fetch('/api/me');
-          if (res.status === 401) { window.location.href = '/login'; }
-          else {
+          if (res.status === 401) {
+            window.location.replace('/login');
+          } else {
             const me = await res.json();
             renderUserBar(me);
+            revealApp();
           }
-        } catch (e) { console.error('auth bootstrap failed', e); }
+        } catch (e) {
+          console.error('auth bootstrap failed', e);
+          window.location.replace('/login');
+        }
       }
     }
 

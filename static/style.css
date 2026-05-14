@@ -52,6 +52,16 @@ body {
 }
 .user-logout:hover { background: rgba(255,255,255,0.14); }
 
+.auth-checking {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #c7d2fe;
+  font-size: 0.95rem;
+  padding: 24px;
+}
+
 .auth-tabs {
   display: flex;
   gap: 4px;
