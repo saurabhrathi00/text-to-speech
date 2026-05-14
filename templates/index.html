@@ -326,6 +326,9 @@
     let providerCaps = { emotions_supported: false };
     const providerNote = document.getElementById('providerNote');
     const speakerSelect = document.getElementById('speaker');
+    // Plan ladder — loaded async from /api/plans inside the top-level
+    // await. Same TDZ concern as the vars above.
+    let availablePlans = [];
 
     function setLLM(name) {
       activeLLM = (name || '').toLowerCase();
@@ -511,10 +514,8 @@
     }
 
     // ── Upgrade flow (user-side) ──────────────────────────────────────
-    // Plan ladder for "what's next" — admin row excluded since it's
-    // role-driven, not purchasable. Sourced via /api/plans (populated
-    // from plan_limits, so adding a tier in DB = it shows up here).
-    let availablePlans = [];  // [{plan, display_name, price_inr_monthly, ...}]
+    // (availablePlans is declared earlier alongside activeLLM — see
+    // the comment near setLLM. Must exist before top-level await runs.)
 
     async function loadPlans() {
       try {
