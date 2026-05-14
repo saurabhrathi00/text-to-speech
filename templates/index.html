@@ -12,15 +12,18 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}" />
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <!-- Critical paint styles — inlined so navigation from /login (or a
        hard refresh) never shows an unstyled white flash before the
        stylesheet finishes loading. -->
   <style>
-    html, body { background: #1e1b4b; color: #f3f4f6; margin: 0; }
+    html, body { background: #0b1020; color: #e2e8f0; margin: 0; }
     .page-loader {
       position: fixed; inset: 0;
       display: flex; align-items: center; justify-content: center;
-      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+      background: #0b1020;
       z-index: 9999;
       transition: opacity 0.25s ease;
     }

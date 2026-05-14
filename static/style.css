@@ -1,22 +1,52 @@
 * { box-sizing: border-box; }
 
+:root {
+  --bg:           #0b1020;
+  --bg-panel:     rgba(15, 23, 42, 0.55);
+  --border:       rgba(255, 255, 255, 0.06);
+  --border-soft:  rgba(255, 255, 255, 0.04);
+  --text:         #e2e8f0;
+  --text-soft:    #94a3b8;
+  --text-strong:  #f8fafc;
+  --accent:       #818cf8;
+  --accent-2:     #f472b6;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Devanagari", sans-serif;
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-  color: #f3f4f6;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Noto Sans Devanagari", sans-serif;
+  background: var(--bg);
+  color: var(--text);
   min-height: 100vh;
-  padding: 24px 16px;
+  padding: 28px 18px 60px;
+  letter-spacing: -0.005em;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Soft ambient gradient — same family as login, but more restrained
+ * (one big blob, less animation) so the working UI stays calm. */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(800px 500px at 15% -10%, rgba(99,102,241,0.18), transparent 60%),
+    radial-gradient(700px 500px at 95% 10%, rgba(244,114,182,0.10), transparent 60%);
 }
 
 .container {
-  max-width: 720px;
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
   margin: 0 auto;
 }
 
 .hero {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .user-bar {
@@ -24,21 +54,29 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 16px;
+  padding: 10px 16px;
   flex-wrap: wrap;
   font-size: 0.85rem;
-}
-.user-email { color: #e0e7ff; }
-.user-role {
-  padding: 2px 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(139,92,246,0.18);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.user-email { color: var(--text-strong); font-weight: 500; }
+.user-role {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(244,114,182,0.18));
+  border: 1px solid rgba(129,140,248,0.25);
   color: #c4b5fd;
   font-weight: 600;
+  font-size: 0.78rem;
 }
 .user-usage {
-  color: #94a3b8;
-  font-size: 0.8rem;
+  color: var(--text-soft);
+  font-size: 0.78rem;
 }
 .user-logout {
   margin-left: 6px;
@@ -245,23 +283,33 @@ body {
   font-size: 0.9rem;
 }
 .hero h1 {
-  font-size: 2rem;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
   margin: 0 0 6px;
+  background: linear-gradient(135deg, #c7d2fe, #f9a8d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .subtitle {
-  color: #c7d2fe;
+  color: var(--text-soft);
   margin: 0;
   font-size: 0.95rem;
+  letter-spacing: 0;
 }
 
 .card {
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 14px;
-  padding: 20px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 22px;
   margin-bottom: 18px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  box-shadow:
+    0 20px 50px -20px rgba(0,0,0,0.45),
+    0 0 0 1px var(--border-soft) inset;
 }
 
 .provider-toggle {
@@ -316,44 +364,86 @@ body {
 .label {
   display: block;
   font-weight: 600;
+  font-size: 0.82rem;
   margin-bottom: 8px;
-  color: #e0e7ff;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-textarea {
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+select {
   width: 100%;
-  padding: 14px;
-  font-size: 1rem;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(0,0,0,0.25);
-  color: #fff;
-  resize: vertical;
+  padding: 13px 14px;
+  font-size: 0.98rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.28);
+  color: var(--text-strong);
   font-family: inherit;
   line-height: 1.5;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-textarea:focus { outline: 2px solid #818cf8; }
+textarea { resize: vertical; }
+textarea:focus,
+input:focus,
+select:focus {
+  outline: none;
+  border-color: rgba(129,140,248,0.5);
+  box-shadow: 0 0 0 3px rgba(129,140,248,0.18);
+}
 
 button.primary, a.primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 14px;
-  padding: 12px 20px;
-  font-size: 1rem;
+  margin-top: 16px;
+  padding: 13px 22px;
+  font-size: 0.98rem;
   font-weight: 600;
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   text-decoration: none;
-  transition: transform 0.05s, opacity 0.2s;
+  letter-spacing: -0.005em;
+  box-shadow: 0 8px 24px -8px rgba(99,102,241,0.55);
+  transition: transform 0.1s, box-shadow 0.15s, filter 0.15s;
 }
-button.primary:hover, a.primary:hover { opacity: 0.92; }
-button.primary:active { transform: translateY(1px); }
-button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary:hover:not(:disabled),
+a.primary:hover { transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(99,102,241,0.65); filter: brightness(1.03); }
+button.primary:active:not(:disabled) { transform: translateY(0); }
+button.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+button.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+button.secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.1);
+}
 
 .status {
   display: flex;
@@ -436,39 +526,57 @@ details summary {
 }
 
 .voice-controls {
-  margin-top: 14px;
-  padding: 12px 14px;
-  background: rgba(0,0,0,0.2);
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.08);
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: rgba(0,0,0,0.18);
+  border-radius: 12px;
+  border: 1px solid var(--border);
 }
 .voice-controls summary {
   cursor: pointer;
   font-weight: 600;
-  color: #c7d2fe;
+  color: var(--text);
+  list-style: none;
 }
+.voice-controls summary::-webkit-details-marker { display: none; }
+.voice-controls summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-soft);
+  transition: transform 0.15s;
+}
+.voice-controls[open] summary::before { transform: rotate(90deg); }
+
 .controls-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+  gap: 14px;
+  margin-top: 14px;
 }
 .control { display: flex; flex-direction: column; gap: 6px; }
-.control.full { margin-top: 12px; }
+.control.full { margin-top: 14px; }
 .control label {
-  font-size: 0.85rem;
-  color: #c7d2fe;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 .control select, .control textarea {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.15);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
   background: rgba(0,0,0,0.3);
-  color: #fff;
+  color: var(--text-strong);
   font-family: inherit;
   font-size: 0.95rem;
 }
-.control select:focus, .control textarea:focus { outline: 2px solid #818cf8; }
+.control select:focus, .control textarea:focus {
+  outline: none;
+  border-color: rgba(129,140,248,0.5);
+  box-shadow: 0 0 0 3px rgba(129,140,248,0.18);
+}
 
 .karaoke {
   margin-top: 16px;
@@ -646,9 +754,17 @@ details summary {
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  margin-top: 14px;
+  margin-top: 16px;
 }
-audio { flex: 1; min-width: 240px; }
+audio {
+  flex: 1;
+  min-width: 240px;
+  border-radius: 999px;
+  height: 42px;
+}
+audio::-webkit-media-controls-panel {
+  background: rgba(255,255,255,0.04);
+}
 .download { margin-top: 0; }
 
 /* ──────────────────────────────────────────────────────────────────────
