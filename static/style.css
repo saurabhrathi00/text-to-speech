@@ -131,6 +131,12 @@ body {
   color: #f59e0b;
 }
 .upgrade-tier-features { font-size: 0.85rem; color: #cbd5e1; }
+.upgrade-tier-audio {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fbbf24;
+  letter-spacing: 0.01em;
+}
 .upgrade-tier-notes { margin: 0; font-size: 0.8rem; }
 .upgrade-tier button {
   margin-top: auto;

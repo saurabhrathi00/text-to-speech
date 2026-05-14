@@ -612,6 +612,20 @@
       return t.validity_hours < 168 ? ' one-time' : '/mo';
     }
 
+    // Rough chars-to-minutes for Hindi narration. Tunable in one place
+    // — bump this if real-world speech speed differs noticeably.
+    const CHARS_PER_AUDIO_MINUTE = 500;
+
+    function formatAudioMinutes(chars) {
+      if (!chars) return null;
+      const mins = Math.round(chars / CHARS_PER_AUDIO_MINUTE);
+      if (mins < 60) return `~${mins} min of audio`;
+      const hours = mins / 60;
+      // Whole-hour values read cleaner; otherwise one decimal place.
+      const formatted = hours >= 10 ? Math.round(hours) : hours.toFixed(1).replace('.0', '');
+      return `~${formatted} hr of audio`;
+    }
+
     function renderTierPicker(me) {
       const list = document.getElementById('upgradePickerList');
       const currentPlan = (me.effective_plan || me.profile?.plan || 'free').toLowerCase();
@@ -622,13 +636,16 @@
         card.className = 'upgrade-tier';
         const features = [];
         if (t.max_chars_per_request) features.push(`${t.max_chars_per_request} chars/req`);
-        if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(0)}k chars total`);
+        if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(t.monthly_chars < 10000 ? 1 : 0).replace('.0', '')}k chars total`);
+        if (t.daily_uses) features.push(`up to ${t.daily_uses} gens/day`);
         if (t.validity_hours) features.push(`valid ${formatValidity(t.validity_hours)}`);
+        const audioHint = formatAudioMinutes(t.monthly_chars);
         card.innerHTML = `
           <div class="upgrade-tier-head">
             <strong>${t.display_name || t.plan}</strong>
             <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${priceSuffix(t)}</span></span>
           </div>
+          ${audioHint ? `<div class="upgrade-tier-audio">🎧 ${audioHint}</div>` : ''}
           <div class="upgrade-tier-features">${features.join(' · ') || '&nbsp;'}</div>
           ${t.notes ? `<p class="muted upgrade-tier-notes">${t.notes}</p>` : ''}
           <button class="primary" data-plan="${t.plan}">Choose ${t.display_name || t.plan}</button>
