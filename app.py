@@ -407,7 +407,7 @@ def api_plans():
     it's role-driven, not purchasable."""
     try:
         res = (auth.admin_client().table("plan_limits")
-               .select("plan,display_name,price_inr_monthly,validity_hours,"
+               .select("plan,display_name,price_inr_monthly,validity_hours,kind,"
                        "daily_uses,max_chars_per_request,monthly_chars,notes")
                .neq("plan", "admin")
                .execute())

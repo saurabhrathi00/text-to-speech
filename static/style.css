@@ -137,6 +137,22 @@ body {
   color: #fbbf24;
   letter-spacing: 0.01em;
 }
+.upgrade-tier-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1e293b;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-radius: 999px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+.upgrade-tier-topup {
+  border-color: rgba(251,191,36,0.35);
+  background: linear-gradient(180deg, rgba(251,191,36,0.08), rgba(0,0,0,0.25));
+}
 .upgrade-tier-notes { margin: 0; font-size: 0.8rem; }
 .upgrade-tier button {
   margin-top: auto;

@@ -79,6 +79,11 @@ alter table public.plan_limits
 -- null = no expiry (free, admin). 48 = day-pass, 720 = monthly, etc.
 alter table public.plan_limits
     add column if not exists validity_hours integer;
+-- kind: 'subscription' (replaces plan + sets expiry) or 'topup'
+-- (additive — inserts a refund usage_event for monthly_chars so the
+-- user gains chars without losing their current subscription).
+alter table public.plan_limits
+    add column if not exists kind text not null default 'subscription';
 
 -- Profiles expiry timestamp — stamped on admin-approve. After this,
 -- effective plan reverts to 'free' regardless of profiles.plan value.
@@ -97,10 +102,10 @@ values
      1,    null, 100,   100,
      array['gemini'], array['elevenlabs'],
      'Free trial: 1 generation per day, max 100 chars'),
-    ('sabse_sasta',  'Sabse Sasta',  49,   48,
-     null, null, 500,   1500,
+    ('sabse_sasta',  'Sabse Sasta',  49,   null,
+     null, null, null,  1500,
      array['gemini'], array['elevenlabs'],
-     'Day pass: 3 generations × 500 chars over 48 hours'),
+     'Emergency top-up: +1500 chars credited to your current plan'),
     ('starter',      'Starter',      299,  720,
      5,    null, 1000,  20000,
      array['gemini'], array['elevenlabs'],
@@ -119,9 +124,19 @@ values
      'Unlimited — admins (ADMIN_EMAILS) can pick any provider')
 on conflict (plan) do nothing;
 
--- Backfill validity_hours for pre-existing seeded rows.
-update public.plan_limits set validity_hours = 48  where plan = 'sabse_sasta' and validity_hours is null;
+-- Backfill validity_hours / kind for pre-existing seeded rows.
 update public.plan_limits set validity_hours = 720 where plan in ('starter','pro','pro_plus') and validity_hours is null;
+
+-- Sabse Sasta switched from plan-replacement to top-up. Refund-only,
+-- so it no longer needs a validity window (chars credit lives on the
+-- usage_events ledger and naturally rolls out after 30 days).
+update public.plan_limits
+   set kind = 'topup',
+       validity_hours = null,
+       max_chars_per_request = null,
+       notes = 'Emergency top-up: +1500 chars credited to your current plan'
+ where plan = 'sabse_sasta';
+update public.plan_limits set kind = 'subscription' where kind is null;
 
 -- Bring the original pro row up to current seed values. Earlier seed
 -- had max=5000; new tiered pricing uses 3000/req. daily=10 was right

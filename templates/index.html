@@ -567,11 +567,29 @@
       return entry ? (entry.price_inr_monthly || 0) : -1;
     }
 
+    function isTopup(p) {
+      return (p?.kind || 'subscription').toLowerCase() === 'topup';
+    }
+
     function purchasableTiersAbove(currentPlan) {
+      // Subscriptions: only tiers ranked higher than current.
+      // Top-ups: always purchasable regardless of current plan — they're
+      // additive credits, not a plan switch. So a Pro user out of chars
+      // can grab Sabse Sasta as an emergency refill.
       const cur = planRankFor(currentPlan);
       return availablePlans
-        .filter(p => p.plan !== 'free' && planRankFor(p.plan) > cur)
-        .sort((a, b) => planRankFor(a.plan) - planRankFor(b.plan));
+        .filter(p => {
+          if (p.plan === 'free') return false;
+          if (isTopup(p)) return true;
+          return planRankFor(p.plan) > cur;
+        })
+        .sort((a, b) => {
+          // Top-ups first, then subscriptions by price ascending.
+          const aT = isTopup(a) ? 0 : 1;
+          const bT = isTopup(b) ? 0 : 1;
+          if (aT !== bT) return aT - bT;
+          return planRankFor(a.plan) - planRankFor(b.plan);
+        });
     }
 
     function renderUpgradeButton(me) {
@@ -584,8 +602,13 @@
         btn.classList.add('hidden');
         return;
       }
-      if (me.pending_upgrade) {
-        btn.textContent = `⏳ ${capitalize(me.pending_upgrade.requested_plan)} pending`;
+      const pending = me.pending_upgrade;
+      const pendingTier = pending && availablePlans.find(p => p.plan === pending.requested_plan);
+      const pendingIsTopup = pendingTier && isTopup(pendingTier);
+      if (pending && !pendingIsTopup) {
+        // Pending subscription locks the upgrade button. Top-up pending
+        // is OK — user can keep buying refills.
+        btn.textContent = `⏳ ${capitalize(pending.requested_plan)} pending`;
         btn.disabled = true;
       } else {
         btn.textContent = '🚀 Upgrade';
@@ -607,7 +630,8 @@
     }
 
     function priceSuffix(t) {
-      // Day passes (validity_hours < 168) → 'one-time'; longer plans → '/mo'
+      // Top-ups are one-time refills; subscriptions are monthly.
+      if (isTopup(t)) return ' one-time';
       if (!t.validity_hours) return '/mo';
       return t.validity_hours < 168 ? ' one-time' : '/mo';
     }
@@ -633,22 +657,31 @@
       list.innerHTML = '';
       tiers.forEach(t => {
         const card = document.createElement('div');
-        card.className = 'upgrade-tier';
+        card.className = 'upgrade-tier' + (isTopup(t) ? ' upgrade-tier-topup' : '');
         const features = [];
-        if (t.max_chars_per_request) features.push(`${t.max_chars_per_request} chars/req`);
-        if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(t.monthly_chars < 10000 ? 1 : 0).replace('.0', '')}k chars total`);
-        if (t.daily_uses) features.push(`up to ${t.daily_uses} gens/day`);
-        if (t.validity_hours) features.push(`valid ${formatValidity(t.validity_hours)}`);
+        if (isTopup(t)) {
+          // Topups: chars are credited to your CURRENT plan. Don't
+          // show per-req or daily caps — those stay your plan's.
+          if (t.monthly_chars) features.push(`+${(t.monthly_chars).toLocaleString()} chars credited`);
+          features.push('keeps your current plan');
+        } else {
+          if (t.max_chars_per_request) features.push(`${t.max_chars_per_request} chars/req`);
+          if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(t.monthly_chars < 10000 ? 1 : 0).replace('.0', '')}k chars total`);
+          if (t.daily_uses) features.push(`up to ${t.daily_uses} gens/day`);
+          if (t.validity_hours) features.push(`valid ${formatValidity(t.validity_hours)}`);
+        }
         const audioHint = formatAudioMinutes(t.monthly_chars);
+        const audioLabel = isTopup(t) ? `🎧 +${audioHint?.replace('~', '') || ''}` : `🎧 ${audioHint}`;
+        const badgeLabel = isTopup(t) ? '<span class="upgrade-tier-badge">⚡ Top-up</span>' : '';
         card.innerHTML = `
           <div class="upgrade-tier-head">
-            <strong>${t.display_name || t.plan}</strong>
+            <strong>${t.display_name || t.plan}${badgeLabel}</strong>
             <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${priceSuffix(t)}</span></span>
           </div>
-          ${audioHint ? `<div class="upgrade-tier-audio">🎧 ${audioHint}</div>` : ''}
+          ${audioHint ? `<div class="upgrade-tier-audio">${audioLabel}</div>` : ''}
           <div class="upgrade-tier-features">${features.join(' · ') || '&nbsp;'}</div>
           ${t.notes ? `<p class="muted upgrade-tier-notes">${t.notes}</p>` : ''}
-          <button class="primary" data-plan="${t.plan}">Choose ${t.display_name || t.plan}</button>
+          <button class="primary" data-plan="${t.plan}">${isTopup(t) ? 'Buy' : 'Choose'} ${t.display_name || t.plan}</button>
         `;
         list.appendChild(card);
       });
@@ -670,8 +703,12 @@
 
     async function submitUpgrade(targetPlan) {
       const tierInfo = availablePlans.find(p => p.plan === targetPlan) || {};
+      const isT = isTopup(tierInfo);
+      const headline = isT
+        ? `Top-up: ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly} one-time, +${tierInfo.monthly_chars} chars).`
+        : `Upgrading to ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly}/mo).`;
       const note = prompt(
-        `Upgrading to ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly}/mo).\n\n` +
+        `${headline}\n\n` +
         `Payment is handled outside the app for now — drop your UPI handle / WhatsApp / preferred contact:`, '');
       if (note === null) return;
       try {

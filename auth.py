@@ -370,17 +370,27 @@ def create_upgrade_request(user_id: str, requested_plan: str,
     plan = (requested_plan or "").lower().strip()
     if plan == "admin":
         return None, "Admin tier is not user-requestable"
-    # Validate plan exists in plan_limits
-    if not get_plan_limits(plan) or plan == "free":
+    limits = get_plan_limits(plan)
+    if not limits or plan == "free":
         return None, f"Unknown or unsupported plan '{plan}'"
 
+    kind = (limits.get("kind") or "subscription").lower()
     profile = get_profile(user_id) or {}
-    current = (profile.get("plan") or "free").lower()
-    if _plan_rank(current) >= _plan_rank(plan):
-        return None, f"Already on {current} plan — no upgrade needed"
 
-    if get_pending_upgrade(user_id):
-        return None, "You already have a pending upgrade request"
+    # Subscriptions require a rank-up. Top-ups are additive credits —
+    # any user on any plan can buy them as often as they want.
+    if kind == "subscription":
+        current = (profile.get("plan") or "free").lower()
+        if _plan_rank(current) >= _plan_rank(plan):
+            return None, f"Already on {current} plan — no upgrade needed"
+        # Block another pending SUBSCRIPTION request; pending top-ups
+        # are fine to coexist (different lifecycle, different approval).
+        pending = get_pending_upgrade(user_id)
+        if pending:
+            p_limits = get_plan_limits(pending["requested_plan"]) or {}
+            p_kind = (p_limits.get("kind") or "subscription").lower()
+            if p_kind == "subscription":
+                return None, "You already have a pending upgrade request"
 
     try:
         res = admin_client().table("upgrade_requests").insert({
@@ -444,23 +454,45 @@ def resolve_upgrade_request(request_id: int, action: str,
         new_status = "approved" if action == "approve" else "rejected"
 
         if action == "approve":
-            # Stamp plan + expiry timestamp atomically. validity_hours
-            # from plan_limits decides how long the plan stays active;
-            # null = no expiry (free / admin only — paid plans always
-            # carry a validity).
             target_plan = req["requested_plan"]
             limits = get_plan_limits(target_plan) or {}
-            validity = limits.get("validity_hours")
-            update = {"plan": target_plan, "updated_at": "now()"}
-            if validity:
-                from datetime import timedelta
-                update["plan_expires_at"] = (
-                    _now_utc() + timedelta(hours=int(validity))
-                ).isoformat()
+            kind = (limits.get("kind") or "subscription").lower()
+
+            if kind == "topup":
+                # Top-up: credit the user with monthly_chars worth of
+                # chars by inserting a negative usage_event. Existing
+                # check_limits arithmetic (chars_30d + requested vs cap)
+                # then naturally allows that many more chars. Plan and
+                # expiry stay untouched — the user keeps their
+                # subscription.
+                bonus = int(limits.get("monthly_chars") or 0)
+                if bonus <= 0:
+                    return None, "Top-up plan has no chars allocated — contact support"
+                try:
+                    admin_client().table("usage_events").insert({
+                        "user_id": req["user_id"],
+                        "kind": "credit.topup",
+                        "provider": None,
+                        "chars": -bonus,        # negative => credit
+                        "cost_usd": 0,
+                        "meta": {"topup_plan": target_plan, "request_id": req["id"]},
+                    }).execute()
+                except Exception as e:
+                    return None, f"Failed to credit top-up: {e}"
             else:
-                update["plan_expires_at"] = None  # free / admin → no expiry
-            admin_client().table("profiles").update(update).eq(
-                "user_id", req["user_id"]).execute()
+                # Subscription: stamp plan + expiry timestamp atomically.
+                # validity_hours = null only on free / admin rows.
+                validity = limits.get("validity_hours")
+                update = {"plan": target_plan, "updated_at": "now()"}
+                if validity:
+                    from datetime import timedelta
+                    update["plan_expires_at"] = (
+                        _now_utc() + timedelta(hours=int(validity))
+                    ).isoformat()
+                else:
+                    update["plan_expires_at"] = None
+                admin_client().table("profiles").update(update).eq(
+                    "user_id", req["user_id"]).execute()
 
         upd = admin_client().table("upgrade_requests").update({
             "status": new_status,
