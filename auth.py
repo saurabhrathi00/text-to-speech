@@ -80,25 +80,45 @@ def _extract_token() -> str | None:
 
 
 def verify_jwt(token: str) -> dict:
-    """Decode + verify a Supabase JWT using the project's HS256 secret.
-    Returns the decoded claims. Raises AuthError on failure.
+    """Verify a Supabase JWT and return its claims.
+
+    Two-step:
+      1. Try local HS256 verification using SUPABASE_JWT_SECRET (fast,
+         no network).
+      2. If that fails (algorithm mismatch, secret rotated, asymmetric
+         signing key, etc.), fall back to Supabase's auth.get_user()
+         which validates the token server-side.
+
+    The fallback covers new Supabase projects that ship with asymmetric
+    JWT signing keys where the dashboard "JWT Secret" doesn't HMAC-verify
+    the tokens locally.
     """
-    if not SUPABASE_JWT_SECRET:
-        raise AuthError("server misconfigured: SUPABASE_JWT_SECRET missing")
+    # ── Step 1: local HS256 ────────────────────────────────────────────
+    if SUPABASE_JWT_SECRET:
+        try:
+            return pyjwt.decode(
+                token, SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        except pyjwt.ExpiredSignatureError as e:
+            raise AuthError("token expired") from e
+        except pyjwt.InvalidTokenError as e:
+            print(f"[auth] local HS256 verify failed ({e}); falling back to Supabase SDK")
+
+    # ── Step 2: ask Supabase to validate ──────────────────────────────
     try:
-        claims = pyjwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-    except pyjwt.ExpiredSignatureError as e:
-        raise AuthError("token expired") from e
-    except pyjwt.InvalidTokenError as e:
+        resp = admin_client().auth.get_user(token)
+    except Exception as e:
         raise AuthError(f"invalid token: {e}") from e
-    if not claims.get("sub"):
-        raise AuthError("token missing sub claim")
-    return claims
+    user = getattr(resp, "user", None)
+    if not user:
+        raise AuthError("invalid token (no user returned)")
+    return {
+        "sub": user.id,
+        "email": getattr(user, "email", None),
+        "_via": "supabase_sdk",
+    }
 
 
 # ──────────────────────────────────────────────────────────────────────

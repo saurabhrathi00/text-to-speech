@@ -56,10 +56,27 @@
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // If already logged in, skip the form.
+    // If already logged in, skip the form — BUT only if backend
+    // accepts our token, otherwise we'd bounce back here forever.
     const { data: existing } = await supabase.auth.getSession();
     if (existing?.session) {
-      window.location.href = '/';
+      try {
+        const probe = await fetch('/api/me', {
+          headers: { Authorization: 'Bearer ' + existing.session.access_token },
+        });
+        if (probe.ok) {
+          window.location.href = '/';
+        } else {
+          const body = await probe.json().catch(() => ({}));
+          await supabase.auth.signOut();
+          const errEl = document.getElementById('authError');
+          errEl.textContent = 'Session backend ne reject ki: ' + (body.error || probe.status)
+            + ' — sign in dobara karo.';
+          errEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        await supabase.auth.signOut();
+      }
     }
 
     let mode = 'signin'; // 'signin' | 'signup'
