@@ -335,10 +335,7 @@
         `${display} prompts bana raha hai (~30-60 sec)...`;
     }
 
-    async function applyAllowedProviders(me) {
-      // Filter TTS provider buttons by the user's plan whitelist.
-      // Falls back to "show everything" if /api/me didn't send a list
-      // (e.g. AUTH_DISABLED mode).
+    async function _applyTtsWhitelist(me) {
       const allowedTts = me?.allowed_providers?.tts;
       const ttsBtns = document.querySelectorAll('.prov-btn');
       let firstTtsBtn = null;
@@ -354,29 +351,44 @@
         // button visible and just pick the first one in the DOM.
         firstTtsBtn = ttsBtns[0] || null;
       }
-      // Await setProvider so voices for the auto-selected provider are
-      // populated BEFORE the app is revealed — no empty dropdown flash.
+      // Await setProvider so voices are populated before reveal.
       if (firstTtsBtn) {
         await setProvider(firstTtsBtn.dataset.provider);
       }
+    }
 
-      // Same treatment for LLM buttons. Row is hidden when the user
-      // has ≤1 option (no real choice to make) — but the labels still
-      // reflect the auto-selected provider so they read correctly.
+    function _applyLlmWhitelist(me) {
       const allowedLlm = me?.allowed_providers?.llm;
       const llmBtns = document.querySelectorAll('.llm-btn');
       const llmRow = document.getElementById('llmToggle');
-      if (allowedLlm && allowedLlm.length) {
-        const llmSet = new Set(allowedLlm.map(s => s.toLowerCase()));
-        let firstLlm = null;
-        llmBtns.forEach(b => {
-          const ok = llmSet.has((b.dataset.llm || '').toLowerCase());
-          b.classList.toggle('hidden', !ok);
-          if (ok && !firstLlm) firstLlm = b;
-        });
-        if (firstLlm) setLLM(firstLlm.dataset.llm);
-        if (llmRow) llmRow.classList.toggle('hidden', allowedLlm.length <= 1);
+      if (!allowedLlm || !allowedLlm.length) return;
+      const llmSet = new Set(allowedLlm.map(s => s.toLowerCase()));
+      let firstLlm = null;
+      llmBtns.forEach(b => {
+        const ok = llmSet.has((b.dataset.llm || '').toLowerCase());
+        b.classList.toggle('hidden', !ok);
+        if (ok && !firstLlm) firstLlm = b;
+      });
+      if (firstLlm) setLLM(firstLlm.dataset.llm);
+      if (llmRow) llmRow.classList.toggle('hidden', allowedLlm.length <= 1);
+    }
+
+    async function applyAllowedProviders(me) {
+      // Run TTS and LLM independently — a failure in one (e.g. voices
+      // fetch throwing inside setProvider) must not prevent the other
+      // from rendering. Earlier coupling meant admins lost their LLM
+      // picker whenever Parler voice-load hiccupped.
+      try {
+        await _applyTtsWhitelist(me);
+      } catch (e) {
+        console.error('TTS whitelist apply failed', e);
       }
+      try {
+        _applyLlmWhitelist(me);
+      } catch (e) {
+        console.error('LLM whitelist apply failed', e);
+      }
+    }
     }
 
     // (Click listeners are attached in renderProviderButtons when the
