@@ -3,47 +3,103 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>SastaSpeech — Login</title>
-  <meta name="theme-color" content="#312e81" />
+  <title>SastaSpeech — Sasta + Mast Hindi voiceovers</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Studio-quality Hindi text-to-speech for Indian creators. Plans start at ₹49." />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body>
-  <main class="container">
-    <header class="hero">
-      <h1>🎙️ SastaSpeech</h1>
-      <p class="subtitle">Sasta + Mast Text to Speech</p>
-    </header>
+<body class="login-body">
+  <div class="login-bg" aria-hidden="true">
+    <div class="login-bg-blob blob-a"></div>
+    <div class="login-bg-blob blob-b"></div>
+    <div class="login-bg-blob blob-c"></div>
+  </div>
 
-    <div id="authChecking" class="card auth-checking">
-      <div class="spinner"></div>
-      <span>Checking session...</span>
-    </div>
+  <main class="login-shell">
+    <!-- ── Left: brand + value props (hidden on mobile under the card) ── -->
+    <section class="login-pitch" aria-label="Why SastaSpeech">
+      <div class="login-brand">
+        <span class="login-brand-mark">🎙️</span>
+        <span class="login-brand-name">SastaSpeech</span>
+      </div>
 
-    <section id="authCard" class="card hidden">
-      <h2 class="auth-heading">Sign in</h2>
+      <h1 class="login-headline">
+        Studio-quality <span class="accent">Hindi voiceovers</span>,
+        starting at ₹49.
+      </h1>
+      <p class="login-sub">
+        Indian creators ke liye banaya — fast Hinglish narration, real
+        emotion tags, aur pricing jo aapke pocket mein fit baithe.
+      </p>
 
-      <button type="button" id="googleAuthBtn" class="auth-google">
-        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-          <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
-          <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.836.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-          <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
-          <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-        </svg>
-        <span>Continue with Google</span>
-      </button>
+      <ul class="login-features">
+        <li>
+          <span class="feature-icon">🇮🇳</span>
+          <div>
+            <strong>Best Hindi voices</strong>
+            <small>ElevenLabs v3 ki natural prosody</small>
+          </div>
+        </li>
+        <li>
+          <span class="feature-icon">⚡</span>
+          <div>
+            <strong>Seconds mein generate</strong>
+            <small>Gemini script-refine + emotion-aware TTS</small>
+          </div>
+        </li>
+        <li>
+          <span class="feature-icon">💸</span>
+          <div>
+            <strong>Sabse Sasta pricing</strong>
+            <small>Day pass ₹49 · Monthly se ₹299 — koi commitment nahi</small>
+          </div>
+        </li>
+        <li>
+          <span class="feature-icon">🎯</span>
+          <div>
+            <strong>No surprises</strong>
+            <small>Char-by-char usage tracking · plan kabhi bhi switch karo</small>
+          </div>
+        </li>
+      </ul>
+    </section>
 
-      <div class="auth-divider"><span>or sign in with email</span></div>
+    <!-- ── Right: auth card ── -->
+    <section class="login-auth" aria-label="Sign in">
+      <div id="authChecking" class="auth-card auth-checking">
+        <div class="spinner"></div>
+        <span>Checking session...</span>
+      </div>
 
-      <label class="label" for="email">Email</label>
-      <input type="email" id="email" class="auth-input" placeholder="you@example.com" autocomplete="email" />
+      <div id="authCard" class="auth-card hidden">
+        <div class="login-brand login-brand-mobile">
+          <span class="login-brand-mark">🎙️</span>
+          <span class="login-brand-name">SastaSpeech</span>
+        </div>
+        <h2 class="auth-title">Welcome back</h2>
+        <p class="auth-subtitle">One click sign-in. No passwords to remember.</p>
 
-      <label class="label" for="password">Password</label>
-      <input type="password" id="password" class="auth-input" placeholder="your password" autocomplete="current-password" />
+        <button type="button" id="googleAuthBtn" class="auth-google">
+          <svg width="20" height="20" viewBox="0 0 18 18" aria-hidden="true">
+            <path fill="#4285F4" d="M17.64 9.205c0-.638-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.836.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
 
-      <button type="button" id="authBtn" class="primary auth-submit">Sign in</button>
+        <p id="authStatus" class="auth-status hidden"></p>
+        <p id="authError" class="auth-error hidden"></p>
 
-      <p id="authStatus" class="auth-status hidden"></p>
-      <p id="authError" class="error hidden"></p>
+        <p class="auth-fine">
+          By continuing, you agree to our usage terms.<br />
+          New here? Sign-in se hi account ban jayega — separate signup ki zaroorat nahi.
+        </p>
+      </div>
     </section>
   </main>
 
@@ -55,19 +111,16 @@
     const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
 
     if (AUTH_DISABLED) {
-      // Local-only mode — bounce straight to the app.
       window.location.href = '/';
     }
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      document.getElementById('authError').textContent =
-        'Server not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in .env.';
-      document.getElementById('authError').classList.remove('hidden');
+      const errEl = document.getElementById('authError');
+      errEl.textContent = 'Server not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in .env.';
+      errEl.classList.remove('hidden');
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Decide whether to show the form or redirect — keep both hidden
-    // until we know. Avoids the auth-form flash before redirect.
     const checkingEl = document.getElementById('authChecking');
     const cardEl = document.getElementById('authCard');
 
@@ -88,12 +141,11 @@
           headers: { Authorization: 'Bearer ' + existing.session.access_token },
         });
         if (probe.ok) {
-          window.location.replace('/');  // no history entry
+          window.location.replace('/');
         } else {
           const body = await probe.json().catch(() => ({}));
           await supabase.auth.signOut();
-          revealForm('Session backend ne reject ki: ' + (body.error || probe.status)
-            + ' — sign in dobara karo.');
+          revealForm('Session ko backend ne reject kiya: ' + (body.error || probe.status));
         }
       } catch (e) {
         await supabase.auth.signOut();
@@ -103,14 +155,6 @@
       revealForm();
     }
 
-    // Sign-up is intentionally not exposed in the UI. New users come
-    // through 'Continue with Google'; email/password is left as a
-    // sign-in option for legacy accounts created before Google OAuth
-    // was wired up. supabase.auth.signUp is still reachable for an
-    // admin who wants to create an account out-of-band.
-    const authBtn = document.getElementById('authBtn');
-    const emailEl = document.getElementById('email');
-    const passEl = document.getElementById('password');
     const errEl = document.getElementById('authError');
     const statusEl = document.getElementById('authStatus');
 
@@ -119,38 +163,7 @@
       errEl.classList.remove('hidden');
       statusEl.classList.add('hidden');
     }
-    function showStatus(msg) {
-      statusEl.textContent = msg;
-      statusEl.classList.remove('hidden');
-      errEl.classList.add('hidden');
-    }
 
-    authBtn.addEventListener('click', async () => {
-      const email = emailEl.value.trim();
-      const password = passEl.value;
-      errEl.classList.add('hidden');
-      if (!email || !password) {
-        showError('Email aur password dono required hain');
-        return;
-      }
-      authBtn.disabled = true;
-      authBtn.textContent = 'Signing in...';
-      try {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) { showError(error.message); return; }
-        window.location.href = '/';
-      } catch (e) {
-        showError(e.message || 'Something went wrong');
-      } finally {
-        authBtn.disabled = false;
-        authBtn.textContent = 'Sign in';
-      }
-    });
-
-    // Google OAuth. Supabase handles the redirect dance — we just say
-    // "where to come back" via redirectTo. Make sure the Site URL +
-    // redirect URLs are registered in Supabase Auth → URL Configuration,
-    // and the Google provider is enabled with valid OAuth creds.
     const googleBtn = document.getElementById('googleAuthBtn');
     googleBtn.addEventListener('click', async () => {
       errEl.classList.add('hidden');
@@ -166,7 +179,6 @@
           googleBtn.disabled = false;
           googleBtn.querySelector('span').textContent = 'Continue with Google';
         }
-        // Success path: browser is already redirecting to Google.
       } catch (e) {
         showError(e.message || 'Could not start Google sign-in');
         googleBtn.disabled = false;
