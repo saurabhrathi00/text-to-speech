@@ -50,17 +50,37 @@ create table if not exists public.plan_limits (
     lifetime_uses          integer,                 -- max TTS calls ever
     max_chars_per_request  integer,                 -- max script size per call
     monthly_chars          integer,                 -- total chars per 30 days
+    -- Provider whitelists. Lookup order at request time:
+    --   role='admin'   → plan_limits[plan='admin']
+    --   everyone else  → plan_limits[plan=user.plan]
+    -- Empty / null array means "no providers allowed" — request will 403.
+    llm_providers          text[] not null default array['gemini'],      -- text models (LLM)
+    tts_providers          text[] not null default array['elevenlabs'],  -- voice models (TTS)
     notes                  text,
     updated_at             timestamptz not null default now()
 );
 
+-- Idempotent column adds for existing deployments (no-op on fresh installs).
+alter table public.plan_limits
+    add column if not exists llm_providers text[] not null default array['gemini'];
+alter table public.plan_limits
+    add column if not exists tts_providers text[] not null default array['elevenlabs'];
+
 -- Seed defaults. Re-running updates only if values differ (admin can
 -- override via /api/admin/limits and won't be reset on schema reruns).
-insert into public.plan_limits (plan, daily_uses, lifetime_uses, max_chars_per_request, monthly_chars, notes)
+insert into public.plan_limits
+    (plan, daily_uses, lifetime_uses, max_chars_per_request, monthly_chars,
+     llm_providers, tts_providers, notes)
 values
-    ('free',  null, 1,    100,  100,   'Single trial: 1 generation ever, max 100 chars'),
-    ('pro',   10,   null, 5000, 50000, 'Daily 10 generations, 5000 chars/request, 50k chars/month'),
-    ('admin', null, null, null, null,  'Unlimited — used by ADMIN_EMAILS')
+    ('free',  null, 1,    100,  100,
+     array['gemini'], array['elevenlabs'],
+     'Single trial: 1 generation ever, max 100 chars'),
+    ('pro',   10,   null, 5000, 50000,
+     array['gemini'], array['elevenlabs'],
+     'Daily 10 generations, 5000 chars/request, 50k chars/month'),
+    ('admin', null, null, null, null,
+     array['gemini','ollama'], array['elevenlabs','parler','bark'],
+     'Unlimited — admins (ADMIN_EMAILS) can pick any provider')
 on conflict (plan) do nothing;
 
 alter table public.plan_limits enable row level security;

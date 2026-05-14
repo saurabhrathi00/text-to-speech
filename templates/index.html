@@ -251,8 +251,33 @@
       }
     }
 
+    function applyAllowedProviders(me) {
+      // Hide TTS provider buttons the user's plan doesn't include.
+      // Falls back to "show everything" if /api/me didn't send a list
+      // (e.g. AUTH_DISABLED mode).
+      const allowed = me?.allowed_providers?.tts;
+      const btns = document.querySelectorAll('.prov-btn');
+      if (!allowed || !allowed.length) return;
+      const allowedSet = new Set(allowed.map(s => s.toLowerCase()));
+      let firstVisible = null;
+      btns.forEach(b => {
+        const isOk = allowedSet.has((b.dataset.provider || '').toLowerCase());
+        b.classList.toggle('hidden', !isOk);
+        if (isOk && !firstVisible) firstVisible = b;
+      });
+      // If the currently active provider just got hidden, switch to
+      // the first allowed one and fire its click handler.
+      const activeBtn = document.querySelector('.prov-btn.active');
+      if ((!activeBtn || activeBtn.classList.contains('hidden')) && firstVisible) {
+        btns.forEach(b => b.classList.remove('active'));
+        firstVisible.classList.add('active');
+        firstVisible.click();
+      }
+    }
+
     async function continueBoot(me) {
       renderUserBar(me);
+      applyAllowedProviders(me);
       // Probe /health; if local models are still loading, show progress
       // and poll until ready (only relevant in local-provider mode).
       try {

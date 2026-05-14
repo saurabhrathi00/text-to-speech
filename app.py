@@ -53,6 +53,49 @@ def _resolve_provider(requested: str | None) -> str:
     return _default_provider()
 
 
+def _resolve_tts_provider_for_user(requested: str | None) -> tuple[str | None, str | None]:
+    """Pick the TTS provider for the current request, gated by the
+    user's allowed list. Returns (provider, error_msg) — exactly one
+    is non-None.
+
+    Selection order:
+      1. If the client requested a specific provider AND the user is
+         allowed to use it → use it.
+      2. Else fall back to the user's first allowed provider that the
+         server actually supports.
+      3. If the user has no usable providers → error.
+
+    Auth-disabled mode (papa's local dev): skip the gate entirely,
+    just resolve via env default.
+    """
+    requested_clean = (requested or "").strip().lower() or None
+
+    if not g.user:
+        # local dev with AUTH_DISABLED=1 — no role/plan to consult
+        return _resolve_provider(requested_clean), None
+
+    profile = auth.get_profile(g.user["id"])
+    if profile is not None:
+        profile["role"] = g.user.get("role") or profile.get("role")
+    allowed = auth.get_allowed_providers(profile).get("tts") or []
+    allowed_supported = [p for p in allowed if p in PROVIDERS]
+    if not allowed_supported:
+        return None, ("No TTS providers configured for your plan. "
+                      "Contact support.")
+
+    if requested_clean and requested_clean in allowed_supported:
+        return requested_clean, None
+    if requested_clean and requested_clean not in allowed_supported:
+        return None, (f"Provider '{requested_clean}' not available on "
+                      f"your plan. Allowed: {', '.join(allowed_supported)}.")
+
+    # No specific request — prefer env default if user has it, else first allowed
+    env_default = _default_provider()
+    if env_default in allowed_supported:
+        return env_default, None
+    return allowed_supported[0], None
+
+
 def _tts_synthesize(text: str, out_path: str, description: str,
                      voice: dict, provider: str) -> str:
     t0 = time.time()
@@ -197,7 +240,9 @@ def tts():
 
     voice = data.get("voice") or {}
     description = _build_voice_description(voice)
-    provider = _resolve_provider(data.get("provider"))
+    provider, err = _resolve_tts_provider_for_user(data.get("provider"))
+    if err:
+        return jsonify({"error": err}), 403
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename
 
@@ -247,11 +292,16 @@ def api_me():
         return jsonify({"user": None, "profile": None, "limits": None,
                          "usage": None, "auth_disabled": True})
     profile = auth.get_profile(user["id"])
+    # Stamp role onto the profile dict so get_allowed_providers can
+    # distinguish admin (allowed=admin row) from normal users.
+    if profile is not None:
+        profile["role"] = user.get("role") or profile.get("role")
     plan = (profile or {}).get("plan") or "free"
     return jsonify({
         "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
         "profile": profile,
         "limits": auth.get_plan_limits(plan),
+        "allowed_providers": auth.get_allowed_providers(profile),
         "usage": auth.get_usage_summary(user["id"]),
     })
 
@@ -350,7 +400,9 @@ def generate():
     add_emotion_tags = bool(data.get("emotion_tags"))
     voice = data.get("voice") or {}
     description = _build_voice_description(voice)
-    provider = _resolve_provider(data.get("provider"))
+    provider, err = _resolve_tts_provider_for_user(data.get("provider"))
+    if err:
+        return jsonify({"error": err}), 403
 
     t_req = time.time()
     print(f"[app] /generate request → {len(text)} chars, provider={provider}, "

@@ -268,6 +268,25 @@ def get_plan_limits(plan: str) -> dict | None:
     return None
 
 
+def get_allowed_providers(profile: dict | None) -> dict:
+    """Return the LLM + TTS providers this user is allowed to call.
+
+    Lookup rule:
+      - role='admin' → admin row (regardless of plan)
+      - everyone else → row matching their plan
+    Falls back to a conservative cloud-only default if the table read
+    fails — never returns an empty list (would 403 every request).
+    """
+    role = (profile or {}).get("role", "").lower()
+    plan = (profile or {}).get("plan") or "free"
+    lookup_plan = "admin" if role == "admin" else plan
+    limits = get_plan_limits(lookup_plan) or {}
+    return {
+        "llm": list(limits.get("llm_providers") or ["gemini"]),
+        "tts": list(limits.get("tts_providers") or ["elevenlabs"]),
+    }
+
+
 def check_limits(user_id: str, requested_chars: int) -> tuple[bool, str]:
     """Enforce all plan limits in order, cheapest check first.
     Returns (allowed, denial_reason)."""
