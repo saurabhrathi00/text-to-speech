@@ -25,6 +25,11 @@ GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.10:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "300"))
+# How long Ollama keeps the model resident after a call. Default "0"
+# unloads immediately (good when ComfyUI also wants the GPU). Bump to
+# "5m" if Qwen is the only thing on the box and back-to-back requests
+# matter more than VRAM headroom.
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "0")
 
 
 # ─── Generation knobs (shared) ────────────────────────────────────────

@@ -41,11 +41,17 @@ _SCENES_PROMPT = _load_prompt("scenes")
 # Pass 1 — normalize for TTS
 # ──────────────────────────────────────────────────────────────────────
 
-def refine_for_tts(text: str) -> str:
+def refine_for_tts(text: str, keep_loaded: bool = False) -> str:
     """Format Hindi/Hinglish text for a TTS narrator. Returns the model's
     output text verbatim — caller is responsible for post-validation
-    (e.g. Devanagari skeleton check)."""
-    return chat(_NORMALIZE_PROMPT, text)
+    (e.g. Devanagari skeleton check).
+
+    `keep_loaded=True` hints the transport to keep the model resident
+    in VRAM for ~30s, so a follow-up call (e.g. emotion classify) skips
+    the cold-reload cost. No-op when using a remote API like Gemini.
+    """
+    return chat(_NORMALIZE_PROMPT, text,
+                keep_alive="30s" if keep_loaded else None)
 
 
 # ──────────────────────────────────────────────────────────────────────

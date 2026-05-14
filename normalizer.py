@@ -113,10 +113,12 @@ def normalize_text(text: str, target_provider: str = "parler",
     inline tags: ElevenLabs, Bark). Parler skips Pass 2 because it
     would speak the tag literally.
     """
+    will_classify = add_emotion_tags and target_provider.lower() in ("elevenlabs", "bark")
+
     if progress_cb:
         progress_cb("qwen_normalize", 45)
 
-    content = refine_for_tts(text)
+    content = refine_for_tts(text, keep_loaded=will_classify)
     if not _verify_devanagari_preserved(text, content):
         print("[normalizer] pass-1 substitution detected — falling back to input")
         content = text

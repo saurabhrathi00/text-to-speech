@@ -23,8 +23,15 @@ class LLMError(Exception):
 
 def chat(system_prompt: str, user_text: str,
          temperature: float | None = None,
-         timeout: int | None = None) -> str:
-    """One-shot chat completion. Returns the model's text."""
+         timeout: int | None = None,
+         keep_alive: str | int | None = None) -> str:
+    """One-shot chat completion. Returns the model's text.
+
+    `keep_alive` is Ollama-only. Pass "30s" / "5m" to keep the model
+    resident in VRAM after the call (avoids cold-reload penalty when
+    another call follows). None falls back to OLLAMA_KEEP_ALIVE config.
+    Gemini ignores it.
+    """
     temp = config.DEFAULT_TEMPERATURE if temperature is None else temperature
     if config.LLM_PROVIDER == "gemini":
         return _gemini_chat(
@@ -37,6 +44,7 @@ def chat(system_prompt: str, user_text: str,
             system_prompt, user_text,
             temperature=temp,
             timeout=timeout or config.OLLAMA_TIMEOUT_SECONDS,
+            keep_alive=keep_alive if keep_alive is not None else config.OLLAMA_KEEP_ALIVE,
         )
     raise LLMError(f"unknown LLM_PROVIDER={config.LLM_PROVIDER!r}")
 
@@ -106,7 +114,8 @@ def _gemini_chat(system_prompt: str, user_text: str,
 # ──────────────────────────────────────────────────────────────────────
 
 def _ollama_chat(system_prompt: str, user_text: str,
-                 temperature: float, timeout: int) -> str:
+                 temperature: float, timeout: int,
+                 keep_alive: str | int) -> str:
     payload = {
         "model": config.OLLAMA_MODEL,
         "messages": [
@@ -115,7 +124,7 @@ def _ollama_chat(system_prompt: str, user_text: str,
         ],
         "stream": False,
         "options": {"temperature": temperature},
-        "keep_alive": 0,
+        "keep_alive": keep_alive,
     }
     t0 = time.time()
     try:
