@@ -174,9 +174,15 @@ def _get_role(user_id: str) -> str:
 
 
 def _ensure_admin(user_id: str, email: str):
-    """Idempotent — set role='admin' for the given user_id."""
+    """Idempotent — set role='admin' AND plan='admin' for the given
+    user_id. The plan bump keeps the profile row internally consistent
+    (otherwise admins show plan='free' from the signup trigger), and
+    means provider-list lookups by plan resolve to the admin row even
+    if a caller forgets to short-circuit on role."""
     try:
-        admin_client().table("profiles").update({"role": "admin"}).eq("user_id", user_id).execute()
+        admin_client().table("profiles").update(
+            {"role": "admin", "plan": "admin"}
+        ).eq("user_id", user_id).execute()
     except Exception as e:
         print(f"[auth] _ensure_admin({email}) failed: {e}")
 
