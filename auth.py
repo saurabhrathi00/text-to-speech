@@ -269,7 +269,8 @@ def get_usage_summary(user_id: str) -> dict:
     Missing user (no usage yet) returns all zeros."""
     try:
         res = admin_client().table("usage_summary").select(
-            "chars_24h,chars_30d,chars_total,uses_24h,uses_30d,uses_total"
+            "chars_24h,chars_30d,chars_total,gen_chars_30d,topup_credit_30d,"
+            "uses_24h,uses_30d,uses_total"
         ).eq("user_id", user_id).execute()
         rows = getattr(res, "data", None) or []
         if rows:
@@ -277,12 +278,102 @@ def get_usage_summary(user_id: str) -> dict:
     except Exception as e:
         print(f"[auth] get_usage_summary failed: {e}")
     return {"chars_24h": 0, "chars_30d": 0, "chars_total": 0,
+             "gen_chars_30d": 0, "topup_credit_30d": 0,
              "uses_24h": 0, "uses_30d": 0, "uses_total": 0}
 
 
 # Backward-compat alias used by /api/me etc.
 def get_monthly_chars(user_id: str) -> int:
     return int(get_usage_summary(user_id).get("chars_30d") or 0)
+
+
+def get_effective_limits(profile: dict | None,
+                          usage: dict | None = None) -> dict:
+    """Combine plan limits with the user's active bonuses to give
+    /api/me and check_limits the caps that are ACTUALLY in force right
+    now. Keeps base values alongside so the UI can render
+    '100 base + 1,500 boost = 1,600 effective'.
+
+    Effective caps:
+      monthly_chars         = plan.monthly_chars + usage.topup_credit_30d
+      daily_uses            = plan.daily_uses    + profile.bonus_uses
+      max_chars_per_request = max(plan.max, profile.bonus_max) while
+                               bonus_uses > 0
+    """
+    plan = get_effective_plan(profile or {})
+    base = dict(get_plan_limits(plan) or {})
+    if usage is None and profile and profile.get("user_id"):
+        usage = get_usage_summary(profile["user_id"])
+    usage = usage or {}
+
+    bonus_uses = int((profile or {}).get("bonus_uses") or 0)
+    bonus_max  = (profile or {}).get("bonus_max_chars_per_request")
+    topup_chars = int(usage.get("topup_credit_30d") or 0)
+
+    base_monthly = base.get("monthly_chars")
+    base_daily   = base.get("daily_uses")
+    base_max     = base.get("max_chars_per_request")
+
+    eff_monthly = (base_monthly + topup_chars) if base_monthly is not None else None
+    eff_daily   = (base_daily + bonus_uses)    if base_daily is not None else None
+    eff_max     = base_max
+    if bonus_uses > 0 and bonus_max:
+        eff_max = max(int(base_max or 0), int(bonus_max))
+
+    return {
+        **base,
+        # Server-side enforcement reads these (match plan_limits column names):
+        "monthly_chars":         eff_monthly,
+        "daily_uses":            eff_daily,
+        "max_chars_per_request": eff_max,
+        # Originals so the UI can show '<base> + <bonus> = <effective>'
+        "base_monthly_chars":         base_monthly,
+        "base_daily_uses":            base_daily,
+        "base_max_chars_per_request": base_max,
+        "bonus_chars":                topup_chars,
+        "bonus_uses":                 bonus_uses,
+        "bonus_max_chars_per_request": bonus_max,
+        # Convenience fields for the user-bar UI — already-computed
+        # 'used / cap' pairs and a flag for the boost badge.
+        "daily_cap":      eff_daily,
+        "daily_used":     int(usage.get("uses_24h") or 0),
+        "monthly_cap":    eff_monthly,
+        "monthly_used":   int(usage.get("gen_chars_30d") or 0),
+        "has_topup":      bool(topup_chars > 0 or bonus_uses > 0),
+    }
+
+
+def consume_bonus_if_used(user_id: str):
+    """Call AFTER a successful generation. If the just-logged gen
+    pushed the user past their base daily allowance, decrement
+    bonus_uses by 1. When bonus_uses hits zero, clear bonus_max — the
+    per-request override only applies while gens remain in the pool."""
+    profile = get_profile(user_id) or {}
+    bonus_uses = int(profile.get("bonus_uses") or 0)
+    if bonus_uses <= 0:
+        return
+
+    plan = get_effective_plan(profile)
+    base = get_plan_limits(plan) or {}
+    base_daily = base.get("daily_uses")
+    if base_daily is None:
+        return  # plan has no daily cap → bonus_uses not relevant
+
+    usage = get_usage_summary(user_id)
+    if int(usage.get("uses_24h") or 0) <= base_daily:
+        return  # base allowance covered this gen
+
+    update = {
+        "bonus_uses": max(0, bonus_uses - 1),
+        "updated_at": "now()",
+    }
+    if update["bonus_uses"] == 0:
+        update["bonus_max_chars_per_request"] = None
+    try:
+        admin_client().table("profiles").update(update).eq(
+            "user_id", user_id).execute()
+    except Exception as e:
+        print(f"[auth] consume_bonus_if_used({user_id}) failed: {e}")
 
 
 def get_plan_limits(plan: str) -> dict | None:
@@ -488,24 +579,47 @@ def resolve_upgrade_request(request_id: int, action: str,
             kind = (limits.get("kind") or "subscription").lower()
 
             if kind == "topup":
-                # Top-up: credit the user with monthly_chars worth of
-                # chars by inserting a negative usage_event. Existing
-                # check_limits arithmetic (chars_30d + requested vs cap)
-                # then naturally allows that many more chars. Plan and
-                # expiry stay untouched — the user keeps their
+                # Top-up grants three things atomically:
+                #   1. monthly_chars worth of chars — inserted as a
+                #      negative usage_event so existing check_limits
+                #      arithmetic naturally allows that many more chars.
+                #   2. daily_uses extra generations — added to
+                #      profiles.bonus_uses. Each successful gen past
+                #      the base plan's daily cap decrements this pool.
+                #   3. max_chars_per_request override — stored on
+                #      profiles.bonus_max_chars_per_request, in effect
+                #      while bonus_uses > 0.
+                # Plan + expiry stay untouched — the user keeps their
                 # subscription.
-                bonus = int(limits.get("monthly_chars") or 0)
-                if bonus <= 0:
-                    return None, "Top-up plan has no chars allocated — contact support"
+                bonus_chars = int(limits.get("monthly_chars") or 0)
+                bonus_reqs  = int(limits.get("daily_uses") or 0)
+                bonus_max   = limits.get("max_chars_per_request")
+                if bonus_chars <= 0 and bonus_reqs <= 0:
+                    return None, "Top-up plan has nothing to grant — contact support"
                 try:
-                    admin_client().table("usage_events").insert({
-                        "user_id": req["user_id"],
-                        "kind": "credit.topup",
-                        "provider": None,
-                        "chars": -bonus,        # negative => credit
-                        "cost_usd": 0,
-                        "meta": {"topup_plan": target_plan, "request_id": req["id"]},
-                    }).execute()
+                    if bonus_chars > 0:
+                        admin_client().table("usage_events").insert({
+                            "user_id": req["user_id"],
+                            "kind": "credit.topup",
+                            "provider": None,
+                            "chars": -bonus_chars,
+                            "cost_usd": 0,
+                            "meta": {"topup_plan": target_plan, "request_id": req["id"]},
+                        }).execute()
+                    # Stack bonus reqs on top of any unconsumed ones (e.g.
+                    # if the user bought two Sabse Sastas without using
+                    # the first), and lift max-per-request to the higher
+                    # of current bonus and this top-up.
+                    cur_profile = get_profile(req["user_id"]) or {}
+                    new_bonus_uses = int(cur_profile.get("bonus_uses") or 0) + bonus_reqs
+                    cur_bonus_max = cur_profile.get("bonus_max_chars_per_request") or 0
+                    new_bonus_max = max(int(cur_bonus_max or 0), int(bonus_max or 0)) or None
+                    if bonus_reqs > 0 or bonus_max:
+                        admin_client().table("profiles").update({
+                            "bonus_uses": new_bonus_uses,
+                            "bonus_max_chars_per_request": new_bonus_max,
+                            "updated_at": "now()",
+                        }).eq("user_id", req["user_id"]).execute()
                 except Exception as e:
                     return None, f"Failed to credit top-up: {e}"
             else:
@@ -553,9 +667,59 @@ def get_allowed_providers(profile: dict | None) -> dict:
     }
 
 
+def get_effective_limits(profile: dict, summary: dict | None = None) -> dict:
+    """Resolve the limits actually in force for this user RIGHT NOW.
+
+    Combines:
+      - base plan limits (plan_limits[effective_plan])
+      - active top-up bonus pool (profile.bonus_uses,
+        profile.bonus_max_chars_per_request)
+      - cumulative chars credit from negative usage_events
+        (summary.topup_credit_30d)
+
+    Result: {max_chars_per_request, daily_cap, monthly_cap, daily_used,
+    monthly_used, chars_remaining, daily_remaining, has_topup}
+    Numbers are what the UI should display 'X / Y'-style.
+    """
+    plan = get_effective_plan(profile)
+    base = get_plan_limits(plan) or {}
+    if summary is None:
+        summary = get_usage_summary(profile.get("user_id"))
+
+    base_max     = base.get("max_chars_per_request")
+    base_daily   = base.get("daily_uses")
+    base_monthly = base.get("monthly_chars")
+
+    bonus_uses     = int(profile.get("bonus_uses") or 0)
+    bonus_max      = profile.get("bonus_max_chars_per_request")
+    topup_credit   = int(summary.get("topup_credit_30d") or 0)
+    gen_chars_30d  = int(summary.get("gen_chars_30d") or 0)
+    uses_24h       = int(summary.get("uses_24h") or 0)
+
+    # Effective caps. Each goes max(base, bonus-derived) and lets the
+    # higher of the two win. None means unlimited.
+    eff_max     = max(int(base_max or 0),     int(bonus_max or 0)) if (base_max or bonus_max) else None
+    eff_daily   = (int(base_daily or 0) + bonus_uses) if base_daily is not None else None
+    eff_monthly = (int(base_monthly or 0) + topup_credit) if base_monthly is not None else None
+
+    return {
+        "max_chars_per_request": eff_max,
+        "daily_cap":             eff_daily,
+        "monthly_cap":           eff_monthly,
+        "daily_used":            uses_24h,
+        "monthly_used":          gen_chars_30d,
+        "daily_remaining":       None if eff_daily   is None else max(0, eff_daily   - uses_24h),
+        "chars_remaining":       None if eff_monthly is None else max(0, eff_monthly - gen_chars_30d),
+        "has_topup":             bonus_uses > 0 or topup_credit > 0,
+        "bonus_uses":            bonus_uses,
+        "topup_credit_30d":      topup_credit,
+    }
+
+
 def check_limits(user_id: str, requested_chars: int) -> tuple[bool, str]:
     """Enforce all plan limits in order, cheapest check first.
-    Returns (allowed, denial_reason)."""
+    Returns (allowed, denial_reason). Top-up bonuses extend each cap
+    individually (see get_effective_limits)."""
     profile = get_profile(user_id)
     if not profile:
         return False, "Profile not found — please re-login"
@@ -564,40 +728,44 @@ def check_limits(user_id: str, requested_chars: int) -> tuple[bool, str]:
     if has_unlimited_quota(profile.get("role")):
         return True, ""
 
+    profile["user_id"] = user_id  # ensure helpers can find it
+    summary = get_usage_summary(user_id)
+    eff = get_effective_limits(profile, summary)
     plan = get_effective_plan(profile)
-    limits = get_plan_limits(plan)
-    if not limits:
-        return False, "Plan configuration not found — contact support"
+    base = get_plan_limits(plan) or {}
 
-    # 1. Per-request size (instant, no DB read)
-    max_per = limits.get("max_chars_per_request")
+    # 1. Per-request size (effective cap = base or higher of base/bonus)
+    max_per = eff.get("max_chars_per_request")
     if max_per is not None and requested_chars > max_per:
         return False, (
             f"Script too long: {requested_chars} chars exceeds your "
-            f"{plan} plan limit of {max_per} chars per request. Upgrade to send longer scripts."
+            f"{max_per}-char per-request limit. Upgrade to send longer scripts."
         )
 
-    # 2-4. Usage-based checks need one query
-    summary = get_usage_summary(user_id)
-
-    lifetime_cap = limits.get("lifetime_uses")
+    # 2. Lifetime check (rarely used now; still on free trial rows)
+    lifetime_cap = base.get("lifetime_uses")
     if lifetime_cap is not None and summary["uses_total"] >= lifetime_cap:
         return False, (
             f"You've used your free trial ({lifetime_cap} generation). Upgrade to continue."
         )
 
-    daily_cap = limits.get("daily_uses")
+    # 3. Daily — effective cap includes bonus_uses
+    daily_cap = eff.get("daily_uses")
     if daily_cap is not None and summary["uses_24h"] >= daily_cap:
         return False, (
             f"Daily limit reached: {summary['uses_24h']}/{daily_cap} generations used today. "
-            f"Wait 24 hours or upgrade your plan."
+            f"Buy a top-up or wait 24 hours."
         )
 
-    monthly_cap = limits.get("monthly_chars")
-    if monthly_cap is not None and summary["chars_30d"] + requested_chars > monthly_cap:
+    # 4. Monthly — effective cap includes topup_credit_30d. Compare
+    # against gen_chars_30d (positive-only) so refunds don't double-
+    # count and the '<used>/<cap>' arithmetic matches what the UI shows.
+    monthly_cap = eff.get("monthly_chars")
+    gen_chars = int(summary.get("gen_chars_30d") or 0)
+    if monthly_cap is not None and (gen_chars + requested_chars) > monthly_cap:
         return False, (
-            f"Monthly character budget exceeded: {summary['chars_30d']}/{monthly_cap} chars used, "
-            f"request needs {requested_chars} more. Upgrade or wait 30 days."
+            f"Monthly character budget exceeded: {gen_chars}/{monthly_cap} chars used, "
+            f"request needs {requested_chars} more. Buy a top-up or wait 30 days."
         )
 
     return True, ""
@@ -610,7 +778,8 @@ def check_quota(user_id: str, requested_chars: int) -> tuple[bool, str]:
 
 def log_usage(user_id: str, kind: str, provider: str, chars: int,
                cost_usd: float = 0.0, meta: dict | None = None):
-    """Append a usage_events row. Called after a successful TTS generation."""
+    """Append a usage_events row + decrement top-up bonus pool if active.
+    Called after a successful TTS generation."""
     try:
         admin_client().table("usage_events").insert({
             "user_id": user_id,
@@ -623,3 +792,28 @@ def log_usage(user_id: str, kind: str, provider: str, chars: int,
     except Exception as e:
         # Never fail the user request because of logging issues — just record.
         print(f"[auth] log_usage failed: {e}")
+
+    # Decrement bonus_uses if this generation was past the base plan's
+    # daily cap (and a top-up was funding it). When bonus_uses reaches
+    # zero, clear the per-request cap override too — base plan takes over.
+    try:
+        profile = get_profile(user_id) or {}
+        bonus_uses = int(profile.get("bonus_uses") or 0)
+        if bonus_uses <= 0:
+            return
+        plan = get_effective_plan(profile)
+        base = get_plan_limits(plan) or {}
+        base_daily = base.get("daily_uses")
+        if base_daily is None:
+            return  # no daily cap → no need to dip into bonus pool
+        summary = get_usage_summary(user_id)
+        # uses_24h already includes the row we just inserted.
+        if summary.get("uses_24h", 0) > base_daily:
+            new_bonus = max(0, bonus_uses - 1)
+            update = {"bonus_uses": new_bonus, "updated_at": "now()"}
+            if new_bonus == 0:
+                update["bonus_max_chars_per_request"] = None
+            admin_client().table("profiles").update(update).eq(
+                "user_id", user_id).execute()
+    except Exception as e:
+        print(f"[auth] bonus_uses decrement failed: {e}")

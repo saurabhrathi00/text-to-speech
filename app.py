@@ -396,6 +396,7 @@ def tts():
             chars=len(text),
             meta={"emotion_tags": False},
         )
+        auth.consume_bonus_if_used(g.user["id"])
 
     print(f"[app] /tts response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
@@ -423,14 +424,20 @@ def api_me():
     # Effective plan accounts for expiry — what limits actually apply
     # right now. Raw profile.plan stays in the payload for debugging.
     effective_plan = auth.get_effective_plan(profile)
+    usage = auth.get_usage_summary(user["id"])
+    if profile is not None:
+        profile["user_id"] = user["id"]  # for get_effective_limits helper
+    effective_limits = (auth.get_effective_limits(profile, usage)
+                         if profile is not None else None)
     return jsonify({
         "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
         "profile": profile,
         "effective_plan": effective_plan,
         "plan_expires_at": (profile or {}).get("plan_expires_at"),
         "limits": auth.get_plan_limits(effective_plan),
+        "effective_limits": effective_limits,
         "allowed_providers": auth.get_allowed_providers(profile),
-        "usage": auth.get_usage_summary(user["id"]),
+        "usage": usage,
         "pending_upgrade": auth.get_pending_upgrade(user["id"]),
     })
 
@@ -649,6 +656,7 @@ def generate():
             chars=len(normalized),
             meta={"input_chars": len(text), "emotion_tags": add_emotion_tags},
         )
+        auth.consume_bonus_if_used(g.user["id"])
 
     _clear_progress(job_id)
     print(f"[app] /generate response in {time.time() - t_req:.1f}s → {actual_filename}")
