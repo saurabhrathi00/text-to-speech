@@ -24,8 +24,13 @@ class LLMError(Exception):
 def chat(system_prompt: str, user_text: str,
          temperature: float | None = None,
          timeout: int | None = None,
-         keep_alive: str | int | None = None) -> str:
+         keep_alive: str | int | None = None,
+         provider: str | None = None) -> str:
     """One-shot chat completion. Returns the model's text.
+
+    `provider` overrides config.LLM_PROVIDER for this single call —
+    used by per-request role-based routing (e.g. free users on a
+    LLM_PROVIDER=ollama box must still hit Gemini).
 
     `keep_alive` is Ollama-only. Pass "30s" / "5m" to keep the model
     resident in VRAM after the call (avoids cold-reload penalty when
@@ -33,20 +38,21 @@ def chat(system_prompt: str, user_text: str,
     Gemini ignores it.
     """
     temp = config.DEFAULT_TEMPERATURE if temperature is None else temperature
-    if config.LLM_PROVIDER == "gemini":
+    effective = (provider or config.LLM_PROVIDER or "").lower()
+    if effective == "gemini":
         return _gemini_chat(
             system_prompt, user_text,
             temperature=temp,
             timeout=timeout or config.GEMINI_TIMEOUT_SECONDS,
         )
-    if config.LLM_PROVIDER == "ollama":
+    if effective == "ollama":
         return _ollama_chat(
             system_prompt, user_text,
             temperature=temp,
             timeout=timeout or config.OLLAMA_TIMEOUT_SECONDS,
             keep_alive=keep_alive if keep_alive is not None else config.OLLAMA_KEEP_ALIVE,
         )
-    raise LLMError(f"unknown LLM_PROVIDER={config.LLM_PROVIDER!r}")
+    raise LLMError(f"unknown LLM provider={effective!r}")
 
 
 # ──────────────────────────────────────────────────────────────────────

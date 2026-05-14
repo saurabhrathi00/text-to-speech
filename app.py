@@ -53,6 +53,32 @@ def _resolve_provider(requested: str | None) -> str:
     return _default_provider()
 
 
+def _resolve_llm_provider_for_user() -> tuple[str | None, str | None]:
+    """Pick the LLM provider the current user is allowed to use.
+
+    Preference: the env's LLM_PROVIDER if it's in the user's allowed
+    list, else the first allowed provider. Returns (provider, error).
+    AUTH_DISABLED mode skips the gate and returns env default.
+    """
+    from llm import config as llm_config
+    env_default = llm_config.LLM_PROVIDER
+
+    user = getattr(g, "user", None)
+    if not user:
+        return env_default, None
+
+    profile = auth.get_profile(user["id"])
+    if profile is not None:
+        profile["role"] = user.get("role") or profile.get("role")
+    allowed = auth.get_allowed_providers(profile).get("llm") or []
+    if not allowed:
+        return None, ("No LLM providers configured for your plan. "
+                      "Contact support.")
+    if env_default in allowed:
+        return env_default, None
+    return allowed[0], None
+
+
 def _resolve_tts_provider_for_user(requested: str | None) -> tuple[str | None, str | None]:
     """Pick the TTS provider for the current request, gated by the
     user's allowed list. Returns (provider, error_msg) — exactly one
@@ -223,8 +249,12 @@ def normalize():
     if not text:
         return jsonify({"error": "Pehle kuch type karein"}), 400
     provider = _resolve_provider(data.get("provider"))
+    llm_provider, err = _resolve_llm_provider_for_user()
+    if err:
+        return jsonify({"error": err}), 403
     try:
-        normalized = normalize_text(text, target_provider=provider)
+        normalized = normalize_text(text, target_provider=provider,
+                                     llm_provider=llm_provider)
     except OllamaError:
         return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
     return jsonify({"normalized_text": normalized})
@@ -414,6 +444,10 @@ def generate():
         if not ok:
             return jsonify({"error": msg}), 402  # 402 Payment Required
 
+    llm_provider, err = _resolve_llm_provider_for_user()
+    if err:
+        return jsonify({"error": err}), 403
+
     if skip_normalize:
         normalized = text
     else:
@@ -423,6 +457,7 @@ def generate():
                 text, target_provider=provider,
                 add_emotion_tags=add_emotion_tags,
                 progress_cb=lambda stage, eta: _set_progress(job_id, stage, eta),
+                llm_provider=llm_provider,
             )
             print(f"[app] qwen done in {time.time() - t_qwen:.1f}s → {len(normalized)} chars")
         except OllamaError as e:

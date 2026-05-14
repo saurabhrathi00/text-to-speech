@@ -41,24 +41,30 @@ _SCENES_PROMPT = _load_prompt("scenes")
 # Pass 1 — normalize for TTS
 # ──────────────────────────────────────────────────────────────────────
 
-def refine_for_tts(text: str, keep_loaded: bool = False) -> str:
+def refine_for_tts(text: str, keep_loaded: bool = False,
+                    provider: str | None = None) -> str:
     """Format Hindi/Hinglish text for a TTS narrator. Returns the model's
     output text verbatim — caller is responsible for post-validation
     (e.g. Devanagari skeleton check).
+
+    `provider` overrides the configured LLM for this call (per-request
+    role-based routing).
 
     `keep_loaded=True` hints the transport to keep the model resident
     in VRAM for ~30s, so a follow-up call (e.g. emotion classify) skips
     the cold-reload cost. No-op when using a remote API like Gemini.
     """
     return chat(_NORMALIZE_PROMPT, text,
-                keep_alive="30s" if keep_loaded else None)
+                keep_alive="30s" if keep_loaded else None,
+                provider=provider)
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Pass 2 — sentence emotion classification
 # ──────────────────────────────────────────────────────────────────────
 
-def classify_emotions(sentences: list[str]) -> list[str | None]:
+def classify_emotions(sentences: list[str],
+                       provider: str | None = None) -> list[str | None]:
     """Return a list of emotion tags (or None) — same length as input.
 
     Falls back to all-None on parse failure rather than raising, since
@@ -69,7 +75,7 @@ def classify_emotions(sentences: list[str]) -> list[str | None]:
         return []
 
     payload = json.dumps(sentences, ensure_ascii=False)
-    raw = chat(_EMOTIONS_PROMPT, payload, temperature=0.3)
+    raw = chat(_EMOTIONS_PROMPT, payload, temperature=0.3, provider=provider)
     parsed = _safe_extract_json(raw)
     if not isinstance(parsed, dict):
         print(f"[llm] emotion classify: non-dict response, falling back to none")

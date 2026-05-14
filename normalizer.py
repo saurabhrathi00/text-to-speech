@@ -89,12 +89,13 @@ def _apply_tags_per_sentence(text: str, tags: list[str | None],
     return " ".join(out_parts), inserted
 
 
-def _add_emotion_tags(text: str, provider: str) -> str:
+def _add_emotion_tags(text: str, provider: str,
+                       llm_provider: str | None = None) -> str:
     sentences = _split_sentences(text)
     if not sentences:
         return text
     print(f"[normalizer] classifying emotions for {len(sentences)} sentence(s)...")
-    tags = _llm_classify_emotions(sentences)
+    tags = _llm_classify_emotions(sentences, provider=llm_provider)
     allowed = BARK_SUPPORTED_TAGS if provider == "bark" else None
     new_text, count = _apply_tags_per_sentence(text, tags, allowed=allowed)
     print(f"[normalizer] applied {count} {provider} tag(s)")
@@ -107,7 +108,8 @@ def _add_emotion_tags(text: str, provider: str) -> str:
 
 def normalize_text(text: str, target_provider: str = "parler",
                     add_emotion_tags: bool = False,
-                    progress_cb=None) -> str:
+                    progress_cb=None,
+                    llm_provider: str | None = None) -> str:
     """Pass 1 — script + punctuation cleanup for TTS.
     Pass 2 — emotion classification (only for providers that render
     inline tags: ElevenLabs, Bark). Parler skips Pass 2 because it
@@ -118,7 +120,8 @@ def normalize_text(text: str, target_provider: str = "parler",
     if progress_cb:
         progress_cb("qwen_normalize", 45)
 
-    content = refine_for_tts(text, keep_loaded=will_classify)
+    content = refine_for_tts(text, keep_loaded=will_classify,
+                              provider=llm_provider)
     if not _verify_devanagari_preserved(text, content):
         print("[normalizer] pass-1 substitution detected — falling back to input")
         content = text
@@ -130,7 +133,7 @@ def normalize_text(text: str, target_provider: str = "parler",
     if provider in ("elevenlabs", "bark"):
         if progress_cb:
             progress_cb("qwen_emotions", 30)
-        return _add_emotion_tags(content, provider)
+        return _add_emotion_tags(content, provider, llm_provider=llm_provider)
 
     print(f"[normalizer] emotion-tags requested but provider={provider} "
           f"doesn't support inline tags — skipping")

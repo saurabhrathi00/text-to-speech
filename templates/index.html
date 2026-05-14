@@ -265,13 +265,12 @@
         b.classList.toggle('hidden', !isOk);
         if (isOk && !firstVisible) firstVisible = b;
       });
-      // If the currently active provider just got hidden, switch to
-      // the first allowed one and fire its click handler.
-      const activeBtn = document.querySelector('.prov-btn.active');
-      if ((!activeBtn || activeBtn.classList.contains('hidden')) && firstVisible) {
-        btns.forEach(b => b.classList.remove('active'));
-        firstVisible.classList.add('active');
-        firstVisible.click();
+      // Initial selection: always use the first allowed provider, which
+      // also loads its voices + visibility tweaks via setProvider().
+      // If the currently active provider isn't in the allowed list,
+      // setProvider() will move 'active' to the right button anyway.
+      if (firstVisible) {
+        setProvider(firstVisible.dataset.provider);
       }
     }
 
@@ -609,10 +608,10 @@
       btn.addEventListener('click', () => setProvider(btn.dataset.provider));
     });
 
-    // On page load, sync UI with .env's default provider
-    fetch('/api/providers').then(r => r.json()).then(info => {
-      setProvider(info.current);
-    });
+    // NOTE: initial provider selection is driven by the user's allowed
+    // list (see applyAllowedProviders in continueBoot), NOT by the env
+    // default. Otherwise a free user on a box where TTS_PROVIDER=parler
+    // would get the Parler UI even though their plan disallows it.
 
     function getVoice() {
       return {
