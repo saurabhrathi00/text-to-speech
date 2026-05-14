@@ -558,7 +558,14 @@ def api_scenes():
     return jsonify(result)
 
 
+_warmup_started = threading.Lock()
+_warmup_done = False
+
+
 def _warmup_in_background():
+    global _warmup_done
+    if _warmup_done:
+        return
     provider = _default_provider()
     print(f"[startup] TTS provider: {provider}")
     if provider == "parler":
@@ -595,6 +602,26 @@ def _warmup_in_background():
     t_llm = time.time()
     llm.warmup()
     print(f"[startup] LLM warmup done in {time.time() - t_llm:.1f}s")
+    _warmup_done = True
+
+
+def _kick_off_warmup():
+    """Spawn the warmup thread exactly once, regardless of how the app
+    is launched (python app.py, flask run, gunicorn, mod_wsgi, ...).
+    Werkzeug's reloader runs the parent twice; the lock prevents a
+    double-load on the GPU."""
+    if not _warmup_started.acquire(blocking=False):
+        return
+    threading.Thread(target=_warmup_in_background, daemon=True).start()
+
+
+# Kick off model loading at module import time so the first user
+# request doesn't pay the 30–60s cold-load cost. Skipped under the
+# Werkzeug debug reloader's parent process (WERKZEUG_RUN_MAIN unset).
+if not os.getenv("FLASK_SKIP_WARMUP") and (
+        os.getenv("WERKZEUG_RUN_MAIN") == "true"
+        or not os.getenv("FLASK_DEBUG")):
+    _kick_off_warmup()
 
 
 @app.route("/health")
@@ -686,5 +713,5 @@ def api_voices(name: str):
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5000"))
-    threading.Thread(target=_warmup_in_background, daemon=True).start()
+    _kick_off_warmup()  # safe to call again — the lock dedupes
     app.run(host=host, port=port, debug=False, threaded=True)
