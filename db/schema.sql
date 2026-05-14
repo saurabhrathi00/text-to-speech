@@ -96,6 +96,16 @@ alter table public.plan_limits
 alter table public.profiles
     add column if not exists plan_expires_at timestamptz;
 
+-- Top-up bonus pool. Each top-up approval bumps these; each successful
+-- generation that exceeds the base plan's limits decrements bonus_uses.
+-- Once bonus_uses hits 0, bonus_max_chars_per_request clears too. Chars
+-- bonus rides on the usage_events ledger (negative chars event) — no
+-- column needed for that.
+alter table public.profiles
+    add column if not exists bonus_uses integer not null default 0;
+alter table public.profiles
+    add column if not exists bonus_max_chars_per_request integer;
+
 -- Seed defaults. Re-running updates only if values differ (admin can
 -- override via /api/admin/limits and won't be reset on schema reruns).
 -- Pricing based on ElevenLabs ₹0.0132/char + ~30-50% margin on worst-case usage.
@@ -109,9 +119,9 @@ values
      array['gemini'], array['elevenlabs'],
      'Free trial: 1 generation per day, max 100 chars'),
     ('sabse_sasta',  'Sabse Sasta',  49,   null,
-     null, null, null,  1500,
+     3,    null, 500,   1500,
      array['gemini'], array['elevenlabs'],
-     'Emergency top-up: +1500 chars credited to your current plan'),
+     'Top-up bundle: +1500 chars, +3 generations, up to 500 chars/req'),
     ('starter',      'Starter',      299,  720,
      5,    null, 1000,  20000,
      array['gemini'], array['elevenlabs'],
@@ -139,8 +149,9 @@ update public.plan_limits set validity_hours = 720 where plan in ('starter','pro
 update public.plan_limits
    set kind = 'topup',
        validity_hours = null,
-       max_chars_per_request = null,
-       notes = 'Emergency top-up: +1500 chars credited to your current plan'
+       daily_uses = 3,
+       max_chars_per_request = 500,
+       notes = 'Top-up bundle: +1500 chars, +3 generations, up to 500 chars/req'
  where plan = 'sabse_sasta';
 update public.plan_limits set kind = 'subscription' where kind is null;
 
@@ -257,15 +268,29 @@ create index if not exists usage_events_user_created_idx
 -- ─────────────────────────────────────────────────────────────────────
 -- usage_summary view: per-user rolling counts (24h / 30d / lifetime)
 -- ─────────────────────────────────────────────────────────────────────
-create or replace view public.usage_summary as
+-- CREATE OR REPLACE VIEW can't change column names / order. Drop first
+-- so re-running this file after the gen_chars_30d / topup_credit_30d
+-- additions doesn't error with 'cannot change name of view column'.
+drop view if exists public.usage_summary;
+create view public.usage_summary as
 select
     user_id,
+    -- Net chars (positive generations minus negative credits). Used by
+    -- check_limits.monthly arithmetic — refunds subtract here naturally.
     coalesce(sum(case when created_at > now() - interval '1 day'  then chars else 0 end), 0)::int as chars_24h,
     coalesce(sum(case when created_at > now() - interval '30 days' then chars else 0 end), 0)::int as chars_30d,
     coalesce(sum(chars), 0)::int                                                                   as chars_total,
-    coalesce(sum(case when created_at > now() - interval '1 day'  then 1     else 0 end), 0)::int as uses_24h,
-    coalesce(sum(case when created_at > now() - interval '30 days' then 1     else 0 end), 0)::int as uses_30d,
-    count(*)::int                                                                                  as uses_total
+    -- Generated chars only (positive events). Powers the "X used / Y cap"
+    -- UI indicator — refunds don't show as "usage" to the user.
+    coalesce(sum(case when created_at > now() - interval '30 days' and chars > 0 then chars else 0 end), 0)::int as gen_chars_30d,
+    -- Top-up credit granted in the last 30 days (sum of -chars events,
+    -- flipped to positive). Plan cap effectively becomes
+    -- plan.monthly_chars + topup_credit_30d.
+    coalesce(sum(case when created_at > now() - interval '30 days' and chars < 0 then -chars else 0 end), 0)::int as topup_credit_30d,
+    -- Generation counts (exclude credit/refund events — they're not "uses").
+    coalesce(sum(case when created_at > now() - interval '1 day'  and chars > 0 then 1 else 0 end), 0)::int as uses_24h,
+    coalesce(sum(case when created_at > now() - interval '30 days' and chars > 0 then 1 else 0 end), 0)::int as uses_30d,
+    coalesce(sum(case when chars > 0 then 1 else 0 end), 0)::int as uses_total
 from public.usage_events
 group by user_id;
 
