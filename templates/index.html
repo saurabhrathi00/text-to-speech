@@ -621,8 +621,28 @@
 
       const skip = skipEl.checked;
       const useEmotionTags = emotionTagsEl.checked;
+      const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
       setLoading(true);
       statusText.textContent = skip ? 'Awaaz ban rahi hai...' : 'Qwen text ko clean kar raha hai...';
+
+      const STAGE_LABEL = {
+        qwen_normalize: 'Qwen text clean kar raha hai',
+        qwen_emotions: 'Emotions classify ho rahe hain',
+        tts: 'Awaaz bana raha hai',
+      };
+      const pollProgress = setInterval(async () => {
+        try {
+          const r = await fetch('/api/progress/' + jobId);
+          if (!r.ok) return;
+          const p = await r.json();
+          if (!p.stage || p.stage === 'unknown') return;
+          const label = STAGE_LABEL[p.stage] || p.stage;
+          const elapsed = Math.round(p.elapsed || 0);
+          const eta = Math.max(0, Math.round((p.eta_seconds || 0) - elapsed));
+          statusText.textContent = `${label}... ${elapsed}s / ~${p.eta_seconds}s` + (eta > 0 ? ` (≈${eta}s left)` : '');
+        } catch (e) { /* ignore */ }
+      }, 1000);
+
       try {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 15 * 60 * 1000);
@@ -637,6 +657,7 @@
               skip_normalize: skip,
               provider: activeProvider,
               emotion_tags: useEmotionTags,
+              job_id: jobId,
             }),
             signal: ctrl.signal,
           });
@@ -653,6 +674,7 @@
       } catch (e) {
         showError('Server se connect nahi ho paya');
       } finally {
+        clearInterval(pollProgress);
         setLoading(false);
       }
     });

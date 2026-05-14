@@ -94,6 +94,41 @@ def _prune_old_audio(keep: int = MAX_AUDIO_FILES):
             pass
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Per-request progress tracking (for UI loader during long Qwen + TTS)
+# ──────────────────────────────────────────────────────────────────────
+_progress: dict[str, dict] = {}
+_progress_lock = threading.Lock()
+
+
+def _set_progress(job_id: str | None, stage: str, eta_seconds: int):
+    if not job_id:
+        return
+    with _progress_lock:
+        _progress[job_id] = {
+            "stage": stage,
+            "eta_seconds": eta_seconds,
+            "started_at": time.time(),
+        }
+
+
+def _clear_progress(job_id: str | None):
+    if not job_id:
+        return
+    with _progress_lock:
+        _progress.pop(job_id, None)
+
+
+def _prune_old_progress(max_age: int = 600):
+    """Drop progress entries older than max_age seconds — prevents leak
+    when a client never polls the final 'done' state."""
+    now = time.time()
+    with _progress_lock:
+        stale = [k for k, v in _progress.items() if now - v.get("started_at", now) > max_age]
+        for k in stale:
+            _progress.pop(k, None)
+
+
 def _public_supabase_config() -> dict:
     """Values safe to inject into the frontend HTML (anon key is public
     by Supabase design — it only gives access subject to RLS)."""
@@ -285,6 +320,20 @@ def api_admin_user_update(user_id: str):
     return jsonify({"user": rows[0]})
 
 
+@app.route("/api/progress/<job_id>")
+def api_progress(job_id: str):
+    with _progress_lock:
+        entry = _progress.get(job_id)
+    if not entry:
+        return jsonify({"stage": "unknown", "elapsed": 0, "eta_seconds": 0}), 200
+    elapsed = max(0, time.time() - entry["started_at"])
+    return jsonify({
+        "stage": entry["stage"],
+        "elapsed": round(elapsed, 1),
+        "eta_seconds": entry["eta_seconds"],
+    })
+
+
 @app.route("/generate", methods=["POST"])
 @auth.require_user
 def generate():
@@ -292,6 +341,9 @@ def generate():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "Pehle kuch type karein"}), 400
+
+    job_id = (data.get("job_id") or "").strip() or None
+    _prune_old_progress()
 
     skip_normalize = bool(data.get("skip_normalize"))
     add_emotion_tags = bool(data.get("emotion_tags"))
@@ -314,20 +366,26 @@ def generate():
     else:
         t_qwen = time.time()
         try:
-            normalized = normalize_text(text, target_provider=provider,
-                                         add_emotion_tags=add_emotion_tags)
+            normalized = normalize_text(
+                text, target_provider=provider,
+                add_emotion_tags=add_emotion_tags,
+                progress_cb=lambda stage, eta: _set_progress(job_id, stage, eta),
+            )
             print(f"[app] qwen done in {time.time() - t_qwen:.1f}s → {len(normalized)} chars")
         except OllamaError as e:
             print(f"[app] qwen FAILED in {time.time() - t_qwen:.1f}s: {e}")
+            _clear_progress(job_id)
             return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
 
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename
 
+    _set_progress(job_id, "tts", 30)
     try:
         actual_path = _tts_synthesize(normalized, str(out_path), description, voice, provider)
     except Exception:
         traceback.print_exc()
+        _clear_progress(job_id)
         return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
 
     actual_filename = Path(actual_path).name
@@ -343,6 +401,7 @@ def generate():
             meta={"input_chars": len(text), "emotion_tags": add_emotion_tags},
         )
 
+    _clear_progress(job_id)
     print(f"[app] /generate response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
         "normalized_text": normalized,
