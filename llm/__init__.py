@@ -133,9 +133,42 @@ def _safe_extract_json(text: str):
         return None
 
 
+_warm = False
+
+
+def is_warm() -> bool:
+    """True once warmup() has succeeded (or the provider is a cloud API
+    that doesn't need warming)."""
+    return _warm
+
+
+def warmup() -> None:
+    """Cold-start a local model so the first user request doesn't wait
+    30–60s for the weights to load. No-op for cloud providers.
+
+    Safe to call repeatedly — once warm, subsequent calls return fast.
+    """
+    global _warm
+    from . import config
+    if config.LLM_PROVIDER != "ollama":
+        # Gemini / cloud providers — nothing to load on our side.
+        _warm = True
+        return
+    try:
+        # Tiny throwaway call. Ollama loads the model into VRAM and keeps
+        # it resident for OLLAMA_KEEP_ALIVE seconds.
+        chat("Reply with just OK.", "ping", temperature=0.0)
+        _warm = True
+        print("[llm] ollama warmup complete")
+    except LLMError as e:
+        print(f"[llm] ollama warmup failed: {e} (first user request will pay the cold-load cost)")
+
+
 __all__ = [
     "refine_for_tts",
     "classify_emotions",
     "generate_scene_prompts",
+    "warmup",
+    "is_warm",
     "LLMError",
 ]

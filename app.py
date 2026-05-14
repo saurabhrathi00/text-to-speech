@@ -26,6 +26,7 @@ import auth
 
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
+import llm
 from tts_engine import synthesize as parler_synthesize, build_description, load_model
 from aligner import align as align_words, load_aligner
 import eleven_tts
@@ -588,6 +589,13 @@ def _warmup_in_background():
         else:
             print("[startup] using ElevenLabs API — no local model load needed")
 
+    # LLM warmup — for Ollama this loads Qwen into VRAM so the first
+    # /generate doesn't pay a 30–60s cold-load. Gemini is a no-op.
+    print("[startup] LLM warmup in background...")
+    t_llm = time.time()
+    llm.warmup()
+    print(f"[startup] LLM warmup done in {time.time() - t_llm:.1f}s")
+
 
 @app.route("/health")
 def health():
@@ -598,29 +606,40 @@ def health():
     import bark_tts
 
     provider = _default_provider()
-    # Local-model providers need on-disk weights loaded; cloud providers
-    # (elevenlabs, gemini-only) are ready instantly.
-    needs_local_models = provider in ("parler", "bark")
+    from llm import config as llm_config
+    llm_provider = llm_config.LLM_PROVIDER
+    llm_warm = llm.is_warm()
+
     parler_loaded = parler_model is not None
     bark_loaded = bark_tts._model is not None
     whisper_loaded = whisper_model is not None
 
+    # A "local model" is anything that takes meaningful time to load on
+    # this box — TTS weights AND/OR a local Ollama LLM. Cloud providers
+    # (elevenlabs, gemini) need no warmup, so users on those skip the
+    # loading screen entirely.
+    tts_needs_local = provider in ("parler", "bark")
+    llm_needs_local = llm_provider == "ollama"
+    needs_local_models = tts_needs_local or llm_needs_local
+
+    tts_ready = True
     if provider == "parler":
-        ready = parler_loaded and whisper_loaded
+        tts_ready = parler_loaded and whisper_loaded
     elif provider == "bark":
-        ready = bark_loaded
-    else:
-        ready = True
+        tts_ready = bark_loaded
+    ready = tts_ready and (not llm_needs_local or llm_warm)
 
     return jsonify({
         "server": "up",
         "provider": provider,
+        "llm_provider": llm_provider,
         "needs_local_models": needs_local_models,
         "ready": ready,
         "models": {
             "parler": parler_loaded,
             "whisper": whisper_loaded,
             "bark": bark_loaded,
+            "llm": llm_warm,
         },
     })
 

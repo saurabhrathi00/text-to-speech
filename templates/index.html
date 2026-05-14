@@ -236,6 +236,7 @@
             if (!m.whisper) pending.push('Whisper aligner');
           }
           if (h.provider === 'bark' && !m.bark) pending.push('Bark TTS');
+          if (h.llm_provider === 'ollama' && !m.llm) pending.push('Qwen LLM');
           bootMessage.textContent = pending.length
             ? `Loading ${pending.join(', ')}... (first time can take 1–2 min)`
             : 'Almost ready...';
