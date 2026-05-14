@@ -20,20 +20,7 @@
     </div>
 
     <section id="authCard" class="card hidden">
-      <div class="auth-tabs">
-        <button type="button" class="auth-tab active" data-mode="signin">Sign in</button>
-        <button type="button" class="auth-tab" data-mode="signup">Sign up</button>
-      </div>
-
-      <label class="label" for="email">Email</label>
-      <input type="email" id="email" class="auth-input" placeholder="you@example.com" autocomplete="email" />
-
-      <label class="label" for="password">Password</label>
-      <input type="password" id="password" class="auth-input" placeholder="at least 6 characters" autocomplete="current-password" />
-
-      <button type="button" id="authBtn" class="primary auth-submit">Sign in</button>
-
-      <div class="auth-divider"><span>or</span></div>
+      <h2 class="auth-heading">Sign in</h2>
 
       <button type="button" id="googleAuthBtn" class="auth-google">
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -45,12 +32,18 @@
         <span>Continue with Google</span>
       </button>
 
+      <div class="auth-divider"><span>or sign in with email</span></div>
+
+      <label class="label" for="email">Email</label>
+      <input type="email" id="email" class="auth-input" placeholder="you@example.com" autocomplete="email" />
+
+      <label class="label" for="password">Password</label>
+      <input type="password" id="password" class="auth-input" placeholder="your password" autocomplete="current-password" />
+
+      <button type="button" id="authBtn" class="primary auth-submit">Sign in</button>
+
       <p id="authStatus" class="auth-status hidden"></p>
       <p id="authError" class="error hidden"></p>
-
-      <p class="auth-foot">
-        New here? <a href="#" id="toggleMode">Create an account</a>
-      </p>
     </section>
   </main>
 
@@ -110,32 +103,16 @@
       revealForm();
     }
 
-    let mode = 'signin'; // 'signin' | 'signup'
+    // Sign-up is intentionally not exposed in the UI. New users come
+    // through 'Continue with Google'; email/password is left as a
+    // sign-in option for legacy accounts created before Google OAuth
+    // was wired up. supabase.auth.signUp is still reachable for an
+    // admin who wants to create an account out-of-band.
     const authBtn = document.getElementById('authBtn');
     const emailEl = document.getElementById('email');
     const passEl = document.getElementById('password');
     const errEl = document.getElementById('authError');
     const statusEl = document.getElementById('authStatus');
-    const toggle = document.getElementById('toggleMode');
-
-    function setMode(next) {
-      mode = next;
-      document.querySelectorAll('.auth-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.mode === mode);
-      });
-      authBtn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
-      toggle.textContent = mode === 'signin' ? 'Create an account' : 'Have an account? Sign in';
-      errEl.classList.add('hidden');
-      statusEl.classList.add('hidden');
-    }
-
-    document.querySelectorAll('.auth-tab').forEach(t => {
-      t.addEventListener('click', () => setMode(t.dataset.mode));
-    });
-    toggle.addEventListener('click', (e) => {
-      e.preventDefault();
-      setMode(mode === 'signin' ? 'signup' : 'signin');
-    });
 
     function showError(msg) {
       errEl.textContent = msg;
@@ -157,28 +134,16 @@
         return;
       }
       authBtn.disabled = true;
-      authBtn.textContent = mode === 'signin' ? 'Signing in...' : 'Creating account...';
+      authBtn.textContent = 'Signing in...';
       try {
-        if (mode === 'signin') {
-          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-          if (error) { showError(error.message); return; }
-          window.location.href = '/';
-        } else {
-          const { data, error } = await supabase.auth.signUp({ email, password });
-          if (error) { showError(error.message); return; }
-          if (data?.session) {
-            window.location.href = '/';
-          } else {
-            // Email confirmation flow (when enabled in Supabase).
-            showStatus('Account created. Confirmation email check kar, fir sign in kar.');
-            setMode('signin');
-          }
-        }
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) { showError(error.message); return; }
+        window.location.href = '/';
       } catch (e) {
         showError(e.message || 'Something went wrong');
       } finally {
         authBtn.disabled = false;
-        authBtn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+        authBtn.textContent = 'Sign in';
       }
     });
 

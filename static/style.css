@@ -176,28 +176,12 @@ body {
   padding: 24px;
 }
 
-.auth-tabs {
-  display: flex;
-  gap: 4px;
-  background: rgba(0,0,0,0.25);
-  padding: 4px;
-  border-radius: 10px;
-  margin-bottom: 16px;
-}
-.auth-tab {
-  flex: 1;
-  padding: 8px;
-  background: transparent;
-  color: #c7d2fe;
-  border: none;
-  border-radius: 8px;
+.auth-heading {
+  margin: 0 0 18px;
+  font-size: 1.15rem;
   font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-}
-.auth-tab.active {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
+  text-align: center;
+  color: #e0e7ff;
 }
 .auth-input {
   width: 100%;
@@ -260,18 +244,6 @@ body {
   color: #86efac;
   font-size: 0.9rem;
 }
-.auth-foot {
-  margin-top: 14px;
-  text-align: center;
-  font-size: 0.88rem;
-  color: #94a3b8;
-}
-.auth-foot a {
-  color: #a5b4fc;
-  text-decoration: none;
-  font-weight: 600;
-}
-.auth-foot a:hover { text-decoration: underline; }
 .hero h1 {
   font-size: 2rem;
   margin: 0 0 6px;
