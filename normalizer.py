@@ -165,6 +165,13 @@ def _add_emotion_tags(text: str, provider: str, timeout: int) -> str:
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.10:11434/api/chat")
 MODEL_NAME = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 
+
+def _llm_provider() -> str:
+    """Active LLM provider — 'ollama' (default, local Qwen) or 'gemini'
+    (Google managed API). Switched via LLM_PROVIDER env var."""
+    return (os.getenv("LLM_PROVIDER") or "ollama").strip().lower()
+
+
 class OllamaError(Exception):
     pass
 
@@ -212,14 +219,9 @@ def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     return True
 
 
-def _qwen_call(system_prompt: str, user_text: str, timeout: int,
-               temperature: float | None = None,
-               keep_alive: int | str = 0) -> str:
-    """Single chat completion call against Ollama.
-    keep_alive=0 unloads model from GPU after response (frees VRAM for
-    Parler/Bark). Pass a duration like "30s" if a follow-up Qwen call
-    is coming so we don't pay the reload cost twice.
-    """
+def _ollama_chat(system_prompt: str, user_text: str, timeout: int,
+                  temperature: float, keep_alive: int | str) -> str:
+    """Single chat completion call against local Ollama (Qwen)."""
     payload = {
         "model": MODEL_NAME,
         "messages": [
@@ -227,7 +229,7 @@ def _qwen_call(system_prompt: str, user_text: str, timeout: int,
             {"role": "user", "content": user_text},
         ],
         "stream": False,
-        "options": {"temperature": QWEN_TEMPERATURE if temperature is None else temperature},
+        "options": {"temperature": temperature},
         "keep_alive": keep_alive,
     }
     try:
@@ -240,6 +242,26 @@ def _qwen_call(system_prompt: str, user_text: str, timeout: int,
     if not content:
         raise OllamaError("Empty response from Qwen")
     return content
+
+
+def _qwen_call(system_prompt: str, user_text: str, timeout: int,
+               temperature: float | None = None,
+               keep_alive: int | str = 0) -> str:
+    """Provider-aware LLM call. Routes to Ollama (local Qwen) or
+    Gemini (Google API) based on LLM_PROVIDER env var. Same signature
+    as before so existing callers don't change.
+    """
+    temp = QWEN_TEMPERATURE if temperature is None else temperature
+    provider = _llm_provider()
+    if provider == "gemini":
+        import gemini_llm
+        try:
+            return gemini_llm.chat(system_prompt, user_text,
+                                    timeout=timeout, temperature=temp)
+        except gemini_llm.GeminiError as e:
+            # Map to OllamaError so existing handlers still catch it.
+            raise OllamaError(f"gemini: {e}") from e
+    return _ollama_chat(system_prompt, user_text, timeout, temp, keep_alive)
 
 
 def normalize_text(text: str, timeout: int = QWEN_TIMEOUT_SECONDS,
