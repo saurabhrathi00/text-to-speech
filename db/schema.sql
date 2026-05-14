@@ -17,6 +17,12 @@ create table if not exists public.profiles (
 
 -- Backfill column for existing installs that already have the table.
 alter table public.profiles add column if not exists role text not null default 'user';
+-- Soft-ban switch. Setting banned=true locks the user out of every
+-- protected route without removing their history. To FULLY remove a
+-- user, delete from auth.users in the Supabase dashboard — cascade
+-- removes the profile + usage rows. Deleting only the profiles row
+-- does NOT block sign-in (auth.users is the source of truth).
+alter table public.profiles add column if not exists banned boolean not null default false;
 
 -- Drop the legacy per-user quota column. Enforcement now lives in
 -- plan_limits.monthly_chars (and friends) keyed by plan/role, so

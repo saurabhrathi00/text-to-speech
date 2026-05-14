@@ -151,6 +151,17 @@ def require_user(handler: Callable) -> Callable:
         if email and email in _ADMIN_EMAILS:
             _ensure_admin(user_id, email)
 
+        # Profile sanity check. The auth.users row is the source of
+        # truth for "can this user authenticate?" — the profiles row
+        # is just our app-side mirror. If it got deleted manually,
+        # re-create it on next request instead of leaving the user in
+        # a half-broken state. If it exists but banned=true, lock out.
+        profile = get_profile(user_id)
+        if profile is None:
+            _ensure_profile(user_id, email)
+        elif profile.get("banned"):
+            return jsonify({"error": "Account suspended. Contact support."}), 403
+
         g.user = {
             "id": user_id,
             "email": email,
@@ -159,6 +170,24 @@ def require_user(handler: Callable) -> Callable:
         }
         return handler(*args, **kwargs)
     return wrapped
+
+
+def _ensure_profile(user_id: str, email: str):
+    """Recreate the public.profiles row if it's missing. Happens when
+    someone deletes the row directly in the DB — the user can still
+    sign in (auth.users still has them), so we patch the mirror back
+    rather than break their session."""
+    try:
+        admin_client().table("profiles").insert({
+            "user_id": user_id,
+            "email": email,
+        }).execute()
+        print(f"[auth] recreated missing profile for {email}")
+    except Exception as e:
+        # Most likely cause: row exists but read failed transiently.
+        # Either way, swallow — we never want a profile sync issue to
+        # 500 a legit request.
+        print(f"[auth] _ensure_profile({email}) skipped: {e}")
 
 
 def _get_role(user_id: str) -> str:

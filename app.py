@@ -504,13 +504,18 @@ def api_admin_users():
 @auth.require_admin
 def api_admin_user_update(user_id: str):
     """Update a user's profile fields. Body: any subset of
-    plan, display_name.
+    plan, display_name, banned.
 
     role is INTENTIONALLY excluded — admin promotion is env-only via
     ADMIN_EMAILS. No API path can grant admin to another user; adding
-    a new admin requires editing .env and restarting the server."""
+    a new admin requires editing .env and restarting the server.
+
+    banned=true locks the user out of every protected route while
+    preserving their history (usage, upgrade requests, etc.). To
+    permanently delete a user, do it from the Supabase Auth dashboard
+    — that cascades via auth.users."""
     data = request.get_json(silent=True) or {}
-    allowed = {"plan", "display_name"}
+    allowed = {"plan", "display_name", "banned"}
     payload = {k: v for k, v in data.items() if k in allowed}
     if not payload:
         return jsonify({"error": "no updatable fields in body"}), 400
