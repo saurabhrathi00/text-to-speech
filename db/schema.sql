@@ -83,6 +83,21 @@ values
      'Unlimited — admins (ADMIN_EMAILS) can pick any provider')
 on conflict (plan) do nothing;
 
+-- Backfill for deployments that had plan_limits rows BEFORE the
+-- provider columns existed: the ALTER added them with the column
+-- default ['gemini']/['elevenlabs'], and the INSERT above was a
+-- no-op (on conflict do nothing). Promote those default values to
+-- the intended seed for each plan — but ONLY when the row still
+-- equals the column default, so we never clobber an admin's custom
+-- edits made via /api/admin/limits.
+update public.plan_limits
+   set llm_providers = array['gemini','ollama']
+ where plan = 'admin' and llm_providers = array['gemini'];
+
+update public.plan_limits
+   set tts_providers = array['elevenlabs','parler','bark']
+ where plan = 'admin' and tts_providers = array['elevenlabs'];
+
 alter table public.plan_limits enable row level security;
 
 -- Anyone authenticated can READ their plan's limits (so frontend can
