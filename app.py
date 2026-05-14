@@ -396,6 +396,26 @@ def api_me():
     })
 
 
+@app.route("/api/plans")
+def api_plans():
+    """Public ladder of plans, sourced from plan_limits. Includes display
+    name + monthly price for the upgrade picker. Admin row excluded —
+    it's role-driven, not purchasable."""
+    try:
+        res = (auth.admin_client().table("plan_limits")
+               .select("plan,display_name,price_inr_monthly,daily_uses,"
+                       "max_chars_per_request,monthly_chars,notes")
+               .neq("plan", "admin")
+               .execute())
+        rows = getattr(res, "data", None) or []
+        # Sort by price ascending; nulls (free) first.
+        rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
+        return jsonify({"plans": rows})
+    except Exception as e:
+        print(f"[app] /api/plans failed: {e}")
+        return jsonify({"plans": []})
+
+
 @app.route("/api/upgrade-request", methods=["POST"])
 @auth.require_user
 def api_upgrade_request():

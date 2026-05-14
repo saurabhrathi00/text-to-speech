@@ -278,7 +278,26 @@ def get_plan_limits(plan: str) -> dict | None:
 # Plan upgrade requests
 # ──────────────────────────────────────────────────────────────────────
 
-_PLAN_RANK = {"free": 0, "pro": 1, "admin": 99}
+# Lower number = lower tier. Sourced from DB at runtime via _plan_rank
+# so adding a tier in plan_limits doesn't need a code change. The
+# hardcoded fallback only kicks in if the DB read fails entirely.
+_PLAN_RANK_FALLBACK = {"free": 0, "starter": 1, "pro": 2, "pro_plus": 3, "admin": 99}
+
+
+def _plan_rank(plan: str) -> int:
+    plan = (plan or "free").lower()
+    try:
+        res = admin_client().table("plan_limits").select("plan,price_inr_monthly").execute()
+        rows = getattr(res, "data", None) or []
+        if rows:
+            ranked = sorted(rows, key=lambda r: (r.get("price_inr_monthly") or 0))
+            order = {r["plan"]: i for i, r in enumerate(ranked)}
+            if "admin" in order:
+                order["admin"] = 99
+            return order.get(plan, 0)
+    except Exception:
+        pass
+    return _PLAN_RANK_FALLBACK.get(plan, 0)
 
 
 def get_pending_upgrade(user_id: str) -> dict | None:
@@ -308,12 +327,15 @@ def create_upgrade_request(user_id: str, requested_plan: str,
       - user already has a pending request
     """
     plan = (requested_plan or "").lower().strip()
-    if plan not in _PLAN_RANK or plan == "admin":
+    if plan == "admin":
+        return None, "Admin tier is not user-requestable"
+    # Validate plan exists in plan_limits
+    if not get_plan_limits(plan) or plan == "free":
         return None, f"Unknown or unsupported plan '{plan}'"
 
     profile = get_profile(user_id) or {}
     current = (profile.get("plan") or "free").lower()
-    if _PLAN_RANK.get(current, 0) >= _PLAN_RANK[plan]:
+    if _plan_rank(current) >= _plan_rank(plan):
         return None, f"Already on {current} plan — no upgrade needed"
 
     if get_pending_upgrade(user_id):

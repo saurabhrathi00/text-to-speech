@@ -449,8 +449,9 @@
     }
 
     // Provider registry must load before continueBoot so applyAllowedProviders
-    // has something to render. Same registry powers the local/cloud check.
-    await loadProviderRegistry();
+    // has something to render. Plans ladder lets the upgrade button know
+    // the next tier and its price. Both before continueBoot.
+    await Promise.all([loadProviderRegistry(), loadPlans()]);
 
     if (AUTH_DISABLED) {
       await continueBoot({ user: null, profile: null, limits: null, usage: null })
@@ -510,50 +511,95 @@
     }
 
     // ── Upgrade flow (user-side) ──────────────────────────────────────
+    // Plan ladder for "what's next" — admin row excluded since it's
+    // role-driven, not purchasable. Sourced via /api/plans (populated
+    // from plan_limits, so adding a tier in DB = it shows up here).
+    let availablePlans = [];  // [{plan, display_name, price_inr_monthly, ...}]
+
+    async function loadPlans() {
+      try {
+        const r = await fetch('/api/plans');
+        const data = await r.json();
+        availablePlans = (data.plans || []).filter(p => p.plan !== 'admin');
+      } catch (e) {
+        availablePlans = [];
+      }
+    }
+
+    function planRank(plan) {
+      const order = ['free', 'starter', 'pro', 'pro_plus'];
+      const i = order.indexOf((plan || '').toLowerCase());
+      return i < 0 ? -1 : i;
+    }
+
+    function nextTier(currentPlan) {
+      const cur = planRank(currentPlan);
+      const purchasable = availablePlans
+        .filter(p => planRank(p.plan) > cur)
+        .sort((a, b) => planRank(a.plan) - planRank(b.plan));
+      return purchasable[0] || null;
+    }
+
     function renderUpgradeButton(me) {
       const btn = document.getElementById('upgradeBtn');
       const plan = (me.profile?.plan || 'free').toLowerCase();
       const isAdmin = me.user?.role === 'admin';
-      // Hide for admins / non-free plans.
-      if (isAdmin || plan !== 'free') {
+      const next = nextTier(plan);
+      // No upgrade available (admin or already at top tier)
+      if (isAdmin || !next) {
         btn.classList.add('hidden');
         return;
       }
       if (me.pending_upgrade) {
-        btn.textContent = '⏳ Upgrade pending';
+        btn.textContent = `⏳ ${capitalize(me.pending_upgrade.requested_plan)} pending`;
         btn.disabled = true;
+        btn.dataset.targetPlan = me.pending_upgrade.requested_plan;
       } else {
-        btn.textContent = '🚀 Upgrade to Pro';
+        const price = next.price_inr_monthly;
+        btn.textContent = `🚀 Upgrade to ${next.display_name || next.plan}${price ? ` · ₹${price}/mo` : ''}`;
         btn.disabled = false;
+        btn.dataset.targetPlan = next.plan;
       }
       btn.classList.remove('hidden');
+    }
+
+    function capitalize(s) {
+      return (s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
 
     document.getElementById('upgradeBtn').addEventListener('click', async () => {
       const btn = document.getElementById('upgradeBtn');
       if (btn.disabled) return;
-      const note = prompt('Optional message for the admin (UPI / WhatsApp / etc.):', '');
-      if (note === null) return;  // user cancelled
+      const targetPlan = btn.dataset.targetPlan || 'pro';
+      const tierInfo = availablePlans.find(p => p.plan === targetPlan) || {};
+      const priceLine = tierInfo.price_inr_monthly
+        ? `\n\nPlan: ${tierInfo.display_name} · ₹${tierInfo.price_inr_monthly}/month`
+        : '';
+      const note = prompt(
+        `Upgrade request for ${tierInfo.display_name || targetPlan}.${priceLine}\n\n` +
+        `Payment is handled outside the app for now — drop your UPI handle / WhatsApp / preferred contact:`, '');
+      if (note === null) return;
       btn.disabled = true;
+      const originalText = btn.textContent;
       btn.textContent = 'Sending...';
       try {
         const res = await fetch('/api/upgrade-request', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: 'pro', note }),
+          body: JSON.stringify({ plan: targetPlan, note }),
         });
         const data = await res.json();
         if (!res.ok) {
           alert(data.error || 'Could not send the upgrade request.');
           btn.disabled = false;
-          btn.textContent = '🚀 Upgrade to Pro';
+          btn.textContent = originalText;
           return;
         }
-        btn.textContent = '⏳ Upgrade pending';
+        btn.textContent = `⏳ ${capitalize(targetPlan)} pending`;
       } catch (e) {
         alert('Network error — try again.');
         btn.disabled = false;
-        btn.textContent = '🚀 Upgrade to Pro';
+        btn.textContent = originalText;
       }
     });
 
