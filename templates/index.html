@@ -187,7 +187,7 @@
     // Auto-attach Authorization: Bearer <jwt> to our own requests.
     const _origFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
-      const opts = init || {};
+      const opts = { ...(init || {}) };  // shallow clone so we don't mutate caller's object
       const url = (typeof input === 'string') ? input : input.url;
       const ours = url.startsWith('/') || url.startsWith(location.origin);
       if (ours && !AUTH_DISABLED) {
@@ -198,6 +198,8 @@
             headers.set('Authorization', 'Bearer ' + token);
           }
           opts.headers = headers;
+        } else {
+          console.warn('[auth] no JWT available when calling', url);
         }
       }
       return _origFetch(input, opts);
