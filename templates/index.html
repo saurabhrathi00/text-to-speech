@@ -17,8 +17,9 @@
   <main class="container">
     <div id="appBootCheck" class="card auth-checking">
       <div class="spinner"></div>
-      <span>Loading...</span>
+      <span id="bootMessage">Loading...</span>
     </div>
+    <div id="modelStatus" class="model-status hidden"></div>
 
     <div id="appRoot" class="hidden">
     <header class="hero">
@@ -206,15 +207,67 @@
     };
 
     const bootCheck = document.getElementById('appBootCheck');
+    const bootMessage = document.getElementById('bootMessage');
+    const modelStatusEl = document.getElementById('modelStatus');
     const appRoot = document.getElementById('appRoot');
 
     function revealApp() {
       bootCheck.classList.add('hidden');
+      modelStatusEl.classList.add('hidden');
       appRoot.classList.remove('hidden');
     }
 
-    if (AUTH_DISABLED) {
+    async function waitForLocalModels() {
+      // Poll /health until local models report ready. Only called when
+      // backend says it needs them (parler / bark providers).
+      bootMessage.textContent = 'Connecting...';
+      let attempts = 0;
+      while (true) {
+        attempts++;
+        try {
+          const r = await fetch('/health');
+          const h = await r.json();
+          if (!h.needs_local_models || h.ready) return;
+          // Show which models are loading
+          const m = h.models || {};
+          const pending = [];
+          if (h.provider === 'parler') {
+            if (!m.parler)  pending.push('Parler TTS');
+            if (!m.whisper) pending.push('Whisper aligner');
+          }
+          if (h.provider === 'bark' && !m.bark) pending.push('Bark TTS');
+          bootMessage.textContent = pending.length
+            ? `Loading ${pending.join(', ')}... (first time can take 1–2 min)`
+            : 'Almost ready...';
+        } catch (e) {
+          bootMessage.textContent = 'Server connection issue, retrying...';
+        }
+        await new Promise(r => setTimeout(r, 2000));
+        if (attempts > 150) {  // ~5 min ceiling
+          bootMessage.textContent = 'Models not ready after 5 min — check server logs.';
+          return;
+        }
+      }
+    }
+
+    async function continueBoot(me) {
+      renderUserBar(me);
+      // Probe /health; if local models are still loading, show progress
+      // and poll until ready (only relevant in local-provider mode).
+      try {
+        const r = await fetch('/health');
+        const h = await r.json();
+        if (h.needs_local_models && !h.ready) {
+          await waitForLocalModels();
+        }
+      } catch (e) {
+        console.warn('/health probe failed, revealing app anyway', e);
+      }
       revealApp();
+    }
+
+    if (AUTH_DISABLED) {
+      await continueBoot({ user: null, profile: null, limits: null, usage: null });
     } else {
       const token = await getJwt();
       if (!token) {
@@ -226,8 +279,7 @@
             window.location.replace('/login');
           } else {
             const me = await res.json();
-            renderUserBar(me);
-            revealApp();
+            await continueBoot(me);
           }
         } catch (e) {
           console.error('auth bootstrap failed', e);

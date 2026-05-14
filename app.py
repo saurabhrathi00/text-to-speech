@@ -532,8 +532,38 @@ def _warmup_in_background():
 
 @app.route("/health")
 def health():
-    from tts_engine import _model
-    return jsonify({"server": "up", "tts_ready": _model is not None})
+    """Detailed readiness — used by the frontend to decide whether to
+    show a "loading models" splash before the TTS UI."""
+    from tts_engine import _model as parler_model
+    from aligner import _model as whisper_model
+    import bark_tts
+
+    provider = _default_provider()
+    # Local-model providers need on-disk weights loaded; cloud providers
+    # (elevenlabs, gemini-only) are ready instantly.
+    needs_local_models = provider in ("parler", "bark")
+    parler_loaded = parler_model is not None
+    bark_loaded = bark_tts._model is not None
+    whisper_loaded = whisper_model is not None
+
+    if provider == "parler":
+        ready = parler_loaded and whisper_loaded
+    elif provider == "bark":
+        ready = bark_loaded
+    else:
+        ready = True
+
+    return jsonify({
+        "server": "up",
+        "provider": provider,
+        "needs_local_models": needs_local_models,
+        "ready": ready,
+        "models": {
+            "parler": parler_loaded,
+            "whisper": whisper_loaded,
+            "bark": bark_loaded,
+        },
+    })
 
 
 @app.route("/api/providers")
