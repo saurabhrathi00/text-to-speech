@@ -385,11 +385,15 @@ def api_me():
     # distinguish admin (allowed=admin row) from normal users.
     if profile is not None:
         profile["role"] = user.get("role") or profile.get("role")
-    plan = (profile or {}).get("plan") or "free"
+    # Effective plan accounts for expiry — what limits actually apply
+    # right now. Raw profile.plan stays in the payload for debugging.
+    effective_plan = auth.get_effective_plan(profile)
     return jsonify({
         "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
         "profile": profile,
-        "limits": auth.get_plan_limits(plan),
+        "effective_plan": effective_plan,
+        "plan_expires_at": (profile or {}).get("plan_expires_at"),
+        "limits": auth.get_plan_limits(effective_plan),
         "allowed_providers": auth.get_allowed_providers(profile),
         "usage": auth.get_usage_summary(user["id"]),
         "pending_upgrade": auth.get_pending_upgrade(user["id"]),
@@ -403,8 +407,8 @@ def api_plans():
     it's role-driven, not purchasable."""
     try:
         res = (auth.admin_client().table("plan_limits")
-               .select("plan,display_name,price_inr_monthly,daily_uses,"
-                       "max_chars_per_request,monthly_chars,notes")
+               .select("plan,display_name,price_inr_monthly,validity_hours,"
+                       "daily_uses,max_chars_per_request,monthly_chars,notes")
                .neq("plan", "admin")
                .execute())
         rows = getattr(res, "data", None) or []

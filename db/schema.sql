@@ -75,36 +75,53 @@ alter table public.plan_limits
     add column if not exists display_name text;
 alter table public.plan_limits
     add column if not exists price_inr_monthly integer;
+-- validity_hours: how long this plan stays active after admin approves.
+-- null = no expiry (free, admin). 48 = day-pass, 720 = monthly, etc.
+alter table public.plan_limits
+    add column if not exists validity_hours integer;
+
+-- Profiles expiry timestamp — stamped on admin-approve. After this,
+-- effective plan reverts to 'free' regardless of profiles.plan value.
+alter table public.profiles
+    add column if not exists plan_expires_at timestamptz;
 
 -- Seed defaults. Re-running updates only if values differ (admin can
 -- override via /api/admin/limits and won't be reset on schema reruns).
 -- Pricing based on ElevenLabs ₹0.0132/char + ~30-50% margin on worst-case usage.
 insert into public.plan_limits
-    (plan, display_name, price_inr_monthly,
+    (plan, display_name, price_inr_monthly, validity_hours,
      daily_uses, lifetime_uses, max_chars_per_request, monthly_chars,
      llm_providers, tts_providers, notes)
 values
-    ('free',     'Free',     0,
+    ('free',         'Free',         0,    null,
      1,    null, 100,   100,
      array['gemini'], array['elevenlabs'],
      'Free trial: 1 generation per day, max 100 chars'),
-    ('starter',  'Starter',  299,
+    ('sabse_sasta',  'Sabse Sasta',  49,   48,
+     null, null, 500,   1500,
+     array['gemini'], array['elevenlabs'],
+     'Day pass: 3 generations × 500 chars over 48 hours'),
+    ('starter',      'Starter',      299,  720,
      null, null, 1000,  20000,
      array['gemini'], array['elevenlabs'],
-     'Casual users: 30 gens/mo, 1000 chars/req, 20k chars/mo'),
-    ('pro',      'Pro',      799,
+     'Casual users: 30 gens/mo, 1000 chars/req, 20k chars/mo (30-day validity)'),
+    ('pro',          'Pro',          799,  720,
      null, null, 3000,  50000,
      array['gemini'], array['elevenlabs'],
-     'Regular creators: 100 gens/mo, 3000 chars/req, 50k chars/mo'),
-    ('pro_plus', 'Pro Plus', 1999,
+     'Regular creators: 100 gens/mo, 3000 chars/req, 50k chars/mo (30-day validity)'),
+    ('pro_plus',     'Pro Plus',     1999, 720,
      null, null, 5000,  150000,
      array['gemini'], array['elevenlabs'],
-     'Power users: 300 gens/mo, 5000 chars/req, 150k chars/mo'),
-    ('admin',    'Admin',    null,
+     'Power users: 300 gens/mo, 5000 chars/req, 150k chars/mo (30-day validity)'),
+    ('admin',        'Admin',        null, null,
      null, null, null,  null,
      array['gemini','ollama'], array['elevenlabs','parler','bark'],
      'Unlimited — admins (ADMIN_EMAILS) can pick any provider')
 on conflict (plan) do nothing;
+
+-- Backfill validity_hours for pre-existing seeded rows.
+update public.plan_limits set validity_hours = 48  where plan = 'sabse_sasta' and validity_hours is null;
+update public.plan_limits set validity_hours = 720 where plan in ('starter','pro','pro_plus') and validity_hours is null;
 
 -- Migrate existing 'free' rows: lifetime_uses=1 → daily_uses=1 anti-farming
 -- defense. Only flips rows that still match the OLD default; admins who

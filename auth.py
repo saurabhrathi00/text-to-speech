@@ -301,6 +301,46 @@ def _plan_rank(plan: str) -> int:
     return _PLAN_RANK_FALLBACK.get(plan, 0)
 
 
+def _now_utc():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc)
+
+
+def _parse_ts(value) -> "datetime | None":
+    """Supabase returns timestamps as ISO strings; normalize to aware datetime."""
+    if not value:
+        return None
+    from datetime import datetime
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def get_effective_plan(profile: dict | None) -> str:
+    """The plan that actually applies right now.
+
+    Rules:
+      - role='admin' → always 'admin' (no expiry)
+      - profiles.plan_expires_at in the past → 'free' (reverted)
+      - otherwise → profiles.plan
+    """
+    if not profile:
+        return "free"
+    role = (profile.get("role") or "").lower()
+    if role == "admin":
+        return "admin"
+    plan = (profile.get("plan") or "free").lower()
+    if plan in ("free", "admin"):
+        return plan
+    expires = _parse_ts(profile.get("plan_expires_at"))
+    if expires and expires < _now_utc():
+        return "free"
+    return plan
+
+
 def get_pending_upgrade(user_id: str) -> dict | None:
     """Return the user's most recent pending upgrade request, if any."""
     try:
@@ -404,11 +444,23 @@ def resolve_upgrade_request(request_id: int, action: str,
         new_status = "approved" if action == "approve" else "rejected"
 
         if action == "approve":
-            # Bump the user's plan first; only mark the request resolved
-            # if the plan update succeeded.
-            admin_client().table("profiles").update(
-                {"plan": req["requested_plan"], "updated_at": "now()"}
-            ).eq("user_id", req["user_id"]).execute()
+            # Stamp plan + expiry timestamp atomically. validity_hours
+            # from plan_limits decides how long the plan stays active;
+            # null = no expiry (free / admin only — paid plans always
+            # carry a validity).
+            target_plan = req["requested_plan"]
+            limits = get_plan_limits(target_plan) or {}
+            validity = limits.get("validity_hours")
+            update = {"plan": target_plan, "updated_at": "now()"}
+            if validity:
+                from datetime import timedelta
+                update["plan_expires_at"] = (
+                    _now_utc() + timedelta(hours=int(validity))
+                ).isoformat()
+            else:
+                update["plan_expires_at"] = None  # free / admin → no expiry
+            admin_client().table("profiles").update(update).eq(
+                "user_id", req["user_id"]).execute()
 
         upd = admin_client().table("upgrade_requests").update({
             "status": new_status,
@@ -426,13 +478,13 @@ def get_allowed_providers(profile: dict | None) -> dict:
 
     Lookup rule:
       - role='admin' → admin row (regardless of plan)
-      - everyone else → row matching their plan
+      - everyone else → row matching their EFFECTIVE plan (expired
+        paid plans revert to 'free' for provider whitelist too)
     Falls back to a conservative cloud-only default if the table read
     fails — never returns an empty list (would 403 every request).
     """
     role = (profile or {}).get("role", "").lower()
-    plan = (profile or {}).get("plan") or "free"
-    lookup_plan = "admin" if role == "admin" else plan
+    lookup_plan = "admin" if role == "admin" else get_effective_plan(profile)
     limits = get_plan_limits(lookup_plan) or {}
     return {
         "llm": list(limits.get("llm_providers") or ["gemini"]),
@@ -451,7 +503,7 @@ def check_limits(user_id: str, requested_chars: int) -> tuple[bool, str]:
     if has_unlimited_quota(profile.get("role")):
         return True, ""
 
-    plan = profile.get("plan") or "free"
+    plan = get_effective_plan(profile)
     limits = get_plan_limits(plan)
     if not limits:
         return False, "Plan configuration not found — contact support"

@@ -509,7 +509,25 @@
       const role = document.getElementById('userRole');
       const usage = document.getElementById('userUsage');
       email.textContent = me.user?.email || '';
-      role.textContent = me.user?.role === 'admin' ? '👑 admin' : (me.profile?.plan || '');
+      const effective = (me.effective_plan || me.profile?.plan || '').toLowerCase();
+      const planTier = availablePlans.find(p => p.plan === effective);
+      const planLabel = planTier?.display_name || effective || '';
+      let rolePart = me.user?.role === 'admin' ? '👑 admin' : planLabel;
+      // Append "expires in Xh / Xd" when there's an active paid plan.
+      if (me.plan_expires_at && effective !== 'admin' && effective !== 'free') {
+        const ms = new Date(me.plan_expires_at) - new Date();
+        if (ms > 0) {
+          const mins = Math.floor(ms / 60000);
+          const hours = Math.floor(mins / 60);
+          const days  = Math.floor(hours / 24);
+          let left;
+          if (days >= 1) left = `${days}d left`;
+          else if (hours >= 1) left = `${hours}h left`;
+          else left = `${mins}m left`;
+          rolePart = `${planLabel} · ${left}`;
+        }
+      }
+      role.textContent = rolePart;
       if (me.limits && me.usage) {
         const parts = [];
         const { lifetime_uses, daily_uses, monthly_chars, max_chars_per_request } = me.limits;
@@ -581,9 +599,22 @@
     }
 
     // ── Tier picker ──────────────────────────────────────────────────
+    function formatValidity(hours) {
+      if (!hours) return 'no expiry';
+      if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'}`;
+      const days = Math.round(hours / 24);
+      return `${days} day${days === 1 ? '' : 's'}`;
+    }
+
+    function priceSuffix(t) {
+      // Day passes (validity_hours < 168) → 'one-time'; longer plans → '/mo'
+      if (!t.validity_hours) return '/mo';
+      return t.validity_hours < 168 ? ' one-time' : '/mo';
+    }
+
     function renderTierPicker(me) {
       const list = document.getElementById('upgradePickerList');
-      const currentPlan = (me.profile?.plan || 'free').toLowerCase();
+      const currentPlan = (me.effective_plan || me.profile?.plan || 'free').toLowerCase();
       const tiers = purchasableTiersAbove(currentPlan);
       list.innerHTML = '';
       tiers.forEach(t => {
@@ -591,11 +622,12 @@
         card.className = 'upgrade-tier';
         const features = [];
         if (t.max_chars_per_request) features.push(`${t.max_chars_per_request} chars/req`);
-        if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(0)}k chars/mo`);
+        if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(0)}k chars total`);
+        if (t.validity_hours) features.push(`valid ${formatValidity(t.validity_hours)}`);
         card.innerHTML = `
           <div class="upgrade-tier-head">
             <strong>${t.display_name || t.plan}</strong>
-            <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">/mo</span></span>
+            <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${priceSuffix(t)}</span></span>
           </div>
           <div class="upgrade-tier-features">${features.join(' · ') || '&nbsp;'}</div>
           ${t.notes ? `<p class="muted upgrade-tier-notes">${t.notes}</p>` : ''}
