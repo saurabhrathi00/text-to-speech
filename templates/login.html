@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>SastaSpeech — Login</title>
+  <meta name="theme-color" content="#312e81" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <h1>🎙️ SastaSpeech</h1>
+      <p class="subtitle">Sasta + Mast Text to Speech</p>
+    </header>
+
+    <section class="card">
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-mode="signin">Sign in</button>
+        <button type="button" class="auth-tab" data-mode="signup">Sign up</button>
+      </div>
+
+      <label class="label" for="email">Email</label>
+      <input type="email" id="email" class="auth-input" placeholder="you@example.com" autocomplete="email" />
+
+      <label class="label" for="password">Password</label>
+      <input type="password" id="password" class="auth-input" placeholder="at least 6 characters" autocomplete="current-password" />
+
+      <button type="button" id="authBtn" class="primary auth-submit">Sign in</button>
+
+      <p id="authStatus" class="auth-status hidden"></p>
+      <p id="authError" class="error hidden"></p>
+
+      <p class="auth-foot">
+        New here? <a href="#" id="toggleMode">Create an account</a>
+      </p>
+    </section>
+  </main>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = {{ supabase.url | tojson }};
+    const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
+    const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
+
+    if (AUTH_DISABLED) {
+      // Local-only mode — bounce straight to the app.
+      window.location.href = '/';
+    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      document.getElementById('authError').textContent =
+        'Server not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY in .env.';
+      document.getElementById('authError').classList.remove('hidden');
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // If already logged in, skip the form.
+    const { data: existing } = await supabase.auth.getSession();
+    if (existing?.session) {
+      window.location.href = '/';
+    }
+
+    let mode = 'signin'; // 'signin' | 'signup'
+    const authBtn = document.getElementById('authBtn');
+    const emailEl = document.getElementById('email');
+    const passEl = document.getElementById('password');
+    const errEl = document.getElementById('authError');
+    const statusEl = document.getElementById('authStatus');
+    const toggle = document.getElementById('toggleMode');
+
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('.auth-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.mode === mode);
+      });
+      authBtn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+      toggle.textContent = mode === 'signin' ? 'Create an account' : 'Have an account? Sign in';
+      errEl.classList.add('hidden');
+      statusEl.classList.add('hidden');
+    }
+
+    document.querySelectorAll('.auth-tab').forEach(t => {
+      t.addEventListener('click', () => setMode(t.dataset.mode));
+    });
+    toggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      setMode(mode === 'signin' ? 'signup' : 'signin');
+    });
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+      statusEl.classList.add('hidden');
+    }
+    function showStatus(msg) {
+      statusEl.textContent = msg;
+      statusEl.classList.remove('hidden');
+      errEl.classList.add('hidden');
+    }
+
+    authBtn.addEventListener('click', async () => {
+      const email = emailEl.value.trim();
+      const password = passEl.value;
+      errEl.classList.add('hidden');
+      if (!email || !password) {
+        showError('Email aur password dono required hain');
+        return;
+      }
+      authBtn.disabled = true;
+      authBtn.textContent = mode === 'signin' ? 'Signing in...' : 'Creating account...';
+      try {
+        if (mode === 'signin') {
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) { showError(error.message); return; }
+          window.location.href = '/';
+        } else {
+          const { data, error } = await supabase.auth.signUp({ email, password });
+          if (error) { showError(error.message); return; }
+          if (data?.session) {
+            window.location.href = '/';
+          } else {
+            // Email confirmation flow (when enabled in Supabase).
+            showStatus('Account created. Confirmation email check kar, fir sign in kar.');
+            setMode('signin');
+          }
+        }
+      } catch (e) {
+        showError(e.message || 'Something went wrong');
+      } finally {
+        authBtn.disabled = false;
+        authBtn.textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+      }
+    });
+  </script>
+</body>
+</html>

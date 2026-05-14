@@ -16,8 +16,14 @@
 <body>
   <main class="container">
     <header class="hero">
-      <h1>🎙️ YouTube Narrator</h1>
-      <p class="subtitle">Papa ke liye — Local & Free</p>
+      <h1>🎙️ SastaSpeech</h1>
+      <p class="subtitle">Sasta + Mast Text to Speech</p>
+      <div id="userBar" class="user-bar hidden">
+        <span id="userEmail" class="user-email"></span>
+        <span id="userRole" class="user-role"></span>
+        <span id="userUsage" class="user-usage"></span>
+        <button type="button" id="logoutBtn" class="user-logout">Logout</button>
+      </div>
     </header>
 
     <section class="card">
@@ -153,7 +159,87 @@
     </section>
   </main>
 
-  <script>
+  <script type="module">
+    // ── Auth bootstrap (Supabase JS) ─────────────────────────────────
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const SUPABASE_URL = {{ supabase.url | tojson }};
+    const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
+    const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
+
+    window._supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
+      ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    async function getJwt() {
+      if (AUTH_DISABLED || !window._supabase) return null;
+      const { data } = await window._supabase.auth.getSession();
+      return data?.session?.access_token || null;
+    }
+
+    // Auto-attach Authorization: Bearer <jwt> to our own requests.
+    const _origFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const opts = init || {};
+      const url = (typeof input === 'string') ? input : input.url;
+      const ours = url.startsWith('/') || url.startsWith(location.origin);
+      if (ours && !AUTH_DISABLED) {
+        const token = await getJwt();
+        if (token) {
+          const headers = new Headers(opts.headers || {});
+          if (!headers.has('Authorization')) {
+            headers.set('Authorization', 'Bearer ' + token);
+          }
+          opts.headers = headers;
+        }
+      }
+      return _origFetch(input, opts);
+    };
+
+    // Redirect to /login if not authenticated; populate user bar otherwise.
+    if (!AUTH_DISABLED) {
+      const token = await getJwt();
+      if (!token) { window.location.href = '/login'; }
+      else {
+        try {
+          const res = await fetch('/api/me');
+          if (res.status === 401) { window.location.href = '/login'; }
+          else {
+            const me = await res.json();
+            renderUserBar(me);
+          }
+        } catch (e) { console.error('auth bootstrap failed', e); }
+      }
+    }
+
+    function renderUserBar(me) {
+      const bar = document.getElementById('userBar');
+      const email = document.getElementById('userEmail');
+      const role = document.getElementById('userRole');
+      const usage = document.getElementById('userUsage');
+      email.textContent = me.user?.email || '';
+      role.textContent = me.user?.role === 'admin' ? '👑 admin' : (me.profile?.plan || '');
+      if (me.limits && me.usage) {
+        const parts = [];
+        const { lifetime_uses, daily_uses, monthly_chars, max_chars_per_request } = me.limits;
+        if (lifetime_uses !== null && lifetime_uses !== undefined)
+          parts.push(`${me.usage.uses_total}/${lifetime_uses} uses`);
+        else if (daily_uses !== null && daily_uses !== undefined)
+          parts.push(`${me.usage.uses_24h}/${daily_uses} today`);
+        if (monthly_chars !== null && monthly_chars !== undefined)
+          parts.push(`${me.usage.chars_30d}/${monthly_chars} chars`);
+        if (max_chars_per_request !== null && max_chars_per_request !== undefined)
+          parts.push(`max ${max_chars_per_request}/req`);
+        usage.textContent = parts.join(' · ');
+      }
+      bar.classList.remove('hidden');
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      if (window._supabase) await window._supabase.auth.signOut();
+      window.location.href = '/login';
+    });
+
     // ── Scene-prompt generation (Hindi → English image prompts) ──────
     const scenesBtn = document.getElementById('scenesBtn');
     const sceneInputEl = document.getElementById('sceneInput');

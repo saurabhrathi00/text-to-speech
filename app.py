@@ -94,9 +94,24 @@ def _prune_old_audio(keep: int = MAX_AUDIO_FILES):
             pass
 
 
+def _public_supabase_config() -> dict:
+    """Values safe to inject into the frontend HTML (anon key is public
+    by Supabase design — it only gives access subject to RLS)."""
+    return {
+        "url": os.getenv("SUPABASE_URL", ""),
+        "anon_key": os.getenv("SUPABASE_ANON_KEY", ""),
+        "auth_disabled": os.getenv("AUTH_DISABLED") == "1",
+    }
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", supabase=_public_supabase_config())
+
+
+@app.route("/login")
+def login_page():
+    return render_template("login.html", supabase=_public_supabase_config())
 
 
 @app.route("/sw.js")
