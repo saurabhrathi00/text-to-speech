@@ -310,6 +310,13 @@
     }
 
     let activeLLM = 'gemini';
+    // setProvider() and loadVoicesFor() (defined further down) read
+    // these. They MUST be initialized before any top-level await,
+    // otherwise the await-resumed call chain hits a TDZ ReferenceError.
+    let activeProvider = 'parler';
+    let providerCaps = { emotions_supported: false };
+    const providerNote = document.getElementById('providerNote');
+    const speakerSelect = document.getElementById('speaker');
 
     function setLLM(name) {
       activeLLM = (name || '').toLowerCase();
@@ -703,11 +710,10 @@
     const normalizedEdit = document.getElementById('normalizedEdit');
     const audio = document.getElementById('audioPlayer');
     const downloadBtn = document.getElementById('downloadBtn');
-
-    let activeProvider = 'parler';
-    let providerCaps = { emotions_supported: false };
-    const providerNote = document.getElementById('providerNote');
-    const speakerSelect = document.getElementById('speaker');
+    // (activeProvider / providerCaps / providerNote / speakerSelect are
+    // declared earlier — see the block right after setLLM. They have to
+    // exist before the top-level await chain runs, because that chain
+    // calls setProvider() which reads them.)
 
     async function loadVoicesFor(provider) {
       try {
