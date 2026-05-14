@@ -148,20 +148,36 @@
     const checkingEl = document.getElementById('authChecking');
     const cardEl = document.getElementById('authCard');
 
-    // Hide the full-page splash once we know which UI to show. Falls
-    // back to window.load in case the auth probe somehow never finishes.
-    function hidePageLoader() {
+    // Loader stays up until BOTH: (a) we know which UI to show, and
+    // (b) all CSS / fonts / images have settled. Hiding too early
+    // (e.g. on revealForm alone) flashed a Times-New-Roman, pre-glass
+    // state before Inter + style.css landed.
+    let _authResolved = false;
+    let _assetsLoaded = false;
+    function maybeHideLoader() {
+      if (!_authResolved || !_assetsLoaded) return;
       const el = document.getElementById('pageLoader');
       if (!el) return;
       el.classList.add('is-hidden');
       setTimeout(() => el.remove(), 300);
     }
-    window.addEventListener('load', hidePageLoader);
+    window.addEventListener('load', () => {
+      _assetsLoaded = true;
+      // document.fonts.ready resolves once webfonts have actually
+      // painted — covers the FOUT window past window 'load' on some
+      // browsers.
+      (document.fonts?.ready || Promise.resolve()).then(() => {
+        _assetsLoaded = true;
+        maybeHideLoader();
+      });
+      maybeHideLoader();
+    });
 
     function revealForm(errorMessage) {
       checkingEl.classList.add('hidden');
       cardEl.classList.remove('hidden');
-      hidePageLoader();
+      _authResolved = true;
+      maybeHideLoader();
       if (errorMessage) {
         const errEl = document.getElementById('authError');
         errEl.textContent = errorMessage;

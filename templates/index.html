@@ -256,21 +256,32 @@
     const modelStatusEl = document.getElementById('modelStatus');
     const appRoot = document.getElementById('appRoot');
 
-    // Hide the page-level CSS-paint splash. Bootcheck spinner inside
-    // the app handles the longer auth/model wait separately.
-    function hidePageLoader() {
+    // Page loader stays up until BOTH: (a) revealApp has run (auth +
+    // models resolved), and (b) CSS / fonts / images have finished
+    // loading. Hiding on revealApp alone flashed a partially-styled
+    // page when the auth probe resolved before the stylesheet did.
+    let _appReady = false;
+    let _assetsLoaded = false;
+    function maybeHideLoader() {
+      if (!_appReady || !_assetsLoaded) return;
       const el = document.getElementById('pageLoader');
       if (!el) return;
       el.classList.add('is-hidden');
       setTimeout(() => el.remove(), 300);
     }
-    window.addEventListener('load', hidePageLoader);
+    window.addEventListener('load', () => {
+      (document.fonts?.ready || Promise.resolve()).then(() => {
+        _assetsLoaded = true;
+        maybeHideLoader();
+      });
+    });
 
     function revealApp() {
       bootCheck.classList.add('hidden');
       modelStatusEl.classList.add('hidden');
       appRoot.classList.remove('hidden');
-      hidePageLoader();
+      _appReady = true;
+      maybeHideLoader();
     }
 
     async function waitForLocalModels() {
