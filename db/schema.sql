@@ -123,6 +123,19 @@ on conflict (plan) do nothing;
 update public.plan_limits set validity_hours = 48  where plan = 'sabse_sasta' and validity_hours is null;
 update public.plan_limits set validity_hours = 720 where plan in ('starter','pro','pro_plus') and validity_hours is null;
 
+-- Backfill the original pro row (daily_uses=10, max=5000) that got
+-- locked in by the early seed before tiered pricing existed. ON CONFLICT
+-- DO NOTHING above skips the update, so do it explicitly here — but
+-- only when the row still matches the OLD shape, so admin overrides
+-- aren't clobbered.
+update public.plan_limits
+   set daily_uses = null,
+       max_chars_per_request = 3000,
+       updated_at = now()
+ where plan = 'pro'
+   and daily_uses = 10
+   and max_chars_per_request = 5000;
+
 -- Migrate existing 'free' rows: lifetime_uses=1 → daily_uses=1 anti-farming
 -- defense. Only flips rows that still match the OLD default; admins who
 -- already customised stay put.
