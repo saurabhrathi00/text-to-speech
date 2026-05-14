@@ -357,9 +357,9 @@ def api_admin_users():
 @auth.require_admin
 def api_admin_user_update(user_id: str):
     """Update a user's profile fields. Body: any subset of
-    role, plan, quota_chars, display_name."""
+    role, plan, display_name."""
     data = request.get_json(silent=True) or {}
-    allowed = {"role", "plan", "quota_chars", "display_name"}
+    allowed = {"role", "plan", "display_name"}
     payload = {k: v for k, v in data.items() if k in allowed}
     if not payload:
         return jsonify({"error": "no updatable fields in body"}), 400
