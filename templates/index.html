@@ -320,11 +320,35 @@
       btn.addEventListener('click', () => setLLM(btn.dataset.llm));
     });
 
+    // Local-only providers — anything that needs weights resident on
+    // this box's GPU/CPU. Cloud APIs (gemini, elevenlabs) are excluded.
+    const LOCAL_TTS = new Set(['parler', 'bark']);
+    const LOCAL_LLM = new Set(['ollama']);
+
+    function userNeedsLocalModels(me) {
+      // Decision is based on the user's FIRST allowed provider in
+      // each list (what applyAllowedProviders auto-selects). If both
+      // are cloud, this user never touches a local model — even on a
+      // box where local models are warming up in the background.
+      const tts = (me?.allowed_providers?.tts || [])[0]?.toLowerCase();
+      const llm = (me?.allowed_providers?.llm || [])[0]?.toLowerCase();
+      return LOCAL_TTS.has(tts) || LOCAL_LLM.has(llm);
+    }
+
     async function continueBoot(me) {
       renderUserBar(me);
       applyAllowedProviders(me);
-      // Probe /health; if local models are still loading, show progress
-      // and poll until ready (only relevant in local-provider mode).
+
+      // Cloud-only users (free/pro on a local box) skip the wait — even
+      // if Parler/Whisper/Qwen are still loading in the background for
+      // admin use, those models aren't on this user's request path.
+      if (!userNeedsLocalModels(me)) {
+        revealApp();
+        return;
+      }
+
+      // Admin / local-model user: probe /health and hold the splash
+      // until the models they will actually use are ready.
       try {
         const r = await fetch('/health');
         const h = await r.json();
