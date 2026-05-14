@@ -189,18 +189,85 @@ def tts():
 @app.route("/api/me")
 @auth.require_user
 def api_me():
-    """Return the authenticated user + profile + monthly usage."""
+    """Return the authenticated user + profile + plan limits + current
+    usage so the frontend can render quota indicators."""
     user = g.user
     if not user:
-        # AUTH_DISABLED escape-hatch path
-        return jsonify({"user": None, "profile": None, "usage": 0, "auth_disabled": True})
+        return jsonify({"user": None, "profile": None, "limits": None,
+                         "usage": None, "auth_disabled": True})
     profile = auth.get_profile(user["id"])
-    usage = auth.get_monthly_chars(user["id"])
+    plan = (profile or {}).get("plan") or "free"
     return jsonify({
         "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
         "profile": profile,
-        "usage": usage,
+        "limits": auth.get_plan_limits(plan),
+        "usage": auth.get_usage_summary(user["id"]),
     })
+
+
+# ── Admin endpoints ────────────────────────────────────────────────────
+
+@app.route("/api/admin/limits")
+@auth.require_admin
+def api_admin_limits_list():
+    """Return all plan_limits rows."""
+    res = auth.admin_client().table("plan_limits").select("*").order("plan").execute()
+    return jsonify({"limits": getattr(res, "data", None) or []})
+
+
+@app.route("/api/admin/limits/<plan>", methods=["PATCH"])
+@auth.require_admin
+def api_admin_limits_update(plan: str):
+    """Update one plan's limits. Body: any subset of
+    daily_uses, lifetime_uses, max_chars_per_request, monthly_chars, notes.
+    Null values explicitly remove a limit (unlimited)."""
+    data = request.get_json(silent=True) or {}
+    allowed = {"daily_uses", "lifetime_uses", "max_chars_per_request",
+                "monthly_chars", "notes"}
+    payload = {k: v for k, v in data.items() if k in allowed}
+    if not payload:
+        return jsonify({"error": "no updatable fields in body"}), 400
+    payload["updated_at"] = "now()"
+    res = auth.admin_client().table("plan_limits").update(payload).eq("plan", plan).execute()
+    rows = getattr(res, "data", None) or []
+    if not rows:
+        return jsonify({"error": f"plan '{plan}' not found"}), 404
+    return jsonify({"plan": rows[0]})
+
+
+@app.route("/api/admin/users")
+@auth.require_admin
+def api_admin_users():
+    """List users with their plan + usage summary. Paginated."""
+    limit = int(request.args.get("limit", 50))
+    offset = int(request.args.get("offset", 0))
+    profiles_res = auth.admin_client().table("profiles").select("*").order(
+        "created_at", desc=True
+    ).range(offset, offset + limit - 1).execute()
+    profiles = getattr(profiles_res, "data", None) or []
+    # Attach usage summary per user
+    out = []
+    for p in profiles:
+        out.append({**p, "usage": auth.get_usage_summary(p["user_id"])})
+    return jsonify({"users": out, "limit": limit, "offset": offset})
+
+
+@app.route("/api/admin/users/<user_id>", methods=["PATCH"])
+@auth.require_admin
+def api_admin_user_update(user_id: str):
+    """Update a user's profile fields. Body: any subset of
+    role, plan, quota_chars, display_name."""
+    data = request.get_json(silent=True) or {}
+    allowed = {"role", "plan", "quota_chars", "display_name"}
+    payload = {k: v for k, v in data.items() if k in allowed}
+    if not payload:
+        return jsonify({"error": "no updatable fields in body"}), 400
+    payload["updated_at"] = "now()"
+    res = auth.admin_client().table("profiles").update(payload).eq("user_id", user_id).execute()
+    rows = getattr(res, "data", None) or []
+    if not rows:
+        return jsonify({"error": "user not found"}), 404
+    return jsonify({"user": rows[0]})
 
 
 @app.route("/generate", methods=["POST"])

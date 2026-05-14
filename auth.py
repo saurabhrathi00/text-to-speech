@@ -165,6 +165,36 @@ def has_unlimited_quota(role: str) -> bool:
     return (role or "").lower() in _UNLIMITED_ROLES
 
 
+def require_admin(handler: Callable) -> Callable:
+    """Protect a Flask route — JWT required AND role must be in
+    UNLIMITED_ROLES (admin by default)."""
+    @functools.wraps(handler)
+    def wrapped(*args, **kwargs):
+        if auth_disabled():
+            g.user = None
+            return handler(*args, **kwargs)
+
+        token = _extract_token()
+        if not token:
+            return jsonify({"error": "Authentication required"}), 401
+        try:
+            claims = verify_jwt(token)
+        except AuthError as e:
+            return jsonify({"error": str(e)}), 401
+
+        user_id = claims["sub"]
+        email = (claims.get("email") or "").lower()
+        if email and email in _ADMIN_EMAILS:
+            _ensure_admin(user_id, email)
+        role = _get_role(user_id)
+        if not has_unlimited_quota(role):
+            return jsonify({"error": "Admin access required"}), 403
+
+        g.user = {"id": user_id, "email": email, "claims": claims, "role": role}
+        return handler(*args, **kwargs)
+    return wrapped
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Quota tracking
 # ──────────────────────────────────────────────────────────────────────
@@ -177,30 +207,100 @@ def get_profile(user_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def get_usage_summary(user_id: str) -> dict:
+    """Read the rolling usage view for one user. Returns a dict with
+    chars_24h, chars_30d, chars_total, uses_24h, uses_30d, uses_total.
+    Missing user (no usage yet) returns all zeros."""
+    try:
+        res = admin_client().table("usage_summary").select(
+            "chars_24h,chars_30d,chars_total,uses_24h,uses_30d,uses_total"
+        ).eq("user_id", user_id).execute()
+        rows = getattr(res, "data", None) or []
+        if rows:
+            return rows[0]
+    except Exception as e:
+        print(f"[auth] get_usage_summary failed: {e}")
+    return {"chars_24h": 0, "chars_30d": 0, "chars_total": 0,
+             "uses_24h": 0, "uses_30d": 0, "uses_total": 0}
+
+
+# Backward-compat alias used by /api/me etc.
 def get_monthly_chars(user_id: str) -> int:
-    """How many chars this user has consumed in the last 30 days."""
-    res = admin_client().table("monthly_usage").select("chars_30d").eq("user_id", user_id).execute()
-    rows = getattr(res, "data", None) or []
-    if not rows:
-        return 0
-    return int(rows[0].get("chars_30d") or 0)
+    return int(get_usage_summary(user_id).get("chars_30d") or 0)
 
 
-def check_quota(user_id: str, requested_chars: int) -> tuple[bool, str]:
-    """Return (allowed, message_if_denied)."""
+def get_plan_limits(plan: str) -> dict | None:
+    """Read the plan_limits row for the given plan. Falls back to
+    the 'free' row if the user's plan isn't in the table yet."""
+    plan = (plan or "free").lower()
+    try:
+        res = admin_client().table("plan_limits").select("*").eq("plan", plan).execute()
+        rows = getattr(res, "data", None) or []
+        if rows:
+            return rows[0]
+        # fall back to free
+        res = admin_client().table("plan_limits").select("*").eq("plan", "free").execute()
+        rows = getattr(res, "data", None) or []
+        if rows:
+            return rows[0]
+    except Exception as e:
+        print(f"[auth] get_plan_limits({plan}) failed: {e}")
+    return None
+
+
+def check_limits(user_id: str, requested_chars: int) -> tuple[bool, str]:
+    """Enforce all plan limits in order, cheapest check first.
+    Returns (allowed, denial_reason)."""
     profile = get_profile(user_id)
     if not profile:
         return False, "Profile not found — please re-login"
+
+    # Unlimited roles (admin) skip all checks
     if has_unlimited_quota(profile.get("role")):
         return True, ""
-    quota = int(profile.get("quota_chars") or DEFAULT_QUOTA_CHARS)
-    used = get_monthly_chars(user_id)
-    if used + requested_chars > quota:
+
+    plan = profile.get("plan") or "free"
+    limits = get_plan_limits(plan)
+    if not limits:
+        return False, "Plan configuration not found — contact support"
+
+    # 1. Per-request size (instant, no DB read)
+    max_per = limits.get("max_chars_per_request")
+    if max_per is not None and requested_chars > max_per:
         return False, (
-            f"Monthly quota exceeded: {used}/{quota} chars used, "
-            f"request needs {requested_chars} more. Upgrade plan to continue."
+            f"Script too long: {requested_chars} chars exceeds your "
+            f"{plan} plan limit of {max_per} chars per request. Upgrade to send longer scripts."
         )
+
+    # 2-4. Usage-based checks need one query
+    summary = get_usage_summary(user_id)
+
+    lifetime_cap = limits.get("lifetime_uses")
+    if lifetime_cap is not None and summary["uses_total"] >= lifetime_cap:
+        return False, (
+            f"You've used your free trial ({lifetime_cap} generation). Upgrade to continue."
+        )
+
+    daily_cap = limits.get("daily_uses")
+    if daily_cap is not None and summary["uses_24h"] >= daily_cap:
+        return False, (
+            f"Daily limit reached: {summary['uses_24h']}/{daily_cap} generations used today. "
+            f"Wait 24 hours or upgrade your plan."
+        )
+
+    monthly_cap = limits.get("monthly_chars")
+    if monthly_cap is not None and summary["chars_30d"] + requested_chars > monthly_cap:
+        return False, (
+            f"Monthly character budget exceeded: {summary['chars_30d']}/{monthly_cap} chars used, "
+            f"request needs {requested_chars} more. Upgrade or wait 30 days."
+        )
+
     return True, ""
+
+
+# Backward-compat alias for existing call sites.
+def check_quota(user_id: str, requested_chars: int) -> tuple[bool, str]:
+    return check_limits(user_id, requested_chars)
 
 
 def log_usage(user_id: str, kind: str, provider: str, chars: int,
