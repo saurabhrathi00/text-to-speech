@@ -192,8 +192,10 @@ def has_unlimited_quota(role: str) -> bool:
 
 
 def require_admin(handler: Callable) -> Callable:
-    """Protect a Flask route — JWT required AND role must be in
-    UNLIMITED_ROLES (admin by default)."""
+    """Protect a Flask route — JWT required AND user's email must be
+    in ADMIN_EMAILS env. The DB role column is informational; the
+    authoritative source of admin status is the env file, so a
+    tampered profiles row can never grant admin powers."""
     @functools.wraps(handler)
     def wrapped(*args, **kwargs):
         if auth_disabled():
@@ -210,11 +212,10 @@ def require_admin(handler: Callable) -> Callable:
 
         user_id = claims["sub"]
         email = (claims.get("email") or "").lower()
-        if email and email in _ADMIN_EMAILS:
-            _ensure_admin(user_id, email)
-        role = _get_role(user_id)
-        if not has_unlimited_quota(role):
+        if not email or email not in _ADMIN_EMAILS:
             return jsonify({"error": "Admin access required"}), 403
+        _ensure_admin(user_id, email)
+        role = _get_role(user_id)
 
         g.user = {"id": user_id, "email": email, "claims": claims, "role": role}
         return handler(*args, **kwargs)

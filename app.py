@@ -500,9 +500,13 @@ def api_admin_users():
 @auth.require_admin
 def api_admin_user_update(user_id: str):
     """Update a user's profile fields. Body: any subset of
-    role, plan, display_name."""
+    plan, display_name.
+
+    role is INTENTIONALLY excluded — admin promotion is env-only via
+    ADMIN_EMAILS. No API path can grant admin to another user; adding
+    a new admin requires editing .env and restarting the server."""
     data = request.get_json(silent=True) or {}
-    allowed = {"role", "plan", "display_name"}
+    allowed = {"plan", "display_name"}
     payload = {k: v for k, v in data.items() if k in allowed}
     if not payload:
         return jsonify({"error": "no updatable fields in body"}), 400
@@ -625,6 +629,7 @@ def serve_image(filename):
 
 
 @app.route("/api/image", methods=["POST"])
+@auth.require_admin
 def api_image():
     data = request.get_json(silent=True) or {}
     prompt = (data.get("prompt") or "").strip()
@@ -675,6 +680,7 @@ def api_image():
 
 
 @app.route("/api/image/status")
+@auth.require_admin
 def api_image_status():
     return jsonify({
         "comfy_reachable": image_gen.is_configured(),
@@ -707,6 +713,7 @@ def _save_anchor(comfy_filename: str, local_filename: str):
 
 
 @app.route("/api/image/anchor", methods=["POST"])
+@auth.require_admin
 def api_set_anchor():
     """Set the current image (from /images/<file>) as the character
     anchor — uploaded to ComfyUI and used as IP-Adapter reference for
@@ -732,6 +739,7 @@ def api_set_anchor():
 
 
 @app.route("/api/image/anchor", methods=["DELETE"])
+@auth.require_admin
 def api_clear_anchor():
     if _ANCHOR_FILE.exists():
         _ANCHOR_FILE.unlink()
@@ -739,6 +747,7 @@ def api_clear_anchor():
 
 
 @app.route("/api/scenes", methods=["POST"])
+@auth.require_admin
 def api_scenes():
     """Convert Hindi/Hinglish/English text into English image prompts
     using Qwen. Returns scenes + characters arrays.

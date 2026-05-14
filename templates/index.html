@@ -114,7 +114,7 @@
       <div id="error" class="error hidden"></div>
     </section>
 
-    <section class="card image-card">
+    <section class="card image-card hidden" data-admin-only>
       <header class="image-header">
         <span>🎨 Image generation (ComfyUI + SDXL)</span>
         <span id="comfyStatus" class="comfy-status">checking...</span>
@@ -658,13 +658,23 @@
     document.getElementById('refreshUpgradesBtn').addEventListener('click', loadUpgradeRequests);
 
     function maybeShowAdminPanel(me) {
+      const isAdmin = me.user?.role === 'admin';
       const panel = document.getElementById('adminUpgradePanel');
-      if (me.user?.role === 'admin') {
+      if (isAdmin) {
         panel.classList.remove('hidden');
         loadUpgradeRequests();
+        // Image-generation status probe — only meaningful for admins
+        // (the section is gated by data-admin-only below).
+        if (typeof refreshComfyStatus === 'function') refreshComfyStatus();
       } else {
         panel.classList.add('hidden');
       }
+      // Everything tagged data-admin-only is invisible to non-admins.
+      // Single switch — add data-admin-only to any future admin-only
+      // UI block and it inherits this gate automatically.
+      document.querySelectorAll('[data-admin-only]').forEach(el => {
+        el.classList.toggle('hidden', !isAdmin);
+      });
     }
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -792,7 +802,8 @@
         comfyStatus.textContent = '⚠️ unknown';
       });
     }
-    refreshComfyStatus();  // single check on load; manual refresh below
+    // Only kicked off from maybeShowAdminPanel() for admins — calling
+    // /api/image/status as a non-admin would get a 403 and pollute logs.
 
     setAnchorBtn.addEventListener('click', async () => {
       if (!lastGeneratedFilename) return;
