@@ -122,13 +122,13 @@
         </div>
         <button type="button" id="clearAnchorBtn" class="secondary">✖ Clear</button>
       </div>
-      <label class="label" for="sceneInput">Hindi/Hinglish script (Qwen will turn it into English image prompts)</label>
+      <label class="label" for="sceneInput"><span id="scenesIntroLabel">Hindi/Hinglish script (Gemini will turn it into English image prompts)</span></label>
       <textarea id="sceneInput" rows="4" placeholder="एक गाँव में एक मूर्ख आदमी रहता था। एक दिन वह अपने घोड़े और बकरी बेचने बाज़ार जा रहा था..."></textarea>
       <div class="image-controls">
         <button type="button" id="scenesBtn" class="secondary">🎬 Generate Scene Prompts</button>
         <span id="scenesStatus" class="image-status hidden">
           <span class="spinner"></span>
-          <span>Qwen prompts bana raha hai (~30-60 sec)...</span>
+          <span id="scenesStatusLabel">Gemini prompts bana raha hai (~30-60 sec)...</span>
         </span>
       </div>
       <div id="scenesError" class="error hidden"></div>
@@ -242,7 +242,7 @@
             if (!m.whisper) pending.push('Whisper aligner');
           }
           if (h.provider === 'bark' && !m.bark) pending.push('Bark TTS');
-          if (h.llm_provider === 'ollama' && !m.llm) pending.push('Qwen LLM');
+          if (h.llm_provider === 'ollama' && !m.llm) pending.push('Qwen (local LLM)');
           bootMessage.textContent = pending.length
             ? `Loading ${pending.join(', ')}... (first time can take 1–2 min)`
             : 'Almost ready...';
@@ -274,10 +274,16 @@
       const display = LLM_DISPLAY[activeLLM] || activeLLM;
       const skip = document.getElementById('skipNormalizeLabel');
       const tags = document.getElementById('emotionTagsLabel');
+      const scenesIntro = document.getElementById('scenesIntroLabel');
+      const scenesStatus = document.getElementById('scenesStatusLabel');
       if (skip) skip.textContent =
         `${display} skip karo — mera text bilkul exact bolo (no auto-correction)`;
       if (tags) tags.textContent =
         `🎭 Emotion tags add karo — ${display} classify karega aur tags lagayega`;
+      if (scenesIntro) scenesIntro.textContent =
+        `Hindi/Hinglish script (${display} will turn it into English image prompts)`;
+      if (scenesStatus) scenesStatus.textContent =
+        `${display} prompts bana raha hai (~30-60 sec)...`;
     }
 
     async function applyAllowedProviders(me) {
@@ -726,11 +732,12 @@
       const useEmotionTags = emotionTagsEl.checked;
       const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
       setLoading(true);
-      statusText.textContent = skip ? 'Awaaz ban rahi hai...' : 'Qwen text ko clean kar raha hai...';
+      const llmName = LLM_DISPLAY[activeLLM] || activeLLM;
+      statusText.textContent = skip ? 'Awaaz ban rahi hai...' : `${llmName} text ko clean kar raha hai...`;
 
       const STAGE_LABEL = {
-        qwen_normalize: 'Qwen text clean kar raha hai',
-        qwen_emotions: 'Emotions classify ho rahe hain',
+        llm_normalize: `${llmName} text clean kar raha hai`,
+        llm_emotions: 'Emotions classify ho rahe hain',
         tts: 'Awaaz bana raha hai',
       };
       const pollProgress = setInterval(async () => {

@@ -154,7 +154,7 @@ def normalize_text(text: str, target_provider: str = "parler",
     will_classify = add_emotion_tags and target_provider.lower() in ("elevenlabs", "bark")
 
     if progress_cb:
-        progress_cb("qwen_normalize", 45)
+        progress_cb("llm_normalize", 45)
 
     content = refine_for_tts(text, keep_loaded=will_classify,
                               provider=llm_provider)
@@ -172,7 +172,7 @@ def normalize_text(text: str, target_provider: str = "parler",
     provider = target_provider.lower()
     if provider in ("elevenlabs", "bark"):
         if progress_cb:
-            progress_cb("qwen_emotions", 30)
+            progress_cb("llm_emotions", 30)
         return _add_emotion_tags(content, provider, llm_provider=llm_provider)
 
     print(f"[normalizer] emotion-tags requested but provider={provider} "

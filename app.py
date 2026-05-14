@@ -25,6 +25,23 @@ from flask import Flask, g, jsonify, render_template, request, send_from_directo
 import auth
 
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
+
+
+# Human-readable LLM names for user-facing error messages and logs.
+# Keep in sync with the JS LLM_DISPLAY map in templates/index.html.
+LLM_DISPLAY_NAMES = {"gemini": "Gemini", "ollama": "Qwen", "openai": "GPT"}
+
+
+def _llm_display(provider: str | None) -> str:
+    return LLM_DISPLAY_NAMES.get((provider or "").lower(), provider or "LLM")
+
+
+def _llm_error_message(provider: str | None, detail: str = "") -> str:
+    """User-facing message that names the actual model that failed —
+    don't blame Qwen when Gemini timed out."""
+    name = _llm_display(provider)
+    tail = f" ({detail})" if detail else ""
+    return f"{name} se text refine nahi ho paya{tail}. Thodi der baad try kar."
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
 from tts_engine import synthesize as parler_synthesize, build_description, load_model
@@ -267,8 +284,9 @@ def normalize():
     try:
         normalized = normalize_text(text, target_provider=provider,
                                      llm_provider=llm_provider)
-    except OllamaError:
-        return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
+    except OllamaError as e:
+        print(f"[app] /normalize llm={llm_provider} FAILED: {e}")
+        return jsonify({"error": _llm_error_message(llm_provider, str(e))}), 502
     return jsonify({"normalized_text": normalized})
 
 
@@ -463,7 +481,7 @@ def generate():
     if skip_normalize:
         normalized = text
     else:
-        t_qwen = time.time()
+        t_llm = time.time()
         try:
             normalized = normalize_text(
                 text, target_provider=provider,
@@ -471,11 +489,11 @@ def generate():
                 progress_cb=lambda stage, eta: _set_progress(job_id, stage, eta),
                 llm_provider=llm_provider,
             )
-            print(f"[app] qwen done in {time.time() - t_qwen:.1f}s → {len(normalized)} chars")
+            print(f"[app] llm({llm_provider}) done in {time.time() - t_llm:.1f}s → {len(normalized)} chars")
         except OllamaError as e:
-            print(f"[app] qwen FAILED in {time.time() - t_qwen:.1f}s: {e}")
+            print(f"[app] llm({llm_provider}) FAILED in {time.time() - t_llm:.1f}s: {e}")
             _clear_progress(job_id)
-            return jsonify({"error": "Qwen server se connect nahi ho paya"}), 502
+            return jsonify({"error": _llm_error_message(llm_provider, str(e))}), 502
 
     filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
     out_path = AUDIO_DIR / filename

@@ -62,7 +62,7 @@ def chat(system_prompt: str, user_text: str,
 def _gemini_chat(system_prompt: str, user_text: str,
                  temperature: float, timeout: int) -> str:
     if not config.GEMINI_API_KEY:
-        raise LLMError("GEMINI_API_KEY not set")
+        raise LLMError("GEMINI_API_KEY not set in .env")
 
     url = f"{config.GEMINI_API_BASE}/models/{config.GEMINI_MODEL}:generateContent"
     payload = {
@@ -74,6 +74,10 @@ def _gemini_chat(system_prompt: str, user_text: str,
         },
     }
 
+    print(f"[llm:gemini] → POST {config.GEMINI_MODEL} "
+          f"(system={len(system_prompt)}c, user={len(user_text)}c, "
+          f"temp={temperature}, maxOut={config.GEMINI_MAX_OUTPUT_TOKENS}, "
+          f"timeout={timeout}s)")
     t0 = time.time()
     try:
         r = requests.post(
@@ -84,34 +88,51 @@ def _gemini_chat(system_prompt: str, user_text: str,
             headers={"Content-Type": "application/json"},
         )
     except requests.RequestException as e:
+        print(f"[llm:gemini] ✗ network error after {time.time() - t0:.1f}s: {e}")
         raise LLMError(f"gemini network error: {e}") from e
+
+    latency = time.time() - t0
 
     if r.status_code != 200:
         try:
-            msg = r.json().get("error", {}).get("message", r.text[:300])
+            err = r.json().get("error", {})
+            msg = err.get("message", r.text[:300])
+            status = err.get("status", "")
         except ValueError:
-            msg = r.text[:300]
+            msg, status = r.text[:300], ""
+        print(f"[llm:gemini] ✗ HTTP {r.status_code} {status} in {latency:.1f}s — {msg}")
         raise LLMError(f"gemini API {r.status_code}: {msg}")
 
     try:
         data = r.json()
     except ValueError as e:
+        print(f"[llm:gemini] ✗ bad JSON response: {e}")
         raise LLMError(f"gemini bad JSON: {e}") from e
+
+    # Usage metadata is gold for cost tracking — log it whenever returned.
+    usage = data.get("usageMetadata") or {}
+    if usage:
+        print(f"[llm:gemini] usage: prompt={usage.get('promptTokenCount')} "
+              f"out={usage.get('candidatesTokenCount')} "
+              f"total={usage.get('totalTokenCount')}")
 
     candidates = data.get("candidates") or []
     if not candidates:
         blocked = data.get("promptFeedback", {}).get("blockReason")
         if blocked:
+            print(f"[llm:gemini] ✗ prompt blocked: {blocked}")
             raise LLMError(f"gemini prompt blocked: {blocked}")
+        print(f"[llm:gemini] ✗ no candidates in response: {data}")
         raise LLMError("gemini returned no candidates")
 
     parts = candidates[0].get("content", {}).get("parts") or []
     text = "".join(p.get("text", "") for p in parts).strip()
+    finish = candidates[0].get("finishReason")
     if not text:
-        finish = candidates[0].get("finishReason")
+        print(f"[llm:gemini] ✗ empty completion (finishReason={finish})")
         raise LLMError(f"gemini empty completion (finishReason={finish})")
 
-    print(f"[llm:gemini] {config.GEMINI_MODEL} → {len(text)} chars in {time.time() - t0:.1f}s")
+    print(f"[llm:gemini] ✓ {len(text)}c in {latency:.1f}s (finish={finish})")
     return text
 
 
