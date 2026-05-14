@@ -48,6 +48,42 @@ def _letter_skeleton(word: str) -> str:
     )
 
 
+# Phrases that indicate the LLM bailed out and responded conversationally
+# instead of doing the formatting task. Matched case-insensitive against
+# the FIRST 200 chars of the output (these always lead the response when
+# they happen). If hit → discard the LLM output, keep the user's original
+# text so we never push garbage to a paid TTS API.
+_REFUSAL_PATTERNS = (
+    "it seems like",
+    "it looks like",
+    "i notice that",
+    "i cannot",
+    "i can't",
+    "i'm unable",
+    "i am unable",
+    "as an ai",
+    "as a language model",
+    "sorry,",
+    "i'm sorry",
+    "let me clarify",
+    "let me help you",
+    "could you provide",
+    "could you please",
+    "please provide more",
+    "please rephrase",
+    "your message is",
+    "your input is",
+    "your text is",
+    "if you're looking for",
+    "if you are looking for",
+)
+
+
+def _looks_like_refusal(output_text: str) -> bool:
+    head = output_text.lstrip().lower()[:300]
+    return any(p in head for p in _REFUSAL_PATTERNS)
+
+
 def _verify_devanagari_preserved(input_text: str, output_text: str) -> bool:
     in_words = _devanagari_words(input_text)
     if not in_words:
@@ -122,7 +158,11 @@ def normalize_text(text: str, target_provider: str = "parler",
 
     content = refine_for_tts(text, keep_loaded=will_classify,
                               provider=llm_provider)
-    if not _verify_devanagari_preserved(text, content):
+    if _looks_like_refusal(content):
+        print(f"[normalizer] LLM returned a meta-response instead of formatting "
+              f"(starts with: {content[:80]!r}) — falling back to input")
+        content = text
+    elif not _verify_devanagari_preserved(text, content):
         print("[normalizer] pass-1 substitution detected — falling back to input")
         content = text
 
