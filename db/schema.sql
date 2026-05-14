@@ -113,6 +113,38 @@ create policy "plan_limits_read_all"
 
 
 -- ─────────────────────────────────────────────────────────────────────
+-- upgrade_requests: user-initiated plan-upgrade asks. Admin approves
+-- or rejects; on approve, profiles.plan is bumped. Until proper
+-- payments are wired, this is the bridge between paying-out-of-band
+-- (UPI/WhatsApp) and the in-app plan state.
+-- ─────────────────────────────────────────────────────────────────────
+create table if not exists public.upgrade_requests (
+    id            bigserial primary key,
+    user_id       uuid not null references auth.users(id) on delete cascade,
+    requested_plan text not null,                       -- 'pro', etc.
+    status        text not null default 'pending',     -- pending | approved | rejected
+    note          text,                                 -- optional message from user / admin
+    created_at    timestamptz not null default now(),
+    processed_at  timestamptz,
+    processed_by  uuid references auth.users(id)
+);
+
+create index if not exists upgrade_requests_user_idx
+    on public.upgrade_requests (user_id, status);
+create index if not exists upgrade_requests_status_idx
+    on public.upgrade_requests (status, created_at desc);
+
+alter table public.upgrade_requests enable row level security;
+
+-- Users can see only their own requests. Writes (insert / approve /
+-- reject) go through the service-role backend.
+drop policy if exists "upgrade_requests_self_read" on public.upgrade_requests;
+create policy "upgrade_requests_self_read"
+    on public.upgrade_requests for select
+    using (auth.uid() = user_id);
+
+
+-- ─────────────────────────────────────────────────────────────────────
 -- usage_events: every billable action (TTS generation, etc.) logged
 -- ─────────────────────────────────────────────────────────────────────
 create table if not exists public.usage_events (

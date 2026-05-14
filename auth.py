@@ -274,6 +274,130 @@ def get_plan_limits(plan: str) -> dict | None:
     return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Plan upgrade requests
+# ──────────────────────────────────────────────────────────────────────
+
+_PLAN_RANK = {"free": 0, "pro": 1, "admin": 99}
+
+
+def get_pending_upgrade(user_id: str) -> dict | None:
+    """Return the user's most recent pending upgrade request, if any."""
+    try:
+        res = (admin_client().table("upgrade_requests")
+               .select("id,requested_plan,status,created_at")
+               .eq("user_id", user_id)
+               .eq("status", "pending")
+               .order("created_at", desc=True)
+               .limit(1)
+               .execute())
+        rows = getattr(res, "data", None) or []
+        return rows[0] if rows else None
+    except Exception as e:
+        print(f"[auth] get_pending_upgrade failed: {e}")
+        return None
+
+
+def create_upgrade_request(user_id: str, requested_plan: str,
+                            note: str = "") -> tuple[dict | None, str | None]:
+    """Insert an upgrade request. Returns (row, error).
+
+    Rejects when:
+      - target plan isn't recognised
+      - user is already at or above the requested tier
+      - user already has a pending request
+    """
+    plan = (requested_plan or "").lower().strip()
+    if plan not in _PLAN_RANK or plan == "admin":
+        return None, f"Unknown or unsupported plan '{plan}'"
+
+    profile = get_profile(user_id) or {}
+    current = (profile.get("plan") or "free").lower()
+    if _PLAN_RANK.get(current, 0) >= _PLAN_RANK[plan]:
+        return None, f"Already on {current} plan — no upgrade needed"
+
+    if get_pending_upgrade(user_id):
+        return None, "You already have a pending upgrade request"
+
+    try:
+        res = admin_client().table("upgrade_requests").insert({
+            "user_id": user_id,
+            "requested_plan": plan,
+            "note": note or None,
+        }).execute()
+        rows = getattr(res, "data", None) or []
+        return (rows[0] if rows else None), None
+    except Exception as e:
+        return None, f"Failed to create upgrade request: {e}"
+
+
+def list_upgrade_requests(status: str | None = "pending") -> list[dict]:
+    """Admin-only — list requests joined with user email for display."""
+    try:
+        q = (admin_client().table("upgrade_requests")
+             .select("id,user_id,requested_plan,status,note,"
+                     "created_at,processed_at")
+             .order("created_at", desc=True))
+        if status:
+            q = q.eq("status", status)
+        res = q.execute()
+        rows = getattr(res, "data", None) or []
+        if not rows:
+            return []
+        # Best-effort email enrichment from profiles
+        ids = list({r["user_id"] for r in rows})
+        prof_res = (admin_client().table("profiles")
+                    .select("user_id,email,plan").in_("user_id", ids).execute())
+        prof_rows = getattr(prof_res, "data", None) or []
+        emap = {p["user_id"]: p for p in prof_rows}
+        for r in rows:
+            p = emap.get(r["user_id"]) or {}
+            r["email"] = p.get("email")
+            r["current_plan"] = p.get("plan")
+        return rows
+    except Exception as e:
+        print(f"[auth] list_upgrade_requests failed: {e}")
+        return []
+
+
+def resolve_upgrade_request(request_id: int, action: str,
+                             admin_user_id: str) -> tuple[dict | None, str | None]:
+    """Admin marks a request approved or rejected. On approve, also
+    bumps the target user's plan. Idempotent: already-resolved requests
+    can't be flipped."""
+    if action not in ("approve", "reject"):
+        return None, "Action must be 'approve' or 'reject'"
+    try:
+        # Fetch the row first so we know the target user + plan.
+        res = (admin_client().table("upgrade_requests")
+               .select("*").eq("id", request_id).execute())
+        rows = getattr(res, "data", None) or []
+        if not rows:
+            return None, "Request not found"
+        req = rows[0]
+        if req["status"] != "pending":
+            return None, f"Request already {req['status']}"
+
+        new_status = "approved" if action == "approve" else "rejected"
+
+        if action == "approve":
+            # Bump the user's plan first; only mark the request resolved
+            # if the plan update succeeded.
+            admin_client().table("profiles").update(
+                {"plan": req["requested_plan"], "updated_at": "now()"}
+            ).eq("user_id", req["user_id"]).execute()
+
+        upd = admin_client().table("upgrade_requests").update({
+            "status": new_status,
+            "processed_at": "now()",
+            "processed_by": admin_user_id,
+        }).eq("id", request_id).execute()
+        rows = getattr(upd, "data", None) or []
+        return (rows[0] if rows else None), None
+    except Exception as e:
+        return None, f"Failed to resolve request: {e}"
+
+
 def get_allowed_providers(profile: dict | None) -> dict:
     """Return the LLM + TTS providers this user is allowed to call.
 

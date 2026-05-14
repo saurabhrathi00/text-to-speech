@@ -29,8 +29,17 @@
         <span id="userEmail" class="user-email"></span>
         <span id="userRole" class="user-role"></span>
         <span id="userUsage" class="user-usage"></span>
+        <button type="button" id="upgradeBtn" class="user-upgrade hidden">🚀 Upgrade to Pro</button>
         <button type="button" id="logoutBtn" class="user-logout">Logout</button>
       </div>
+
+      <section id="adminUpgradePanel" class="card admin-panel hidden">
+        <header class="admin-panel-header">
+          <strong>📥 Pending upgrade requests</strong>
+          <button type="button" id="refreshUpgradesBtn" class="secondary">Refresh</button>
+        </header>
+        <div id="upgradeRequestsList" class="upgrade-list"></div>
+      </section>
     </header>
 
     <section class="card">
@@ -414,6 +423,7 @@
 
     async function continueBoot(me) {
       renderUserBar(me);
+      maybeShowAdminPanel(me);
       await applyAllowedProviders(me);
 
       // Cloud-only users (free/pro on a local box) skip the wait — even
@@ -495,7 +505,119 @@
           parts.push(`max ${max_chars_per_request}/req`);
         usage.textContent = parts.join(' · ');
       }
+      renderUpgradeButton(me);
       bar.classList.remove('hidden');
+    }
+
+    // ── Upgrade flow (user-side) ──────────────────────────────────────
+    function renderUpgradeButton(me) {
+      const btn = document.getElementById('upgradeBtn');
+      const plan = (me.profile?.plan || 'free').toLowerCase();
+      const isAdmin = me.user?.role === 'admin';
+      // Hide for admins / non-free plans.
+      if (isAdmin || plan !== 'free') {
+        btn.classList.add('hidden');
+        return;
+      }
+      if (me.pending_upgrade) {
+        btn.textContent = '⏳ Upgrade pending';
+        btn.disabled = true;
+      } else {
+        btn.textContent = '🚀 Upgrade to Pro';
+        btn.disabled = false;
+      }
+      btn.classList.remove('hidden');
+    }
+
+    document.getElementById('upgradeBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('upgradeBtn');
+      if (btn.disabled) return;
+      const note = prompt('Optional message for the admin (UPI / WhatsApp / etc.):', '');
+      if (note === null) return;  // user cancelled
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        const res = await fetch('/api/upgrade-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: 'pro', note }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Could not send the upgrade request.');
+          btn.disabled = false;
+          btn.textContent = '🚀 Upgrade to Pro';
+          return;
+        }
+        btn.textContent = '⏳ Upgrade pending';
+      } catch (e) {
+        alert('Network error — try again.');
+        btn.disabled = false;
+        btn.textContent = '🚀 Upgrade to Pro';
+      }
+    });
+
+    // ── Admin upgrade-requests panel ──────────────────────────────────
+    async function loadUpgradeRequests() {
+      const list = document.getElementById('upgradeRequestsList');
+      list.textContent = 'Loading...';
+      try {
+        const res = await fetch('/api/admin/upgrade-requests?status=pending');
+        const data = await res.json();
+        const rows = data.requests || [];
+        if (!rows.length) {
+          list.innerHTML = '<p class="muted">No pending requests.</p>';
+          return;
+        }
+        list.innerHTML = '';
+        rows.forEach(r => {
+          const row = document.createElement('div');
+          row.className = 'upgrade-row';
+          row.innerHTML = `
+            <div class="upgrade-meta">
+              <strong>${r.email || r.user_id}</strong>
+              <span class="muted">${r.current_plan || '?'} → <b>${r.requested_plan}</b></span>
+              ${r.note ? `<div class="upgrade-note">"${r.note}"</div>` : ''}
+              <span class="muted">${new Date(r.created_at).toLocaleString()}</span>
+            </div>
+            <div class="upgrade-actions">
+              <button class="primary" data-act="approve" data-id="${r.id}">Approve</button>
+              <button class="secondary" data-act="reject" data-id="${r.id}">Reject</button>
+            </div>`;
+          list.appendChild(row);
+        });
+        list.querySelectorAll('button[data-act]').forEach(b => {
+          b.addEventListener('click', () => resolveUpgrade(b.dataset.id, b.dataset.act));
+        });
+      } catch (e) {
+        list.innerHTML = '<p class="error">Failed to load requests.</p>';
+      }
+    }
+
+    async function resolveUpgrade(id, action) {
+      try {
+        const res = await fetch(`/api/admin/upgrade-requests/${id}/${action}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Action failed.');
+          return;
+        }
+        await loadUpgradeRequests();
+      } catch (e) {
+        alert('Network error.');
+      }
+    }
+
+    document.getElementById('refreshUpgradesBtn').addEventListener('click', loadUpgradeRequests);
+
+    function maybeShowAdminPanel(me) {
+      const panel = document.getElementById('adminUpgradePanel');
+      if (me.user?.role === 'admin') {
+        panel.classList.remove('hidden');
+        loadUpgradeRequests();
+      } else {
+        panel.classList.add('hidden');
+      }
     }
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {

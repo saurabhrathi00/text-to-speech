@@ -392,7 +392,41 @@ def api_me():
         "limits": auth.get_plan_limits(plan),
         "allowed_providers": auth.get_allowed_providers(profile),
         "usage": auth.get_usage_summary(user["id"]),
+        "pending_upgrade": auth.get_pending_upgrade(user["id"]),
     })
+
+
+@app.route("/api/upgrade-request", methods=["POST"])
+@auth.require_user
+def api_upgrade_request():
+    """User asks to be moved to a higher plan. Admin reviews + approves
+    out-of-band (payment handled outside the app for now)."""
+    data = request.get_json(silent=True) or {}
+    plan = (data.get("plan") or "pro").lower()
+    note = (data.get("note") or "").strip()
+    row, err = auth.create_upgrade_request(g.user["id"], plan, note=note)
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify({"request": row})
+
+
+@app.route("/api/admin/upgrade-requests")
+@auth.require_admin
+def api_admin_list_upgrade_requests():
+    status = request.args.get("status", "pending")
+    if status == "all":
+        status = None
+    return jsonify({"requests": auth.list_upgrade_requests(status)})
+
+
+@app.route("/api/admin/upgrade-requests/<int:req_id>/<string:action>",
+            methods=["POST"])
+@auth.require_admin
+def api_admin_resolve_upgrade(req_id: int, action: str):
+    row, err = auth.resolve_upgrade_request(req_id, action, g.user["id"])
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify({"request": row})
 
 
 # ── Admin endpoints ────────────────────────────────────────────────────

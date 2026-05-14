@@ -52,6 +52,44 @@ body {
 }
 .user-logout:hover { background: rgba(255,255,255,0.14); }
 
+.user-upgrade {
+  margin-left: 6px;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.25);
+}
+.user-upgrade:hover:not(:disabled) { filter: brightness(1.1); }
+.user-upgrade:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+
+.admin-panel { margin-bottom: 16px; }
+.admin-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.upgrade-list { display: flex; flex-direction: column; gap: 8px; }
+.upgrade-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  gap: 12px;
+}
+.upgrade-meta { display: flex; flex-direction: column; gap: 2px; font-size: 0.88rem; }
+.upgrade-note { font-style: italic; color: #cbd5e1; }
+.upgrade-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.upgrade-actions button { padding: 6px 12px; font-size: 0.82rem; border-radius: 6px; cursor: pointer; }
+.muted { color: #94a3b8; font-size: 0.78rem; }
+
 .auth-checking {
   display: flex;
   align-items: center;
