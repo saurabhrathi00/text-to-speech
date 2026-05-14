@@ -1,12 +1,11 @@
 """Supabase auth + per-user quota tracking.
 
-When CLOUD_MODE=1, every /generate and /tts request must carry a
-valid Supabase JWT in the Authorization header. We verify the JWT,
-attach the user to flask.g, check the user's quota, and after the
-TTS finishes we log a usage_events row.
+Every request must carry a valid Supabase JWT. There is no local
+bypass — papa logs in like any user but gets role='admin' in his
+profile, which skips the quota check.
 
-When CLOUD_MODE is unset (papa's local box), auth is a no-op — the
-require_user decorator passes through.
+Admin emails listed in ADMIN_EMAILS env var (comma-separated) are
+auto-promoted to role='admin' on first sign-in.
 """
 import os
 import time
@@ -24,11 +23,27 @@ SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
 DEFAULT_QUOTA_CHARS = int(os.getenv("DEFAULT_QUOTA_CHARS", "1000"))
 
+# Emails listed here are auto-promoted to role='admin' on sign-in.
+# Comma-separated, case-insensitive. Example: ADMIN_EMAILS=papa@x.com,me@x.com
+_ADMIN_EMAILS = {
+    e.strip().lower()
+    for e in os.getenv("ADMIN_EMAILS", "").split(",")
+    if e.strip()
+}
 
-def cloud_mode() -> bool:
-    """True when the server is running in production cloud mode.
-    Local mode bypasses auth and quota entirely."""
-    return os.getenv("CLOUD_MODE") == "1"
+# Roles that bypass quota entirely. Comma-separated, default = "admin".
+_UNLIMITED_ROLES = {
+    r.strip().lower()
+    for r in os.getenv("UNLIMITED_ROLES", "admin").split(",")
+    if r.strip()
+}
+
+
+def auth_disabled() -> bool:
+    """Escape hatch — disables auth entirely. Useful only for first-run
+    local dev / smoke tests before Supabase keys exist. Default off so
+    production stays safe by default."""
+    return os.getenv("AUTH_DISABLED") == "1"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -91,12 +106,13 @@ def verify_jwt(token: str) -> dict:
 # ──────────────────────────────────────────────────────────────────────
 
 def require_user(handler: Callable) -> Callable:
-    """Protect a Flask route. In cloud mode, validates the JWT and
-    attaches the user info to flask.g.user. In local mode, no-op.
+    """Protect a Flask route — Supabase JWT required.
+    On success, flask.g.user is set with id, email, and role.
+    Admin emails (ADMIN_EMAILS env var) are auto-promoted on first hit.
     """
     @functools.wraps(handler)
     def wrapped(*args, **kwargs):
-        if not cloud_mode():
+        if auth_disabled():
             g.user = None
             return handler(*args, **kwargs)
 
@@ -108,13 +124,45 @@ def require_user(handler: Callable) -> Callable:
         except AuthError as e:
             return jsonify({"error": str(e)}), 401
 
+        user_id = claims["sub"]
+        email = (claims.get("email") or "").lower()
+
+        # Auto-promote admin emails on first contact.
+        if email and email in _ADMIN_EMAILS:
+            _ensure_admin(user_id, email)
+
         g.user = {
-            "id": claims["sub"],
-            "email": claims.get("email"),
+            "id": user_id,
+            "email": email,
             "claims": claims,
+            "role": _get_role(user_id),
         }
         return handler(*args, **kwargs)
     return wrapped
+
+
+def _get_role(user_id: str) -> str:
+    """Read the user's current role from profiles. Default 'user'."""
+    try:
+        res = admin_client().table("profiles").select("role").eq("user_id", user_id).execute()
+        rows = getattr(res, "data", None) or []
+        if rows:
+            return (rows[0].get("role") or "user").lower()
+    except Exception as e:
+        print(f"[auth] _get_role failed: {e}")
+    return "user"
+
+
+def _ensure_admin(user_id: str, email: str):
+    """Idempotent — set role='admin' for the given user_id."""
+    try:
+        admin_client().table("profiles").update({"role": "admin"}).eq("user_id", user_id).execute()
+    except Exception as e:
+        print(f"[auth] _ensure_admin({email}) failed: {e}")
+
+
+def has_unlimited_quota(role: str) -> bool:
+    return (role or "").lower() in _UNLIMITED_ROLES
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -143,6 +191,8 @@ def check_quota(user_id: str, requested_chars: int) -> tuple[bool, str]:
     profile = get_profile(user_id)
     if not profile:
         return False, "Profile not found — please re-login"
+    if has_unlimited_quota(profile.get("role")):
+        return True, ""
     quota = int(profile.get("quota_chars") or DEFAULT_QUOTA_CHARS)
     used = get_monthly_chars(user_id)
     if used + requested_chars > quota:

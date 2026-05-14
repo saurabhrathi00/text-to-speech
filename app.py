@@ -153,7 +153,7 @@ def tts():
     t_req = time.time()
     print(f"[app] /tts request → {len(text)} chars, provider={provider}, voice={voice}")
 
-    if auth.cloud_mode() and g.user:
+    if g.user:
         ok, msg = auth.check_quota(g.user["id"], len(text))
         if not ok:
             return jsonify({"error": msg}), 402
@@ -168,7 +168,7 @@ def tts():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
-    if auth.cloud_mode() and g.user:
+    if g.user:
         auth.log_usage(
             user_id=g.user["id"],
             kind="tts.regenerate",
@@ -189,17 +189,15 @@ def tts():
 @app.route("/api/me")
 @auth.require_user
 def api_me():
-    """Current authenticated user + their plan + quota usage.
-    In local mode returns {"cloud_mode": false} so the frontend can
-    skip the auth UI."""
-    if not auth.cloud_mode():
-        return jsonify({"cloud_mode": False, "user": None, "profile": None, "usage": 0})
+    """Return the authenticated user + profile + monthly usage."""
     user = g.user
+    if not user:
+        # AUTH_DISABLED escape-hatch path
+        return jsonify({"user": None, "profile": None, "usage": 0, "auth_disabled": True})
     profile = auth.get_profile(user["id"])
     usage = auth.get_monthly_chars(user["id"])
     return jsonify({
-        "cloud_mode": True,
-        "user": {"id": user["id"], "email": user["email"]},
+        "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
         "profile": profile,
         "usage": usage,
     })
@@ -224,7 +222,7 @@ def generate():
           f"skip_normalize={skip_normalize}, emotion_tags={add_emotion_tags}, voice={voice}")
 
     # Cloud-mode quota check (no-op in local mode)
-    if auth.cloud_mode() and g.user:
+    if g.user:
         ok, msg = auth.check_quota(g.user["id"], len(text))
         if not ok:
             return jsonify({"error": msg}), 402  # 402 Payment Required
@@ -254,7 +252,7 @@ def generate():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
-    if auth.cloud_mode() and g.user:
+    if g.user:
         auth.log_usage(
             user_id=g.user["id"],
             kind="tts.generate",

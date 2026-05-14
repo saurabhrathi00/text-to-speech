@@ -9,11 +9,15 @@ create table if not exists public.profiles (
     user_id       uuid primary key references auth.users(id) on delete cascade,
     email         text,
     display_name  text,
+    role          text not null default 'user',   -- user | admin | pro
     plan          text not null default 'free',   -- free | starter | pro
-    quota_chars   integer not null default 1000,   -- monthly character allowance
+    quota_chars   integer not null default 1000,  -- monthly character allowance
     created_at    timestamptz not null default now(),
     updated_at    timestamptz not null default now()
 );
+
+-- Backfill column for existing installs that already have the table.
+alter table public.profiles add column if not exists role text not null default 'user';
 
 -- Auto-create a profile row whenever a new auth user signs up.
 create or replace function public.handle_new_user()
