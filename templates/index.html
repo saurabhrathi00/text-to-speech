@@ -29,9 +29,17 @@
         <span id="userEmail" class="user-email"></span>
         <span id="userRole" class="user-role"></span>
         <span id="userUsage" class="user-usage"></span>
-        <button type="button" id="upgradeBtn" class="user-upgrade hidden">🚀 Upgrade to Pro</button>
+        <button type="button" id="upgradeBtn" class="user-upgrade hidden">🚀 Upgrade</button>
         <button type="button" id="logoutBtn" class="user-logout">Logout</button>
       </div>
+
+      <section id="upgradePicker" class="card upgrade-picker hidden">
+        <header class="upgrade-picker-header">
+          <strong>Choose your plan</strong>
+          <button type="button" id="upgradePickerClose" class="upgrade-picker-close">✖</button>
+        </header>
+        <div id="upgradePickerList" class="upgrade-picker-list"></div>
+      </section>
 
       <section id="adminUpgradePanel" class="card admin-panel hidden">
         <header class="admin-panel-header">
@@ -357,6 +365,7 @@
     async function _applyTtsWhitelist(me) {
       const allowedTts = me?.allowed_providers?.tts;
       const ttsBtns = document.querySelectorAll('.prov-btn');
+      const ttsRow = document.getElementById('ttsToggle');
       let firstTtsBtn = null;
       if (allowedTts && allowedTts.length) {
         const ttsSet = new Set(allowedTts.map(s => s.toLowerCase()));
@@ -365,6 +374,10 @@
           b.classList.toggle('hidden', !ok);
           if (ok && !firstTtsBtn) firstTtsBtn = b;
         });
+        // Hide the row when the user has no real choice — same UX as
+        // the LLM row. Avoids leaking provider names (ElevenLabs etc.)
+        // to users who can't switch anyway, and keeps the UI clean.
+        if (ttsRow) ttsRow.classList.toggle('hidden', allowedTts.length <= 1);
       } else {
         // No whitelist (auth disabled / missing /api/me) — keep every
         // button visible and just pick the first one in the DOM.
@@ -425,6 +438,7 @@
     }
 
     async function continueBoot(me) {
+      window._lastMe = me;  // tier picker reads this to know current plan
       renderUserBar(me);
       maybeShowAdminPanel(me);
       await applyAllowedProviders(me);
@@ -527,39 +541,37 @@
       }
     }
 
-    function planRank(plan) {
-      const order = ['free', 'starter', 'pro', 'pro_plus'];
-      const i = order.indexOf((plan || '').toLowerCase());
-      return i < 0 ? -1 : i;
+    function planRankFor(plan) {
+      // Rank by price, so adding tiers in DB just works.
+      const p = (plan || '').toLowerCase();
+      if (p === 'admin') return Infinity;
+      const entry = availablePlans.find(x => x.plan === p);
+      return entry ? (entry.price_inr_monthly || 0) : -1;
     }
 
-    function nextTier(currentPlan) {
-      const cur = planRank(currentPlan);
-      const purchasable = availablePlans
-        .filter(p => planRank(p.plan) > cur)
-        .sort((a, b) => planRank(a.plan) - planRank(b.plan));
-      return purchasable[0] || null;
+    function purchasableTiersAbove(currentPlan) {
+      const cur = planRankFor(currentPlan);
+      return availablePlans
+        .filter(p => p.plan !== 'free' && planRankFor(p.plan) > cur)
+        .sort((a, b) => planRankFor(a.plan) - planRankFor(b.plan));
     }
 
     function renderUpgradeButton(me) {
       const btn = document.getElementById('upgradeBtn');
       const plan = (me.profile?.plan || 'free').toLowerCase();
       const isAdmin = me.user?.role === 'admin';
-      const next = nextTier(plan);
+      const higher = purchasableTiersAbove(plan);
       // No upgrade available (admin or already at top tier)
-      if (isAdmin || !next) {
+      if (isAdmin || !higher.length) {
         btn.classList.add('hidden');
         return;
       }
       if (me.pending_upgrade) {
         btn.textContent = `⏳ ${capitalize(me.pending_upgrade.requested_plan)} pending`;
         btn.disabled = true;
-        btn.dataset.targetPlan = me.pending_upgrade.requested_plan;
       } else {
-        const price = next.price_inr_monthly;
-        btn.textContent = `🚀 Upgrade to ${next.display_name || next.plan}${price ? ` · ₹${price}/mo` : ''}`;
+        btn.textContent = '🚀 Upgrade';
         btn.disabled = false;
-        btn.dataset.targetPlan = next.plan;
       }
       btn.classList.remove('hidden');
     }
@@ -568,21 +580,51 @@
       return (s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    document.getElementById('upgradeBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('upgradeBtn');
-      if (btn.disabled) return;
-      const targetPlan = btn.dataset.targetPlan || 'pro';
+    // ── Tier picker ──────────────────────────────────────────────────
+    function renderTierPicker(me) {
+      const list = document.getElementById('upgradePickerList');
+      const currentPlan = (me.profile?.plan || 'free').toLowerCase();
+      const tiers = purchasableTiersAbove(currentPlan);
+      list.innerHTML = '';
+      tiers.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'upgrade-tier';
+        const features = [];
+        if (t.max_chars_per_request) features.push(`${t.max_chars_per_request} chars/req`);
+        if (t.monthly_chars) features.push(`${(t.monthly_chars / 1000).toFixed(0)}k chars/mo`);
+        card.innerHTML = `
+          <div class="upgrade-tier-head">
+            <strong>${t.display_name || t.plan}</strong>
+            <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">/mo</span></span>
+          </div>
+          <div class="upgrade-tier-features">${features.join(' · ') || '&nbsp;'}</div>
+          ${t.notes ? `<p class="muted upgrade-tier-notes">${t.notes}</p>` : ''}
+          <button class="primary" data-plan="${t.plan}">Choose ${t.display_name || t.plan}</button>
+        `;
+        list.appendChild(card);
+      });
+      list.querySelectorAll('button[data-plan]').forEach(b => {
+        b.addEventListener('click', () => submitUpgrade(b.dataset.plan));
+      });
+    }
+
+    function openTierPicker() {
+      const me = window._lastMe;
+      if (!me) return;
+      renderTierPicker(me);
+      document.getElementById('upgradePicker').classList.remove('hidden');
+    }
+
+    function closeTierPicker() {
+      document.getElementById('upgradePicker').classList.add('hidden');
+    }
+
+    async function submitUpgrade(targetPlan) {
       const tierInfo = availablePlans.find(p => p.plan === targetPlan) || {};
-      const priceLine = tierInfo.price_inr_monthly
-        ? `\n\nPlan: ${tierInfo.display_name} · ₹${tierInfo.price_inr_monthly}/month`
-        : '';
       const note = prompt(
-        `Upgrade request for ${tierInfo.display_name || targetPlan}.${priceLine}\n\n` +
+        `Upgrading to ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly}/mo).\n\n` +
         `Payment is handled outside the app for now — drop your UPI handle / WhatsApp / preferred contact:`, '');
       if (note === null) return;
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = 'Sending...';
       try {
         const res = await fetch('/api/upgrade-request', {
           method: 'POST',
@@ -592,17 +634,23 @@
         const data = await res.json();
         if (!res.ok) {
           alert(data.error || 'Could not send the upgrade request.');
-          btn.disabled = false;
-          btn.textContent = originalText;
           return;
         }
+        closeTierPicker();
+        const btn = document.getElementById('upgradeBtn');
         btn.textContent = `⏳ ${capitalize(targetPlan)} pending`;
+        btn.disabled = true;
       } catch (e) {
         alert('Network error — try again.');
-        btn.disabled = false;
-        btn.textContent = originalText;
       }
+    }
+
+    document.getElementById('upgradeBtn').addEventListener('click', () => {
+      const btn = document.getElementById('upgradeBtn');
+      if (btn.disabled) return;
+      openTierPicker();
     });
+    document.getElementById('upgradePickerClose').addEventListener('click', closeTierPicker);
 
     // ── Admin upgrade-requests panel ──────────────────────────────────
     async function loadUpgradeRequests() {
