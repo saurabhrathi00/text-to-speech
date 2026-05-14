@@ -809,13 +809,15 @@
       const useEmotionTags = emotionTagsEl.checked;
       const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
       setLoading(true);
-      const llmName = llmDisplay(activeLLM);
-      statusText.textContent = skip ? 'Awaaz ban rahi hai...' : `${llmName} text ko clean kar raha hai...`;
+      statusText.textContent = skip ? 'Awaaz ban rahi hai...' : 'Script refine ho rahi hai...';
 
+      // Stage labels are intentionally provider-agnostic — the user
+      // doesn't need to know whether Gemini or Qwen did the work, just
+      // what's happening to their script right now.
       const STAGE_LABEL = {
-        llm_normalize: `${llmName} text clean kar raha hai`,
-        llm_emotions: 'Emotions classify ho rahe hain',
-        tts: 'Awaaz bana raha hai',
+        llm_normalize: 'Script refine ho rahi hai',
+        llm_emotions: 'Emotions analyze ho rahe hain',
+        tts: 'Awaaz bana rahi hai',
       };
       // Vibe over numbers — pick an emoji based on how close we are to
       // the stage's ETA. No raw seconds, no countdown — just a feel.
