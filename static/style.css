@@ -141,13 +141,23 @@ body {
 
 .provider-toggle {
   display: flex;
+  align-items: center;
   background: rgba(0,0,0,0.25);
   border-radius: 10px;
   padding: 4px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   gap: 4px;
 }
-.prov-btn {
+.toggle-label {
+  padding: 0 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.prov-btn,
+.llm-btn {
   flex: 1;
   padding: 10px 14px;
   font-size: 0.95rem;
@@ -160,8 +170,10 @@ body {
   font-family: inherit;
   transition: all 0.15s;
 }
-.prov-btn:hover { background: rgba(255,255,255,0.05); }
-.prov-btn.active {
+.prov-btn:hover,
+.llm-btn:hover { background: rgba(255,255,255,0.05); }
+.prov-btn.active,
+.llm-btn.active {
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: white;
   box-shadow: 0 2px 8px rgba(99,102,241,0.3);

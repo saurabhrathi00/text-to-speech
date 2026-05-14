@@ -35,9 +35,15 @@
 
     <section class="card">
       <div class="provider-toggle">
+        <span class="toggle-label">Voice:</span>
         <button type="button" class="prov-btn active" data-provider="parler">💻 Parler</button>
         <button type="button" class="prov-btn" data-provider="bark">🎭 Bark</button>
         <button type="button" class="prov-btn" data-provider="elevenlabs">☁️ ElevenLabs</button>
+      </div>
+      <div id="llmToggle" class="provider-toggle hidden">
+        <span class="toggle-label">Text refinement:</span>
+        <button type="button" class="llm-btn active" data-llm="gemini">✨ Gemini</button>
+        <button type="button" class="llm-btn" data-llm="ollama">💻 Qwen</button>
       </div>
       <p id="providerNote" class="provider-note hidden"></p>
 
@@ -84,12 +90,12 @@
 
       <label class="checkbox-row tag-toggle-row">
         <input type="checkbox" id="emotionTags" />
-        <span>🎭 Emotion tags add karo — Qwen classify karega aur tags lagayega</span>
+        <span id="emotionTagsLabel">🎭 Emotion tags add karo — Gemini classify karega aur tags lagayega</span>
       </label>
 
       <label class="checkbox-row">
         <input type="checkbox" id="skipNormalize" />
-        <span>Qwen skip karo — mera text bilkul exact bolo (no auto-correction)</span>
+        <span id="skipNormalizeLabel">Gemini skip karo — mera text bilkul exact bolo (no auto-correction)</span>
       </label>
 
       <button id="generateBtn" class="primary">🎵 Awaaz Banao</button>
@@ -251,28 +257,68 @@
       }
     }
 
+    // Display names for LLM providers. Add new keys here when a new
+    // provider lands in plan_limits.llm_providers.
+    const LLM_DISPLAY = { gemini: 'Gemini', ollama: 'Qwen', openai: 'GPT' };
+    let activeLLM = 'gemini';
+
+    function setLLM(name) {
+      activeLLM = (name || '').toLowerCase();
+      document.querySelectorAll('.llm-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.llm === activeLLM);
+      });
+      updateLLMLabels();
+    }
+
+    function updateLLMLabels() {
+      const display = LLM_DISPLAY[activeLLM] || activeLLM;
+      const skip = document.getElementById('skipNormalizeLabel');
+      const tags = document.getElementById('emotionTagsLabel');
+      if (skip) skip.textContent =
+        `${display} skip karo — mera text bilkul exact bolo (no auto-correction)`;
+      if (tags) tags.textContent =
+        `🎭 Emotion tags add karo — ${display} classify karega aur tags lagayega`;
+    }
+
     function applyAllowedProviders(me) {
-      // Hide TTS provider buttons the user's plan doesn't include.
+      // Filter TTS provider buttons by the user's plan whitelist.
       // Falls back to "show everything" if /api/me didn't send a list
       // (e.g. AUTH_DISABLED mode).
-      const allowed = me?.allowed_providers?.tts;
-      const btns = document.querySelectorAll('.prov-btn');
-      if (!allowed || !allowed.length) return;
-      const allowedSet = new Set(allowed.map(s => s.toLowerCase()));
-      let firstVisible = null;
-      btns.forEach(b => {
-        const isOk = allowedSet.has((b.dataset.provider || '').toLowerCase());
-        b.classList.toggle('hidden', !isOk);
-        if (isOk && !firstVisible) firstVisible = b;
-      });
-      // Initial selection: always use the first allowed provider, which
-      // also loads its voices + visibility tweaks via setProvider().
-      // If the currently active provider isn't in the allowed list,
-      // setProvider() will move 'active' to the right button anyway.
-      if (firstVisible) {
-        setProvider(firstVisible.dataset.provider);
+      const allowedTts = me?.allowed_providers?.tts;
+      const ttsBtns = document.querySelectorAll('.prov-btn');
+      if (allowedTts && allowedTts.length) {
+        const ttsSet = new Set(allowedTts.map(s => s.toLowerCase()));
+        let firstTts = null;
+        ttsBtns.forEach(b => {
+          const ok = ttsSet.has((b.dataset.provider || '').toLowerCase());
+          b.classList.toggle('hidden', !ok);
+          if (ok && !firstTts) firstTts = b;
+        });
+        if (firstTts) setProvider(firstTts.dataset.provider);
+      }
+
+      // Same treatment for LLM buttons. Row is hidden when the user
+      // has ≤1 option (no real choice to make) — but the labels still
+      // reflect the auto-selected provider so they read correctly.
+      const allowedLlm = me?.allowed_providers?.llm;
+      const llmBtns = document.querySelectorAll('.llm-btn');
+      const llmRow = document.getElementById('llmToggle');
+      if (allowedLlm && allowedLlm.length) {
+        const llmSet = new Set(allowedLlm.map(s => s.toLowerCase()));
+        let firstLlm = null;
+        llmBtns.forEach(b => {
+          const ok = llmSet.has((b.dataset.llm || '').toLowerCase());
+          b.classList.toggle('hidden', !ok);
+          if (ok && !firstLlm) firstLlm = b;
+        });
+        if (firstLlm) setLLM(firstLlm.dataset.llm);
+        if (llmRow) llmRow.classList.toggle('hidden', allowedLlm.length <= 1);
       }
     }
+
+    document.querySelectorAll('.llm-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLLM(btn.dataset.llm));
+    });
 
     async function continueBoot(me) {
       renderUserBar(me);
@@ -681,6 +727,7 @@
               voice: getVoice(),
               skip_normalize: skip,
               provider: activeProvider,
+              llm_provider: activeLLM,
               emotion_tags: useEmotionTags,
               job_id: jobId,
             }),
