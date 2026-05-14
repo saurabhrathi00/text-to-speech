@@ -280,21 +280,29 @@
         `🎭 Emotion tags add karo — ${display} classify karega aur tags lagayega`;
     }
 
-    function applyAllowedProviders(me) {
+    async function applyAllowedProviders(me) {
       // Filter TTS provider buttons by the user's plan whitelist.
       // Falls back to "show everything" if /api/me didn't send a list
       // (e.g. AUTH_DISABLED mode).
       const allowedTts = me?.allowed_providers?.tts;
       const ttsBtns = document.querySelectorAll('.prov-btn');
+      let firstTtsBtn = null;
       if (allowedTts && allowedTts.length) {
         const ttsSet = new Set(allowedTts.map(s => s.toLowerCase()));
-        let firstTts = null;
         ttsBtns.forEach(b => {
           const ok = ttsSet.has((b.dataset.provider || '').toLowerCase());
           b.classList.toggle('hidden', !ok);
-          if (ok && !firstTts) firstTts = b;
+          if (ok && !firstTtsBtn) firstTtsBtn = b;
         });
-        if (firstTts) setProvider(firstTts.dataset.provider);
+      } else {
+        // No whitelist (auth disabled / missing /api/me) — keep every
+        // button visible and just pick the first one in the DOM.
+        firstTtsBtn = ttsBtns[0] || null;
+      }
+      // Await setProvider so voices for the auto-selected provider are
+      // populated BEFORE the app is revealed — no empty dropdown flash.
+      if (firstTtsBtn) {
+        await setProvider(firstTtsBtn.dataset.provider);
       }
 
       // Same treatment for LLM buttons. Row is hidden when the user
@@ -337,7 +345,7 @@
 
     async function continueBoot(me) {
       renderUserBar(me);
-      applyAllowedProviders(me);
+      await applyAllowedProviders(me);
 
       // Cloud-only users (free/pro on a local box) skip the wait — even
       // if Parler/Whisper/Qwen are still loading in the background for
