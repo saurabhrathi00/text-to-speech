@@ -1,10 +1,14 @@
+# Cloud-deployment requirements (Render / Railway / Fly).
+# Heavy ML libraries are NOT here — they're in requirements-local.txt
+# and only needed when TTS_PROVIDER=parler/bark or LLM_PROVIDER=ollama.
+#
+# Cloud production server runs:
+#   TTS_PROVIDER=elevenlabs
+#   LLM_PROVIDER=gemini
+# Both are HTTP-only — no torch/transformers/parler needed.
 flask
-torch
-torchaudio
-transformers
-parler-tts
+gunicorn
 soundfile
 requests
-faster-whisper
 supabase
 pyjwt[crypto]

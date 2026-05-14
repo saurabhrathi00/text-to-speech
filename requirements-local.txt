@@ -1,0 +1,15 @@
+# Local-deployment extras — only install on the box that actually
+# runs Parler / Bark / Whisper (admin's GPU machine).
+#
+#   pip install -r requirements.txt -r requirements-local.txt
+#
+# Cloud servers SKIP this file. Saves ~5 GB install size + start-up
+# time + RAM.
+
+-r requirements.txt
+
+torch
+torchaudio
+transformers
+parler-tts
+faster-whisper

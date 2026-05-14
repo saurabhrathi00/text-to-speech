@@ -73,11 +73,36 @@ def _llm_error_message(provider: str | None, detail: str = "") -> str:
     return f"{llm_display(provider)} se text refine nahi ho paya{tail}. Thodi der baad try kar."
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
-from tts_engine import synthesize as parler_synthesize, build_description, load_model
-from aligner import align as align_words, load_aligner
-import eleven_tts
-import bark_tts
-import image_gen
+import eleven_tts  # cloud HTTP, no heavy deps
+
+# Heavy local-only modules (torch / transformers / parler_tts /
+# faster-whisper) are lazy-imported on the cloud build so the import
+# doesn't crash on a server that intentionally skipped requirements-local.txt.
+# On admin's GPU box all four resolve normally.
+try:
+    from tts_engine import synthesize as parler_synthesize, build_description, load_model
+except ImportError as _e:
+    print(f"[app] tts_engine unavailable ({_e}); Parler/Bark routes will 503")
+    parler_synthesize = build_description = load_model = None
+
+try:
+    from aligner import align as align_words, load_aligner
+except ImportError as _e:
+    print(f"[app] aligner unavailable ({_e}); Whisper trim disabled")
+    align_words = lambda *a, **kw: []
+    load_aligner = lambda: None
+
+try:
+    import bark_tts
+except ImportError as _e:
+    print(f"[app] bark_tts unavailable ({_e}); Bark routes will 503")
+    bark_tts = None
+
+try:
+    import image_gen
+except ImportError as _e:
+    print(f"[app] image_gen unavailable ({_e}); image routes will 503")
+    image_gen = None
 
 
 PARLER_SPEAKERS = _CONFIG_PARLER_SPEAKERS
@@ -190,8 +215,14 @@ def _tts_synthesize(text: str, out_path: str, description: str,
                 raise RuntimeError("ELEVENLABS_API_KEY not set in .env")
             result = eleven_tts.synthesize(text, out_path, voice_config=voice)
         elif provider == "bark":
+            if bark_tts is None:
+                raise RuntimeError("Bark is not installed on this server. "
+                                    "Run on a box with requirements-local.txt installed.")
             result = bark_tts.synthesize(text, out_path, voice_config=voice)
         else:
+            if parler_synthesize is None:
+                raise RuntimeError("Parler is not installed on this server. "
+                                    "Run on a box with requirements-local.txt installed.")
             result = parler_synthesize(text, out_path, description=description)
         print(f"[app] {provider} done in {time.time() - t0:.1f}s → {result}")
         return result
@@ -291,6 +322,10 @@ def _build_voice_description(voice: dict) -> str:
     custom_desc = (voice.get("custom") or "").strip()
     if custom_desc:
         return custom_desc
+    if build_description is None:
+        # Cloud server (no Parler installed) — voice description is
+        # Parler-only anyway; ElevenLabs ignores it. Return empty.
+        return ""
     return build_description(
         speaker=voice.get("speaker", "rohit"),
         speed=voice.get("speed", "moderate"),
@@ -637,9 +672,18 @@ def serve_image(filename):
     return send_from_directory(IMAGE_DIR, filename, mimetype="image/png")
 
 
+def _image_unavailable():
+    return jsonify({
+        "error": "Image generation is not available on this server. "
+                  "Run from a box with requirements-local.txt + ComfyUI."
+    }), 503
+
+
 @app.route("/api/image", methods=["POST"])
 @auth.require_admin
 def api_image():
+    if image_gen is None:
+        return _image_unavailable()
     data = request.get_json(silent=True) or {}
     prompt = (data.get("prompt") or "").strip()
     if not prompt:
@@ -691,6 +735,9 @@ def api_image():
 @app.route("/api/image/status")
 @auth.require_admin
 def api_image_status():
+    if image_gen is None:
+        return jsonify({"comfy_reachable": False, "anchor": _anchor_state(),
+                         "available": False})
     return jsonify({
         "comfy_reachable": image_gen.is_configured(),
         "anchor": _anchor_state(),
@@ -727,6 +774,8 @@ def api_set_anchor():
     """Set the current image (from /images/<file>) as the character
     anchor — uploaded to ComfyUI and used as IP-Adapter reference for
     subsequent generations."""
+    if image_gen is None:
+        return _image_unavailable()
     data = request.get_json(silent=True) or {}
     filename = (data.get("filename") or "").strip()
     if not filename:
@@ -787,27 +836,33 @@ def _warmup_in_background():
     provider = _default_provider()
     print(f"[startup] TTS provider: {provider}")
     if provider == "parler":
-        print("[startup] Parler + aligner warmup in background...")
-        t0 = time.time()
-        try:
-            load_model()
-            print(f"[startup] Parler ready in {time.time() - t0:.1f}s")
-        except Exception as e:
-            print(f"[startup] Parler warmup failed: {e} (will retry on first request)")
-        t1 = time.time()
-        try:
-            load_aligner()
-            print(f"[startup] aligner ready in {time.time() - t1:.1f}s")
-        except Exception as e:
-            print(f"[startup] aligner warmup failed: {e}")
+        if load_model is None:
+            print("[startup] Parler env set but module not installed — skipping warmup")
+        else:
+            print("[startup] Parler + aligner warmup in background...")
+            t0 = time.time()
+            try:
+                load_model()
+                print(f"[startup] Parler ready in {time.time() - t0:.1f}s")
+            except Exception as e:
+                print(f"[startup] Parler warmup failed: {e} (will retry on first request)")
+            t1 = time.time()
+            try:
+                load_aligner()
+                print(f"[startup] aligner ready in {time.time() - t1:.1f}s")
+            except Exception as e:
+                print(f"[startup] aligner warmup failed: {e}")
     elif provider == "bark":
-        print("[startup] Bark warmup in background...")
-        t0 = time.time()
-        try:
-            bark_tts.load_model()
-            print(f"[startup] Bark ready in {time.time() - t0:.1f}s")
-        except Exception as e:
-            print(f"[startup] Bark warmup failed: {e} (will retry on first request)")
+        if bark_tts is None:
+            print("[startup] Bark env set but module not installed — skipping warmup")
+        else:
+            print("[startup] Bark warmup in background...")
+            t0 = time.time()
+            try:
+                bark_tts.load_model()
+                print(f"[startup] Bark ready in {time.time() - t0:.1f}s")
+            except Exception as e:
+                print(f"[startup] Bark warmup failed: {e} (will retry on first request)")
     elif provider == "elevenlabs":
         if not eleven_tts.is_configured():
             print("[startup] WARNING: TTS_PROVIDER=elevenlabs but ELEVENLABS_API_KEY not set")
@@ -846,9 +901,16 @@ if not os.getenv("FLASK_SKIP_WARMUP") and (
 def health():
     """Detailed readiness — used by the frontend to decide whether to
     show a "loading models" splash before the TTS UI."""
-    from tts_engine import _model as parler_model
-    from aligner import _model as whisper_model
-    import bark_tts
+    # Locally these imports succeed; on cloud the modules aren't present
+    # and we report 'not loaded' (= cloud doesn't care about Parler etc.)
+    try:
+        from tts_engine import _model as parler_model
+    except ImportError:
+        parler_model = None
+    try:
+        from aligner import _model as whisper_model
+    except ImportError:
+        whisper_model = None
 
     provider = _default_provider()
     from llm import config as llm_config
@@ -856,7 +918,7 @@ def health():
     llm_warm = llm.is_warm()
 
     parler_loaded = parler_model is not None
-    bark_loaded = bark_tts._model is not None
+    bark_loaded = bark_tts is not None and bark_tts._model is not None
     whisper_loaded = whisper_model is not None
 
     # A "local model" is anything that takes meaningful time to load on
@@ -926,6 +988,9 @@ def api_voices(name: str):
             "expressivity_supported": False,
         })
     if name == "bark":
+        if bark_tts is None:
+            return jsonify({"voices": [], "emotions_supported": True,
+                             "available": False})
         return jsonify({
             "voices": bark_tts.list_voices(),
             "emotions_supported": True,
