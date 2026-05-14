@@ -10,8 +10,32 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Critical paint styles — inlined so the first frame after navigation
+       is the right dark bg + spinner, never an unstyled white flash. -->
+  <style>
+    html, body { background: #0b1020; color: #e2e8f0; margin: 0; }
+    .page-loader {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #0b1020;
+      z-index: 9999;
+      transition: opacity 0.25s ease;
+    }
+    .page-loader.is-hidden { opacity: 0; pointer-events: none; }
+    .page-loader-spinner {
+      width: 42px; height: 42px;
+      border: 3px solid rgba(255,255,255,0.08);
+      border-top-color: #818cf8;
+      border-radius: 50%;
+      animation: page-spin 0.8s linear infinite;
+    }
+    @keyframes page-spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body class="login-body">
+  <div class="page-loader" id="pageLoader" aria-hidden="true">
+    <div class="page-loader-spinner"></div>
+  </div>
   <div class="login-bg" aria-hidden="true">
     <div class="login-bg-blob blob-a"></div>
     <div class="login-bg-blob blob-b"></div>
@@ -124,9 +148,20 @@
     const checkingEl = document.getElementById('authChecking');
     const cardEl = document.getElementById('authCard');
 
+    // Hide the full-page splash once we know which UI to show. Falls
+    // back to window.load in case the auth probe somehow never finishes.
+    function hidePageLoader() {
+      const el = document.getElementById('pageLoader');
+      if (!el) return;
+      el.classList.add('is-hidden');
+      setTimeout(() => el.remove(), 300);
+    }
+    window.addEventListener('load', hidePageLoader);
+
     function revealForm(errorMessage) {
       checkingEl.classList.add('hidden');
       cardEl.classList.remove('hidden');
+      hidePageLoader();
       if (errorMessage) {
         const errEl = document.getElementById('authError');
         errEl.textContent = errorMessage;
