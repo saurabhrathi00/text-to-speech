@@ -396,14 +396,14 @@
 
 
     function userNeedsLocalModels(me) {
-      // Decision is based on the user's FIRST allowed provider in
-      // each list (what applyAllowedProviders auto-selects). If both
-      // are cloud, this user never touches a local model — even on a
-      // box where local models are warming up in the background.
+      // If ANY allowed provider (TTS or LLM) is local, this user
+      // might use it during the session — so we should wait for the
+      // weights to warm. Admins typically have both cloud + local in
+      // their list; cloud-only plans (free/pro) skip the wait.
       // "local vs cloud" comes from the registry, not a hardcoded set.
-      const tts = (me?.allowed_providers?.tts || [])[0]?.toLowerCase();
-      const llm = (me?.allowed_providers?.llm || [])[0]?.toLowerCase();
-      return isLocalTts(tts) || isLocalLlm(llm);
+      const tts = (me?.allowed_providers?.tts || []).map(s => s.toLowerCase());
+      const llm = (me?.allowed_providers?.llm || []).map(s => s.toLowerCase());
+      return tts.some(isLocalTts) || llm.some(isLocalLlm);
     }
 
     async function continueBoot(me) {
