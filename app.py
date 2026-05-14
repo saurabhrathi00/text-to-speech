@@ -25,6 +25,7 @@ from flask import Flask, g, jsonify, render_template, request, send_from_directo
 
 import auth
 import audio_storage
+import security
 
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
 
@@ -239,6 +240,7 @@ IMAGE_DIR = BASE_DIR / "images"
 IMAGE_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)
+security.install(app)  # MAX_CONTENT_LENGTH + CORS allowlist + 413 handler
 
 
 def _prune_old_audio(keep: int = MAX_AUDIO_FILES):
@@ -337,6 +339,8 @@ def _build_voice_description(voice: dict) -> str:
 
 
 @app.route("/normalize", methods=["POST"])
+@security.require_json
+@security.rate_limit("ip", max_calls=20, window_sec=60)
 def normalize():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -357,6 +361,9 @@ def normalize():
 
 @app.route("/tts", methods=["POST"])
 @auth.require_user
+@security.require_json
+@security.rate_limit("user", max_calls=15, window_sec=60)
+@security.rate_limit("ip",   max_calls=30, window_sec=60)
 def tts():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -375,7 +382,7 @@ def tts():
     print(f"[app] /tts request → {len(text)} chars, provider={provider}, voice={voice}")
 
     if g.user:
-        ok, msg = auth.check_quota(g.user["id"], len(text))
+        ok, msg = auth.check_limits(g.user["id"], len(text))
         if not ok:
             return jsonify({"error": msg}), 402
 
@@ -476,6 +483,8 @@ def api_plans():
 
 @app.route("/api/upgrade-request", methods=["POST"])
 @auth.require_user
+@security.require_json
+@security.rate_limit("user", max_calls=5, window_sec=300)
 def api_upgrade_request():
     """User asks to be moved to a higher plan. Admin reviews + approves
     out-of-band (payment handled outside the app for now)."""
@@ -486,6 +495,14 @@ def api_upgrade_request():
     if err:
         return jsonify({"error": err}), 400
     return jsonify({"request": row})
+
+
+@app.route("/api/admin/security/recent")
+@auth.require_admin
+def api_admin_security_recent():
+    """Last ~50 security flags (rate-limit hits, oversized bodies, etc.).
+    Eyeball this before/after a launch to see if anyone is probing."""
+    return jsonify({"flags": security.recent_flags(50)})
 
 
 @app.route("/api/admin/upgrade-requests")
@@ -597,6 +614,9 @@ def api_progress(job_id: str):
 
 @app.route("/generate", methods=["POST"])
 @auth.require_user
+@security.require_json
+@security.rate_limit("user", max_calls=15, window_sec=60)
+@security.rate_limit("ip",   max_calls=30, window_sec=60)
 def generate():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -620,7 +640,7 @@ def generate():
 
     # Cloud-mode quota check (no-op in local mode)
     if g.user:
-        ok, msg = auth.check_quota(g.user["id"], len(text))
+        ok, msg = auth.check_limits(g.user["id"], len(text))
         if not ok:
             return jsonify({"error": msg}), 402  # 402 Payment Required
 

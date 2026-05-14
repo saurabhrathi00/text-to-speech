@@ -4,9 +4,8 @@ import requests
 from config import (
     ELEVEN_API_BASE as API_BASE,
     ELEVEN_CURATED_VOICES as CURATED_VOICES,
-    ELEVEN_EMOTION_SETTINGS,
+    ELEVEN_DEFAULT_VOICE_SETTINGS,
     ELEVEN_DEFAULT_SIMILARITY_BOOST,
-    ELEVEN_V3_EMOTION_TAGS,
 )
 
 DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
@@ -70,20 +69,12 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     voice_id = voice_config.get("voice_id") or DEFAULT_VOICE_ID
     model_id = voice_config.get("model_id") or DEFAULT_MODEL
 
-    # v3 model supports inline emotion tags directly in the text. v2 does
-    # not — tags would be read literally. Inject only on v3.
-    if "v3" in model_id.lower():
-        e = (voice_config.get("emotion") or "none").lower()
-        tag = ELEVEN_V3_EMOTION_TAGS.get(e, "")
-        if tag and not text.lstrip().startswith("["):
-            text = f"{tag} {text}"
-
-    # Map emotion → ElevenLabs voice settings. Lower stability + higher
-    # style produces more expressive output.
-    emotion = (voice_config.get("emotion") or "none").lower()
-    settings = ELEVEN_EMOTION_SETTINGS.get(
-        emotion, ELEVEN_EMOTION_SETTINGS["none"]
-    )
+    # Per-sentence emotion tags come from the LLM emotion-classify
+    # pipeline (see llm/prompts/emotions.md) and live INSIDE the text
+    # already. The legacy 'global mood' tag map was dead — UI never
+    # sent emotion != 'none' — and got removed. Stability/style stay
+    # at sensible neutral-narrator defaults from config.
+    settings = dict(ELEVEN_DEFAULT_VOICE_SETTINGS)
 
     url = f"{API_BASE}/text-to-speech/{voice_id}"
     headers = {

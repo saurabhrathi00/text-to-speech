@@ -134,31 +134,14 @@ ELEVEN_CURATED_VOICES = [
     {"id": "TxGEqnHWrfWFTfGW9XjX", "label": "Josh (male, deep)"},
 ]
 
-# Emotion → ElevenLabs voice settings (stability + style).
-# Lower stability + higher style = more expressive output.
-ELEVEN_EMOTION_SETTINGS = {
-    "none":     {"stability": 0.50, "style": 0.00},
-    "happy":    {"stability": 0.30, "style": 0.75},
-    "sad":      {"stability": 0.35, "style": 0.65},
-    "excited":  {"stability": 0.20, "style": 0.95},
-    "angry":    {"stability": 0.20, "style": 0.85},
-    "fearful":  {"stability": 0.30, "style": 0.65},
-    "whisper":  {"stability": 0.45, "style": 0.30},
-    "serious":  {"stability": 0.65, "style": 0.20},
-}
+# Neutral-narrator voice settings sent on every ElevenLabs request.
+# Per-sentence inline emotion tags (injected by the LLM emotion-
+# classify pipeline in llm/prompts/emotions.md) carry the actual
+# performance cues; these settings just set the voice's baseline
+# vibe. Lower stability + higher style = more expressive overall.
+ELEVEN_DEFAULT_VOICE_SETTINGS = {"stability": 0.50, "style": 0.00}
 
 ELEVEN_DEFAULT_SIMILARITY_BOOST = 0.75
-
-# Inline emotion tags for the v3 model only (v2 reads them literally).
-ELEVEN_V3_EMOTION_TAGS = {
-    "happy":   "[happy]",
-    "sad":     "[sad]",
-    "excited": "[excited]",
-    "angry":   "[angry]",
-    "fearful": "[scared]",
-    "whisper": "[whispering]",
-    "serious": "[serious]",
-}
 
 
 # ──────────────────────────────────────────────────────────────────────

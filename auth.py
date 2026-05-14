@@ -21,8 +21,6 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
 
-DEFAULT_QUOTA_CHARS = int(os.getenv("DEFAULT_QUOTA_CHARS", "1000"))
-
 # Emails listed here are auto-promoted to role='admin' on sign-in.
 # Comma-separated, case-insensitive. Example: ADMIN_EMAILS=papa@x.com,me@x.com
 _ADMIN_EMAILS = {
@@ -280,11 +278,6 @@ def get_usage_summary(user_id: str) -> dict:
     return {"chars_24h": 0, "chars_30d": 0, "chars_total": 0,
              "gen_chars_30d": 0, "topup_credit_30d": 0,
              "uses_24h": 0, "uses_30d": 0, "uses_total": 0}
-
-
-# Backward-compat alias used by /api/me etc.
-def get_monthly_chars(user_id: str) -> int:
-    return int(get_usage_summary(user_id).get("chars_30d") or 0)
 
 
 def consume_bonus_if_used(user_id: str):
@@ -713,11 +706,6 @@ def check_limits(user_id: str, requested_chars: int) -> tuple[bool, str]:
         )
 
     return True, ""
-
-
-# Backward-compat alias for existing call sites.
-def check_quota(user_id: str, requested_chars: int) -> tuple[bool, str]:
-    return check_limits(user_id, requested_chars)
 
 
 def log_usage(user_id: str, kind: str, provider: str, chars: int,
