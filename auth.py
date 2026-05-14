@@ -287,62 +287,6 @@ def get_monthly_chars(user_id: str) -> int:
     return int(get_usage_summary(user_id).get("chars_30d") or 0)
 
 
-def get_effective_limits(profile: dict | None,
-                          usage: dict | None = None) -> dict:
-    """Combine plan limits with the user's active bonuses to give
-    /api/me and check_limits the caps that are ACTUALLY in force right
-    now. Keeps base values alongside so the UI can render
-    '100 base + 1,500 boost = 1,600 effective'.
-
-    Effective caps:
-      monthly_chars         = plan.monthly_chars + usage.topup_credit_30d
-      daily_uses            = plan.daily_uses    + profile.bonus_uses
-      max_chars_per_request = max(plan.max, profile.bonus_max) while
-                               bonus_uses > 0
-    """
-    plan = get_effective_plan(profile or {})
-    base = dict(get_plan_limits(plan) or {})
-    if usage is None and profile and profile.get("user_id"):
-        usage = get_usage_summary(profile["user_id"])
-    usage = usage or {}
-
-    bonus_uses = int((profile or {}).get("bonus_uses") or 0)
-    bonus_max  = (profile or {}).get("bonus_max_chars_per_request")
-    topup_chars = int(usage.get("topup_credit_30d") or 0)
-
-    base_monthly = base.get("monthly_chars")
-    base_daily   = base.get("daily_uses")
-    base_max     = base.get("max_chars_per_request")
-
-    eff_monthly = (base_monthly + topup_chars) if base_monthly is not None else None
-    eff_daily   = (base_daily + bonus_uses)    if base_daily is not None else None
-    eff_max     = base_max
-    if bonus_uses > 0 and bonus_max:
-        eff_max = max(int(base_max or 0), int(bonus_max))
-
-    return {
-        **base,
-        # Server-side enforcement reads these (match plan_limits column names):
-        "monthly_chars":         eff_monthly,
-        "daily_uses":            eff_daily,
-        "max_chars_per_request": eff_max,
-        # Originals so the UI can show '<base> + <bonus> = <effective>'
-        "base_monthly_chars":         base_monthly,
-        "base_daily_uses":            base_daily,
-        "base_max_chars_per_request": base_max,
-        "bonus_chars":                topup_chars,
-        "bonus_uses":                 bonus_uses,
-        "bonus_max_chars_per_request": bonus_max,
-        # Convenience fields for the user-bar UI — already-computed
-        # 'used / cap' pairs and a flag for the boost badge.
-        "daily_cap":      eff_daily,
-        "daily_used":     int(usage.get("uses_24h") or 0),
-        "monthly_cap":    eff_monthly,
-        "monthly_used":   int(usage.get("gen_chars_30d") or 0),
-        "has_topup":      bool(topup_chars > 0 or bonus_uses > 0),
-    }
-
-
 def consume_bonus_if_used(user_id: str):
     """Call AFTER a successful generation. If the just-logged gen
     pushed the user past their base daily allowance, decrement
