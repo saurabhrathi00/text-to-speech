@@ -384,8 +384,7 @@
         comfyStatus.textContent = '⚠️ unknown';
       });
     }
-    refreshComfyStatus();
-    setInterval(refreshComfyStatus, 15000);
+    refreshComfyStatus();  // single check on load; manual refresh below
 
     setAnchorBtn.addEventListener('click', async () => {
       if (!lastGeneratedFilename) return;
@@ -412,6 +411,11 @@
       await fetch('/api/image/anchor', { method: 'DELETE' });
       refreshComfyStatus();
     });
+
+    // Click on the comfy status pill to re-probe.
+    comfyStatus.addEventListener('click', refreshComfyStatus);
+    comfyStatus.style.cursor = 'pointer';
+    comfyStatus.title = 'Click to refresh';
 
     imageBtn.addEventListener('click', async () => {
       const prompt = imagePromptEl.value.trim();
