@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import uuid
 import threading
@@ -27,21 +28,49 @@ import auth
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
 
 
-# Human-readable LLM names for user-facing error messages and logs.
-# Keep in sync with the JS LLM_DISPLAY map in templates/index.html.
-LLM_DISPLAY_NAMES = {"gemini": "Gemini", "ollama": "Qwen", "openai": "GPT"}
+# ──────────────────────────────────────────────────────────────────────
+# Provider registry — single source of truth for every provider's
+# id / display name / icon / kind (local|cloud). Edit config/providers.json
+# to add or rename a provider; nothing else in the code references these
+# names directly. Frontend fetches the same data via /api/providers/registry.
+# ──────────────────────────────────────────────────────────────────────
+_REGISTRY_PATH = Path(__file__).parent / "config" / "providers.json"
 
 
-def _llm_display(provider: str | None) -> str:
-    return LLM_DISPLAY_NAMES.get((provider or "").lower(), provider or "LLM")
+def _load_provider_registry() -> dict:
+    raw = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))
+    return {
+        "tts": [p for p in raw.get("tts", []) if isinstance(p, dict) and p.get("id")],
+        "llm": [p for p in raw.get("llm", []) if isinstance(p, dict) and p.get("id")],
+    }
+
+
+PROVIDER_REGISTRY = _load_provider_registry()
+
+
+def _provider_entry(kind: str, provider_id: str | None) -> dict | None:
+    pid = (provider_id or "").lower()
+    for p in PROVIDER_REGISTRY.get(kind, []):
+        if p["id"].lower() == pid:
+            return p
+    return None
+
+
+def llm_display(provider: str | None) -> str:
+    entry = _provider_entry("llm", provider)
+    return entry["display"] if entry else (provider or "LLM")
+
+
+def tts_display(provider: str | None) -> str:
+    entry = _provider_entry("tts", provider)
+    return entry["display"] if entry else (provider or "TTS")
 
 
 def _llm_error_message(provider: str | None, detail: str = "") -> str:
     """User-facing message that names the actual model that failed —
     don't blame Qwen when Gemini timed out."""
-    name = _llm_display(provider)
     tail = f" ({detail})" if detail else ""
-    return f"{name} se text refine nahi ho paya{tail}. Thodi der baad try kar."
+    return f"{llm_display(provider)} se text refine nahi ho paya{tail}. Thodi der baad try kar."
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
 from tts_engine import synthesize as parler_synthesize, build_description, load_model
@@ -795,6 +824,14 @@ def api_providers():
         "available": list(PROVIDERS),
         "elevenlabs_configured": eleven_tts.is_configured(),
     })
+
+
+@app.route("/api/providers/registry")
+def api_providers_registry():
+    """Static metadata: id → display/icon/kind for every TTS + LLM
+    provider this build knows about. Frontend renders buttons and
+    labels from this — no provider name should be typed into the UI."""
+    return jsonify(PROVIDER_REGISTRY)
 
 
 @app.route("/api/providers/<name>/voices")

@@ -34,16 +34,13 @@
     </header>
 
     <section class="card">
-      <div class="provider-toggle">
+      <div class="provider-toggle" id="ttsToggle">
         <span class="toggle-label">Voice:</span>
-        <button type="button" class="prov-btn active" data-provider="parler">💻 Parler</button>
-        <button type="button" class="prov-btn" data-provider="bark">🎭 Bark</button>
-        <button type="button" class="prov-btn" data-provider="elevenlabs">☁️ ElevenLabs</button>
+        <!-- buttons rendered from /api/providers/registry on boot -->
       </div>
       <div id="llmToggle" class="provider-toggle hidden">
         <span class="toggle-label">Text refinement:</span>
-        <button type="button" class="llm-btn active" data-llm="gemini">✨ Gemini</button>
-        <button type="button" class="llm-btn" data-llm="ollama">💻 Qwen</button>
+        <!-- buttons rendered from /api/providers/registry on boot -->
       </div>
       <p id="providerNote" class="provider-note hidden"></p>
 
@@ -257,9 +254,55 @@
       }
     }
 
-    // Display names for LLM providers. Add new keys here when a new
-    // provider lands in plan_limits.llm_providers.
-    const LLM_DISPLAY = { gemini: 'Gemini', ollama: 'Qwen', openai: 'GPT' };
+    // Provider registry: fetched from /api/providers/registry on boot.
+    // Single source of truth for display names, icons, and kind
+    // (local|cloud). Nothing else in the file should hardcode these.
+    let providerRegistry = { tts: [], llm: [] };
+
+    function ttsEntry(id)  { return providerRegistry.tts.find(p => p.id === id) || null; }
+    function llmEntry(id)  { return providerRegistry.llm.find(p => p.id === id) || null; }
+    function llmDisplay(id) { return (llmEntry(id) || {}).display || id || ''; }
+    function ttsDisplay(id) { return (ttsEntry(id) || {}).display || id || ''; }
+    function isLocalTts(id) { return (ttsEntry(id) || {}).kind === 'local'; }
+    function isLocalLlm(id) { return (llmEntry(id) || {}).kind === 'local'; }
+
+    async function loadProviderRegistry() {
+      try {
+        const r = await fetch('/api/providers/registry');
+        providerRegistry = await r.json();
+      } catch (e) {
+        console.error('failed to load provider registry', e);
+      }
+      renderProviderButtons();
+    }
+
+    function renderProviderButtons() {
+      const ttsHost = document.getElementById('ttsToggle');
+      const llmHost = document.getElementById('llmToggle');
+      // Wipe any previously rendered buttons (keep the label span).
+      ttsHost.querySelectorAll('.prov-btn').forEach(b => b.remove());
+      llmHost.querySelectorAll('.llm-btn').forEach(b => b.remove());
+
+      providerRegistry.tts.forEach(p => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'prov-btn';
+        b.dataset.provider = p.id;
+        b.textContent = `${p.icon || ''} ${p.display}`.trim();
+        b.addEventListener('click', () => setProvider(p.id));
+        ttsHost.appendChild(b);
+      });
+      providerRegistry.llm.forEach(p => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'llm-btn';
+        b.dataset.llm = p.id;
+        b.textContent = `${p.icon || ''} ${p.display}`.trim();
+        b.addEventListener('click', () => setLLM(p.id));
+        llmHost.appendChild(b);
+      });
+    }
+
     let activeLLM = 'gemini';
 
     function setLLM(name) {
@@ -271,7 +314,7 @@
     }
 
     function updateLLMLabels() {
-      const display = LLM_DISPLAY[activeLLM] || activeLLM;
+      const display = llmDisplay(activeLLM);
       const skip = document.getElementById('skipNormalizeLabel');
       const tags = document.getElementById('emotionTagsLabel');
       const scenesIntro = document.getElementById('scenesIntroLabel');
@@ -330,23 +373,19 @@
       }
     }
 
-    document.querySelectorAll('.llm-btn').forEach(btn => {
-      btn.addEventListener('click', () => setLLM(btn.dataset.llm));
-    });
+    // (Click listeners are attached in renderProviderButtons when the
+    // buttons are created from the registry — no static binding here.)
 
-    // Local-only providers — anything that needs weights resident on
-    // this box's GPU/CPU. Cloud APIs (gemini, elevenlabs) are excluded.
-    const LOCAL_TTS = new Set(['parler', 'bark']);
-    const LOCAL_LLM = new Set(['ollama']);
 
     function userNeedsLocalModels(me) {
       // Decision is based on the user's FIRST allowed provider in
       // each list (what applyAllowedProviders auto-selects). If both
       // are cloud, this user never touches a local model — even on a
       // box where local models are warming up in the background.
+      // "local vs cloud" comes from the registry, not a hardcoded set.
       const tts = (me?.allowed_providers?.tts || [])[0]?.toLowerCase();
       const llm = (me?.allowed_providers?.llm || [])[0]?.toLowerCase();
-      return LOCAL_TTS.has(tts) || LOCAL_LLM.has(llm);
+      return isLocalTts(tts) || isLocalLlm(llm);
     }
 
     async function continueBoot(me) {
@@ -374,6 +413,10 @@
       }
       revealApp();
     }
+
+    // Provider registry must load before continueBoot so applyAllowedProviders
+    // has something to render. Same registry powers the local/cloud check.
+    await loadProviderRegistry();
 
     if (AUTH_DISABLED) {
       await continueBoot({ user: null, profile: null, limits: null, usage: null });
@@ -688,9 +731,9 @@
       await loadVoicesFor(provider);
     }
 
-    document.querySelectorAll('.prov-btn').forEach(btn => {
-      btn.addEventListener('click', () => setProvider(btn.dataset.provider));
-    });
+    // (Click listeners are attached in renderProviderButtons when the
+    // buttons are created from the registry — no static binding here.)
+
 
     // NOTE: initial provider selection is driven by the user's allowed
     // list (see applyAllowedProviders in continueBoot), NOT by the env
@@ -732,7 +775,7 @@
       const useEmotionTags = emotionTagsEl.checked;
       const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
       setLoading(true);
-      const llmName = LLM_DISPLAY[activeLLM] || activeLLM;
+      const llmName = llmDisplay(activeLLM);
       statusText.textContent = skip ? 'Awaaz ban rahi hai...' : `${llmName} text ko clean kar raha hai...`;
 
       const STAGE_LABEL = {

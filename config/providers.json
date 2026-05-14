@@ -1,0 +1,12 @@
+{
+  "_comment": "Single source of truth for providers. Backend reads this on startup; frontend fetches it via /api/providers/registry. Adding a new provider = one line here + plan_limits row in DB. No code change needed for naming/icon/kind.",
+  "tts": [
+    { "id": "parler",     "display": "Parler",     "icon": "💻", "kind": "local" },
+    { "id": "bark",       "display": "Bark",       "icon": "🎭", "kind": "local" },
+    { "id": "elevenlabs", "display": "ElevenLabs", "icon": "☁️", "kind": "cloud" }
+  ],
+  "llm": [
+    { "id": "gemini",     "display": "Gemini",     "icon": "✨", "kind": "cloud" },
+    { "id": "ollama",     "display": "Qwen",       "icon": "💻", "kind": "local" }
+  ]
+}
