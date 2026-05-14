@@ -102,17 +102,17 @@ values
      array['gemini'], array['elevenlabs'],
      'Day pass: 3 generations × 500 chars over 48 hours'),
     ('starter',      'Starter',      299,  720,
-     null, null, 1000,  20000,
+     5,    null, 1000,  20000,
      array['gemini'], array['elevenlabs'],
-     'Casual users: 30 gens/mo, 1000 chars/req, 20k chars/mo (30-day validity)'),
+     'Casual users: 5 gens/day, 1000 chars/req, 20k chars/mo (30-day validity)'),
     ('pro',          'Pro',          799,  720,
-     null, null, 3000,  50000,
+     10,   null, 3000,  50000,
      array['gemini'], array['elevenlabs'],
-     'Regular creators: 100 gens/mo, 3000 chars/req, 50k chars/mo (30-day validity)'),
+     'Regular creators: 10 gens/day, 3000 chars/req, 50k chars/mo (30-day validity)'),
     ('pro_plus',     'Pro Plus',     1999, 720,
-     null, null, 5000,  150000,
+     20,   null, 5000,  150000,
      array['gemini'], array['elevenlabs'],
-     'Power users: 300 gens/mo, 5000 chars/req, 150k chars/mo (30-day validity)'),
+     'Power users: 20 gens/day, 5000 chars/req, 150k chars/mo (30-day validity)'),
     ('admin',        'Admin',        null, null,
      null, null, null,  null,
      array['gemini','ollama'], array['elevenlabs','parler','bark'],
@@ -123,18 +123,24 @@ on conflict (plan) do nothing;
 update public.plan_limits set validity_hours = 48  where plan = 'sabse_sasta' and validity_hours is null;
 update public.plan_limits set validity_hours = 720 where plan in ('starter','pro','pro_plus') and validity_hours is null;
 
--- Backfill the original pro row (daily_uses=10, max=5000) that got
--- locked in by the early seed before tiered pricing existed. ON CONFLICT
--- DO NOTHING above skips the update, so do it explicitly here — but
--- only when the row still matches the OLD shape, so admin overrides
--- aren't clobbered.
+-- Bring the original pro row up to current seed values. Earlier seed
+-- had max=5000; new tiered pricing uses 3000/req. daily=10 was right
+-- all along — daily caps act as rate limiters so a single user can't
+-- burn the whole monthly quota in one day. ON CONFLICT DO NOTHING
+-- skips updating existing rows, so backfill explicitly. Guards match
+-- the OLD shape so admin tweaks aren't clobbered.
 update public.plan_limits
-   set daily_uses = null,
-       max_chars_per_request = 3000,
+   set max_chars_per_request = 3000,
        updated_at = now()
  where plan = 'pro'
    and daily_uses = 10
    and max_chars_per_request = 5000;
+
+-- Starter / pro_plus: backfill daily_uses for rows that came in
+-- without it (some intermediate deploys had daily=null briefly).
+update public.plan_limits set daily_uses = 5  where plan = 'starter'  and daily_uses is null;
+update public.plan_limits set daily_uses = 10 where plan = 'pro'      and daily_uses is null;
+update public.plan_limits set daily_uses = 20 where plan = 'pro_plus' and daily_uses is null;
 
 -- Migrate existing 'free' rows: lifetime_uses=1 → daily_uses=1 anti-farming
 -- defense. Only flips rows that still match the OLD default; admins who
