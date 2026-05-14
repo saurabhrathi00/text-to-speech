@@ -20,7 +20,9 @@ def _load_env_file():
 
 _load_env_file()
 
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, g, jsonify, render_template, request, send_from_directory
+
+import auth
 
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
@@ -135,6 +137,7 @@ def normalize():
 
 
 @app.route("/tts", methods=["POST"])
+@auth.require_user
 def tts():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -149,6 +152,12 @@ def tts():
 
     t_req = time.time()
     print(f"[app] /tts request → {len(text)} chars, provider={provider}, voice={voice}")
+
+    if auth.cloud_mode() and g.user:
+        ok, msg = auth.check_quota(g.user["id"], len(text))
+        if not ok:
+            return jsonify({"error": msg}), 402
+
     try:
         actual_path = _tts_synthesize(text, str(out_path), description, voice, provider)
     except Exception:
@@ -159,6 +168,15 @@ def tts():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
+    if auth.cloud_mode() and g.user:
+        auth.log_usage(
+            user_id=g.user["id"],
+            kind="tts.regenerate",
+            provider=provider,
+            chars=len(text),
+            meta={"emotion_tags": False},
+        )
+
     print(f"[app] /tts response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
         "audio_url": f"/audio/{actual_filename}",
@@ -168,7 +186,27 @@ def tts():
     })
 
 
+@app.route("/api/me")
+@auth.require_user
+def api_me():
+    """Current authenticated user + their plan + quota usage.
+    In local mode returns {"cloud_mode": false} so the frontend can
+    skip the auth UI."""
+    if not auth.cloud_mode():
+        return jsonify({"cloud_mode": False, "user": None, "profile": None, "usage": 0})
+    user = g.user
+    profile = auth.get_profile(user["id"])
+    usage = auth.get_monthly_chars(user["id"])
+    return jsonify({
+        "cloud_mode": True,
+        "user": {"id": user["id"], "email": user["email"]},
+        "profile": profile,
+        "usage": usage,
+    })
+
+
 @app.route("/generate", methods=["POST"])
+@auth.require_user
 def generate():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -184,6 +222,12 @@ def generate():
     t_req = time.time()
     print(f"[app] /generate request → {len(text)} chars, provider={provider}, "
           f"skip_normalize={skip_normalize}, emotion_tags={add_emotion_tags}, voice={voice}")
+
+    # Cloud-mode quota check (no-op in local mode)
+    if auth.cloud_mode() and g.user:
+        ok, msg = auth.check_quota(g.user["id"], len(text))
+        if not ok:
+            return jsonify({"error": msg}), 402  # 402 Payment Required
 
     if skip_normalize:
         normalized = text
@@ -209,6 +253,15 @@ def generate():
     actual_filename = Path(actual_path).name
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
+
+    if auth.cloud_mode() and g.user:
+        auth.log_usage(
+            user_id=g.user["id"],
+            kind="tts.generate",
+            provider=provider,
+            chars=len(normalized),
+            meta={"input_chars": len(text), "emotion_tags": add_emotion_tags},
+        )
 
     print(f"[app] /generate response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({

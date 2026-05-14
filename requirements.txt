@@ -6,3 +6,5 @@ parler-tts
 soundfile
 requests
 faster-whisper
+supabase
+pyjwt[crypto]
