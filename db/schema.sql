@@ -319,3 +319,25 @@ create policy "usage_self_read"
 
 -- Inserts to usage_events go through service_role (backend), which
 -- bypasses RLS. No insert policy for end-users.
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- Storage bucket for generated audio (per-user folders).
+-- Path convention: <user_id>/<filename>.wav  (matches audio_storage.py).
+-- Bucket is private; the backend hands out short-lived signed URLs.
+-- ─────────────────────────────────────────────────────────────────────
+insert into storage.buckets (id, name, public)
+values ('audio', 'audio', false)
+on conflict (id) do nothing;
+
+-- Belt-and-braces RLS — most reads happen via signed URLs (which
+-- bypass RLS anyway), but the policy is here so a leaked anon key
+-- still only lets a user see their own audio folder. Service-role
+-- (backend) ignores RLS, so uploads + cleanup work without it.
+drop policy if exists "audio_self_read" on storage.objects;
+create policy "audio_self_read"
+    on storage.objects for select
+    using (
+        bucket_id = 'audio'
+        and (storage.foldername(name))[1] = auth.uid()::text
+    );

@@ -24,6 +24,7 @@ _load_env_file()
 from flask import Flask, g, jsonify, render_template, request, send_from_directory
 
 import auth
+import audio_storage
 
 from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
 
@@ -388,7 +389,18 @@ def tts():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
+    # Cloud-store per-user. Locally-served path is the fallback for
+    # AUTH_DISABLED dev (no user_id) or when Supabase Storage is down.
+    audio_url = f"/audio/{actual_filename}"
     if g.user:
+        signed = audio_storage.upload(g.user["id"], actual_path, actual_filename)
+        if signed:
+            audio_url = signed
+            try:
+                Path(actual_path).unlink(missing_ok=True)  # local copy not needed
+            except Exception:
+                pass
+        audio_storage.prune_user_audio(g.user["id"])
         auth.log_usage(
             user_id=g.user["id"],
             kind="tts.regenerate",
@@ -400,7 +412,7 @@ def tts():
 
     print(f"[app] /tts response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
-        "audio_url": f"/audio/{actual_filename}",
+        "audio_url": audio_url,
         "description_used": description if provider == "parler" else "",
         "words": words,
         "provider": provider,
@@ -648,7 +660,16 @@ def generate():
     words = align_words(actual_path) if provider == "parler" else []
     _prune_old_audio()
 
+    audio_url = f"/audio/{actual_filename}"
     if g.user:
+        signed = audio_storage.upload(g.user["id"], actual_path, actual_filename)
+        if signed:
+            audio_url = signed
+            try:
+                Path(actual_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+        audio_storage.prune_user_audio(g.user["id"])
         auth.log_usage(
             user_id=g.user["id"],
             kind="tts.generate",
@@ -662,7 +683,7 @@ def generate():
     print(f"[app] /generate response in {time.time() - t_req:.1f}s → {actual_filename}")
     return jsonify({
         "normalized_text": normalized,
-        "audio_url": f"/audio/{actual_filename}",
+        "audio_url": audio_url,
         "description_used": description if provider == "parler" else "",
         "words": words,
         "provider": provider,
