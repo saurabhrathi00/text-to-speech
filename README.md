@@ -22,10 +22,10 @@ get natural narrator audio in seconds.
 |---|---|
 | 🇮🇳 **Best Hindi voices**         | ElevenLabs v3 ka natural prosody — sounds human, not a robot. |
 | ⚡ **Seconds mein generate**       | Gemini cleans up Hinglish → ElevenLabs speaks it. End-to-end < 10 sec. |
-| 🎭 **Emotion-aware**              | Per-sentence emotion tags (crying, laughing, whispering...) auto-inserted by an LLM. |
+| 🎭 **Emotion-aware**              | 60+ inline performance tags ([sobbing], [giggles], [whispers], [breathless]...) chosen per-sentence by Gemini — and it can invent new ones when nothing fits. |
 | 💸 **Sabse Sasta pricing**         | Day pass ₹49 · Monthly se ₹299. Pay-as-you-go ya subscribe — koi commitment nahi. |
 | 🎯 **No surprises**                | Char-by-char usage tracking. Daily + monthly caps. Plan kabhi bhi switch. |
-| 🔒 **Private**                     | Your scripts never train any model. Audio served via short-lived URLs. |
+| 🔒 **Private**                     | Your scripts never train any model. Audio lives in per-user Supabase buckets behind 1-hour signed URLs; auto-deleted after 24h. |
 
 ---
 
@@ -172,13 +172,15 @@ Open the URL → "Continue with Google" → generate your first audio.
 ```
 text-to-speech/
 ├── app.py                    # Flask routes (auth, quota, /generate, /tts, admin, plans)
-├── auth.py                   # Supabase JWT + plan/quota + upgrade requests
+├── auth.py                   # Supabase JWT + plan/quota + bonus pool + upgrade requests
+├── security.py               # Rate limiting + CORS + Content-Type guard + 413 handler
+├── audio_storage.py          # Per-user Supabase Storage with 5-file / 24h retention
 ├── normalizer.py             # App-side wrapper (Devanagari guard + sentence splitting)
 ├── llm/                      # Isolated LLM module (see llm/README.md)
 │   ├── __init__.py           #   refine_for_tts, classify_emotions, generate_scene_prompts
 │   ├── client.py             #   Gemini + Ollama HTTP clients
 │   ├── config.py             #   LLM env vars (only place that reads them)
-│   └── prompts/              #   *.md prompt files — data not code
+│   └── prompts/              #   *.md prompt files — data not code (60+ emotion tags)
 ├── tts_engine.py             # Parler-TTS wrapper (local-only)
 ├── eleven_tts.py             # ElevenLabs REST client (cloud-safe)
 ├── bark_tts.py               # Bark wrapper (local-only)
@@ -208,7 +210,14 @@ text-to-speech/
 
 **Effective plan resolves expiry.** Paid plans carry `validity_hours`; `profiles.plan_expires_at` is stamped on approve. Past expiry, the user auto-reverts to free — no cron job, computed lazily on each request.
 
-**Top-ups via usage ledger.** Sabse Sasta inserts a `usage_events` row with `chars = -1500`. The existing `chars_30d` arithmetic naturally allows that many more chars. No new tables, no extra check_limits branches.
+**Top-ups stack on three axes.** Sabse Sasta adds:
+- **chars** — negative `usage_events` row offsets the rolling 30-day sum
+- **gens** — `profiles.bonus_uses` counter, drained only after the base daily cap is exhausted
+- **per-req size** — `profiles.bonus_max_chars_per_request` raises the per-request ceiling while bonus gens remain
+
+`get_effective_limits` folds all three into a single `daily_cap / monthly_cap / max_chars_per_request` view the UI and `check_limits` read from. Base caps stay alongside so the user-bar can show *"100 base + 1500 bonus = 1600"*.
+
+**Audio in per-user Supabase Storage.** Files land at `audio/<user_id>/<filename>.wav` in a private bucket. The backend hands the browser a 1-hour signed URL; nothing on the local filesystem leaks across users. `audio_storage.prune_user_audio` runs after every upload — newest 5 files only, anything past `AUDIO_RETENTION_HOURS` (default 24) deleted regardless of count.
 
 **Admin promotion is env-only.** `ADMIN_EMAILS` in `.env` is the *only* path to grant admin. No API route mutates `role`. A compromised DB row can't escalate — `require_admin` checks env, not DB.
 
@@ -220,19 +229,27 @@ text-to-speech/
 
 | Layer | Effect |
 |---|---|
-| Google OAuth required for signup | No email farming with tempmail / +aliases |
-| Free = 1 gen/day (not lifetime) | Multi-account farming gives ~₹1.32/day per fake account — capped, not exponential |
-| Daily caps on paid plans | Rate-limit so no single user can burn the monthly quota in 24h |
-| Provider whitelist server-side | Free user can't bypass by crafting a `provider: parler` request |
-| `banned` flag on profiles | Soft-block without losing history; admin-toggleable |
+| **Google OAuth required for signup** | No email farming with tempmail / +aliases — every account needs a phone-verified Gmail |
+| **Free = 1 gen/day (not lifetime)** | Multi-account farming gives ~₹1.32/day per fake account — capped, not exponential |
+| **Daily caps on paid plans** | Rate-limit so no single user can burn the monthly quota in 24h |
+| **Provider whitelist server-side** | Free user can't bypass by crafting `{provider: 'parler'}` in the request |
+| **Per-user + per-IP rate limits** | 15 generations/min/user, 30/min/IP. Excess returns 429 with `Retry-After`. Counters logged + surfaced via `/api/admin/security/recent` |
+| **`MAX_CONTENT_LENGTH = 1MB`** | Payload bombing → 413. Body-size limit applied at the Flask level |
+| **Strict `Content-Type: application/json`** | Form-post probes / accidental CSRF surface → 415 |
+| **CORS allowlist (`CORS_ALLOWED_ORIGINS`)** | Empty by default = same-origin only. Cross-origin POSTs from unknown sites blocked |
+| **Image generation admin-only** | All `/api/image*` + `/api/scenes` routes return 403 to non-admins |
+| **`banned` flag on profiles** | Soft-block without losing history; admin-toggleable via `PATCH /api/admin/users/<id>` |
+| **Suspicious-activity ring buffer** | Last 200 rate-limit hits + oversized bodies retained in memory for the admin to review |
 
 ---
 
 ## 🔭 Roadmap
 
 - [x] **Phase 1** — Gemini LLM swap-in
-- [x] **Phase 2** — Supabase auth + per-user quota + upgrade flow + Google OAuth
-- [ ] **Phase 3** — Cloud deploy to Render + Cloudflare R2 for audio persistence + `sastaspeech.com` SSL
+- [x] **Phase 2** — Supabase auth + per-user quota + Google OAuth + upgrade flow (with top-ups)
+- [x] **Phase 2.5** — Per-user Supabase Storage for audio (5-file / 24h retention)
+- [x] **Phase 2.6** — Production anti-abuse layer (rate limiting, body-size cap, CORS, Content-Type guard)
+- [ ] **Phase 3** — Cloud deploy to Render + `sastaspeech.com` SSL
 - [ ] **Phase 4** — Razorpay payment integration (replaces manual approve)
 - [ ] **Phase 5** — React Native mobile app (Android + iOS) hitting the same API
 
