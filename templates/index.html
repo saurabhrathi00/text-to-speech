@@ -279,25 +279,31 @@
     function renderProviderButtons() {
       const ttsHost = document.getElementById('ttsToggle');
       const llmHost = document.getElementById('llmToggle');
+      if (!ttsHost || !llmHost) {
+        console.error('provider toggle hosts missing from DOM');
+        return;
+      }
       // Wipe any previously rendered buttons (keep the label span).
       ttsHost.querySelectorAll('.prov-btn').forEach(b => b.remove());
       llmHost.querySelectorAll('.llm-btn').forEach(b => b.remove());
 
-      providerRegistry.tts.forEach(p => {
+      (providerRegistry.tts || []).forEach(p => {
+        if (!p?.id) return;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'prov-btn';
         b.dataset.provider = p.id;
-        b.textContent = `${p.icon || ''} ${p.display}`.trim();
+        b.textContent = `${p.icon || ''} ${p.display || p.id}`.trim();
         b.addEventListener('click', () => setProvider(p.id));
         ttsHost.appendChild(b);
       });
-      providerRegistry.llm.forEach(p => {
+      (providerRegistry.llm || []).forEach(p => {
+        if (!p?.id) return;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'llm-btn';
         b.dataset.llm = p.id;
-        b.textContent = `${p.icon || ''} ${p.display}`.trim();
+        b.textContent = `${p.icon || ''} ${p.display || p.id}`.trim();
         b.addEventListener('click', () => setLLM(p.id));
         llmHost.appendChild(b);
       });
@@ -419,23 +425,34 @@
     await loadProviderRegistry();
 
     if (AUTH_DISABLED) {
-      await continueBoot({ user: null, profile: null, limits: null, usage: null });
+      await continueBoot({ user: null, profile: null, limits: null, usage: null })
+        .catch(e => { console.error('continueBoot failed', e); revealApp(); });
     } else {
       const token = await getJwt();
       if (!token) {
         window.location.replace('/login');
       } else {
+        let res;
         try {
-          const res = await fetch('/api/me');
-          if (res.status === 401) {
-            window.location.replace('/login');
-          } else {
+          res = await fetch('/api/me');
+        } catch (e) {
+          // Network blip — not an auth failure. Reveal anyway so the
+          // user can retry; do NOT bounce to /login (caused an infinite
+          // / ↔ /login loop when continueBoot threw on something else).
+          console.error('/api/me network error', e);
+          revealApp();
+          throw e;
+        }
+        if (res.status === 401) {
+          window.location.replace('/login');
+        } else {
+          try {
             const me = await res.json();
             await continueBoot(me);
+          } catch (e) {
+            console.error('continueBoot failed — revealing app anyway', e);
+            revealApp();
           }
-        } catch (e) {
-          console.error('auth bootstrap failed', e);
-          window.location.replace('/login');
         }
       }
     }
