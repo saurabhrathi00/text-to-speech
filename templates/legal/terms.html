@@ -5,84 +5,238 @@
 <p class="updated">Last updated: {{ updated_at }}</p>
 
 <p>
-  By using SastaSpeech you agree to the terms below. Operator:
-  {{ biz.legal_entity|pl }}, {{ biz.address_full|pl }}.
+  These Terms ("Terms") form a legally binding agreement between you ("you",
+  "user") and {{ biz.legal_entity|pl }} (operator of SastaSpeech, "we", "us",
+  "our"), based at {{ biz.address_full|pl }}. By accessing or using the
+  service you accept these Terms in full. If you do not agree, do not use the
+  service.
 </p>
 
-<h2>1. Service</h2>
+<h2>1. Eligibility</h2>
+<ul>
+  <li>You must be at least 18 years old, or the age of majority in your jurisdiction, whichever is higher.</li>
+  <li>You must have full legal capacity to enter into binding contracts.</li>
+  <li>By signing in via Google, you confirm that the registered email is yours and accurate.</li>
+  <li>We may, at any time, require additional verification (KYC) and may suspend access pending verification.</li>
+</ul>
+
+<h2>2. Service description</h2>
 <p>
-  SastaSpeech is a software-as-a-service offering Hindi/Hinglish/English
-  text-to-speech generation. Plans, quotas, and pricing are listed in the app
-  and may change with notice.
+  SastaSpeech is a software-as-a-service that synthesizes audio from text
+  scripts provided by the user. Plans, quotas, voice options, and pricing are
+  listed within the application and may be changed, added, or withdrawn at any
+  time at our sole discretion, with or without notice.
 </p>
 
-<h2>2. Account</h2>
+<h2>3. Your account</h2>
 <ul>
-  <li>One account per person. Sign-in via Google only.</li>
-  <li>You are responsible for activity on your account.</li>
-  <li>We may suspend accounts violating these terms (see Section 5).</li>
+  <li>One account per natural person. Sharing credentials is prohibited.</li>
+  <li>You are fully responsible for all activity, content, and charges associated with your account.</li>
+  <li>You must notify us immediately of any unauthorized use. We are not liable for losses arising from unauthorized access caused by your failure to safeguard credentials.</li>
 </ul>
 
-<h2>3. Permitted use</h2>
-<p>You may generate audio for:</p>
+<h2>4. Your warranties and representations</h2>
+<p>By submitting any script or input, you warrant that:</p>
 <ul>
-  <li>Personal projects, commercial videos, podcasts, courses, and similar lawful content.</li>
+  <li>You own all rights to the input, or have the necessary licenses, permissions, and consents to use it.</li>
+  <li>The input does not infringe on any third party's copyright, trademark, trade secret, privacy, publicity, or other rights.</li>
+  <li>The input does not contain unlawful, defamatory, obscene, threatening, or harassing content.</li>
+  <li>You will use the generated audio only in compliance with all applicable laws and these Terms.</li>
 </ul>
 
-<h2>4. Prohibited use</h2>
-<p>You may NOT use SastaSpeech to generate audio that:</p>
+<h2>5. Prohibited use</h2>
+<p>You may NOT use SastaSpeech, directly or indirectly, to:</p>
 <ul>
-  <li>Impersonates real people without consent.</li>
-  <li>Contains hate speech, defamation, or harassment.</li>
-  <li>Violates Indian law or third-party rights.</li>
-  <li>Generates spam, robocalls, or fraudulent material.</li>
-  <li>Attempts to circumvent quota or abuse detection.</li>
+  <li>Impersonate any real, identifiable person without their explicit, documented consent (including but not limited to public figures, politicians, celebrities).</li>
+  <li>Generate audio used for fraud, scams, social engineering, phishing, or unauthorized robocalls.</li>
+  <li>Produce hate speech, defamation, harassment, sexual content involving minors, terrorism-related material, or content that incites violence.</li>
+  <li>Mislead listeners about the synthetic nature of the audio in any context where disclosure is required by law.</li>
+  <li>Violate any applicable Indian law, including but not limited to the IT Act 2000 (as amended), IPC provisions, or any state-level regulations.</li>
+  <li>Reverse-engineer, decompile, scrape, or attempt to derive the source code or underlying models of the service.</li>
+  <li>Circumvent quotas, rate limits, anti-abuse mechanisms, or authentication controls.</li>
+  <li>Use automated tools, bots, or scripts to access the service except through documented APIs.</li>
+  <li>Resell, sublicense, or redistribute the service or generated outputs in a manner competing with SastaSpeech.</li>
 </ul>
-
-<h2>5. Suspension</h2>
 <p>
-  We may suspend or terminate accounts that violate Section 4, fail to pay, or
-  abuse the service. Suspended accounts forfeit remaining credits.
+  We may, in our sole discretion and without notice, suspend or terminate any
+  account suspected of violating this section. We may also report violations
+  to law enforcement and cooperate fully with any investigation.
 </p>
 
-<h2>6. Payment + billing</h2>
+<h2>6. Payment, billing, and refunds</h2>
 <ul>
-  <li>Plans are billed in advance via {{ biz.payment_processor|pl }}.</li>
-  <li>Top-ups (e.g. Sabse Sasta) are one-time charges.</li>
-  <li>Subscriptions auto-expire after their stated validity (e.g. 30 days). No auto-renewal unless explicitly enabled.</li>
-  <li>Pricing in INR. {{ biz.gst_inclusive_note|pl }}.</li>
+  <li>Plans are billed in advance through {{ biz.payment_processor|pl }} or another payment processor we may designate.</li>
+  <li>Top-ups (e.g. Sabse Sasta) are one-time charges; once any credit is consumed, the charge is non-refundable.</li>
+  <li>Subscription plans expire automatically after their stated validity (e.g. 30 days). No auto-renewal unless explicitly enabled by you.</li>
+  <li>All prices are in INR. {{ biz.gst_inclusive_note|pl }}.</li>
+  <li>Refunds are governed by our <a href="/refund">Refund Policy</a>, which forms part of these Terms.</li>
+  <li>Chargebacks initiated without first contacting our support team are grounds for immediate account termination and forfeiture of all credits, in addition to any other remedies available to us.</li>
 </ul>
 
 <h2>7. Intellectual property</h2>
 <ul>
-  <li>You own the input scripts you provide.</li>
-  <li>You own the audio outputs we generate for you and may use them commercially.</li>
-  <li>SastaSpeech retains rights to the platform, voice models (licensed from ElevenLabs), and software.</li>
+  <li><strong>Your input:</strong> you retain ownership of scripts you provide.</li>
+  <li><strong>Your output:</strong> subject to your full compliance with these Terms, you receive a non-exclusive, worldwide, royalty-free license to use the generated audio for lawful personal and commercial purposes.</li>
+  <li><strong>Our platform:</strong> all rights, title, and interest in the SastaSpeech platform, software, brand, voice configurations, prompts, and proprietary improvements remain with us or our licensors. Nothing in these Terms grants you any rights to our underlying technology.</li>
+  <li><strong>Third-party voices:</strong> voice models are licensed from third-party providers (e.g. ElevenLabs). Your use of voices is additionally subject to those providers' terms.</li>
+  <li>If your account is terminated for breach, the license to use any previously generated audio terminates immediately.</li>
 </ul>
 
-<h2>8. Service availability</h2>
+<h2>8. Responsibility for outputs</h2>
 <p>
-  We aim for high uptime but do not guarantee 100% availability. Scheduled
-  maintenance + third-party outages (ElevenLabs, Gemini, Supabase) are
-  unavoidable.
+  You are solely responsible for the use, distribution, publication, or
+  monetization of any audio generated by the service. We have no editorial
+  control over how you deploy outputs and assume no responsibility for
+  consequences arising from your use, including reputational, legal, financial,
+  or regulatory consequences.
 </p>
 
-<h2>9. Limitation of liability</h2>
+<h2>9. Service availability and modifications</h2>
+<ul>
+  <li>The service is provided on a "best-effort" basis. We do not guarantee uninterrupted, error-free, or timely operation.</li>
+  <li>Scheduled maintenance, security patches, and third-party outages (Supabase, ElevenLabs, Gemini, hosting providers, ISPs) may cause unavailability without prior notice.</li>
+  <li>We reserve the right to modify, suspend, or discontinue any feature, plan, voice, model, or the entire service, at any time, with or without notice.</li>
+  <li>No compensation is owed for changes to free or beta features.</li>
+</ul>
+
+<h2>10. "AS IS" — no warranties</h2>
 <p>
-  To the maximum extent permitted by law, SastaSpeech is not liable for
-  indirect, incidental, or consequential damages. Total liability for any
-  claim is limited to amounts paid by you in the preceding 3 months.
+  THE SERVICE AND ALL OUTPUTS ARE PROVIDED "AS IS" AND "AS AVAILABLE",
+  WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT
+  LIMITATION WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+  PURPOSE, ACCURACY, RELIABILITY, NON-INFRINGEMENT, OR THAT THE SERVICE WILL
+  BE UNINTERRUPTED OR ERROR-FREE.
+</p>
+<p>
+  We do not warrant that generated audio will be accurate, pronunciation-
+  perfect, suitable for any specific use, or free from artifacts. You are
+  responsible for reviewing all outputs before publishing or distributing
+  them.
 </p>
 
-<h2>10. Governing law</h2>
+<h2>11. Indemnification</h2>
 <p>
-  These terms are governed by Indian law. Disputes are subject to the
-  jurisdiction of courts in {{ biz.jurisdiction_city|pl }},
-  {{ biz.state|pl }}.
+  You agree to defend, indemnify, and hold harmless {{ biz.legal_entity|pl }},
+  its officers, directors, employees, agents, licensors, and affiliates from
+  and against any and all claims, damages, obligations, losses, liabilities,
+  costs, debt, and expenses (including but not limited to attorney's fees)
+  arising from:
+</p>
+<ul>
+  <li>your use or misuse of the service;</li>
+  <li>your violation of any term of this agreement;</li>
+  <li>your violation of any third-party right, including without limitation any copyright, property, privacy, or publicity right;</li>
+  <li>any claim that your input or your use of generated outputs caused damage to a third party;</li>
+  <li>your willful misconduct or negligence.</li>
+</ul>
+<p>
+  This defense and indemnification obligation will survive these Terms and
+  your use of the service.
 </p>
 
-<h2>11. Changes</h2>
+<h2>12. Limitation of liability</h2>
 <p>
-  We may update these terms. Continued use after changes constitutes acceptance.
+  TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL
+  {{ biz.legal_entity|pl }}, ITS AFFILIATES, OR THEIR LICENSORS BE LIABLE FOR:
+</p>
+<ul>
+  <li>any indirect, incidental, special, consequential, exemplary, or punitive damages;</li>
+  <li>loss of profits, revenue, business, goodwill, data, or substitute services;</li>
+  <li>damages resulting from third-party services (ElevenLabs, Gemini, Supabase, payment processors, etc.);</li>
+  <li>damages resulting from your use or inability to use the service.</li>
+</ul>
+<p>
+  OUR TOTAL CUMULATIVE LIABILITY TO YOU FOR ANY AND ALL CLAIMS ARISING OUT
+  OF OR RELATED TO THESE TERMS OR THE SERVICE IS LIMITED TO THE LESSER OF
+  (A) THE AMOUNTS YOU PAID TO US IN THE THREE (3) MONTHS PRECEDING THE
+  EVENT GIVING RISE TO THE CLAIM, OR (B) ₹5,000. SOME JURISDICTIONS DO NOT
+  ALLOW THE EXCLUSION OR LIMITATION OF CERTAIN DAMAGES; IN SUCH
+  JURISDICTIONS OUR LIABILITY IS LIMITED TO THE MAXIMUM EXTENT PERMITTED
+  BY LAW.
+</p>
+
+<h2>13. Force majeure</h2>
+<p>
+  We are not liable for any failure or delay in performance caused by events
+  beyond our reasonable control, including but not limited to acts of God,
+  natural disasters, war, terrorism, civil unrest, government action,
+  pandemic, cyberattacks, internet or telecommunications failures, third-party
+  service outages, power outages, or labor disputes.
+</p>
+
+<h2>14. Termination</h2>
+<ul>
+  <li>You may stop using the service at any time. To delete your account and associated data, contact <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a>.</li>
+  <li>We may suspend or terminate your account, with or without notice, for any reason, including but not limited to breach of these Terms, suspected fraud, abuse, non-payment, or operational reasons.</li>
+  <li>Suspended or terminated accounts forfeit all unused credits, top-ups, and subscription time. No refunds are owed for forfeited credits.</li>
+  <li>Sections 4 (Warranties), 5 (Prohibited Use), 7 (IP), 8 (Output Responsibility), 10 (No Warranties), 11 (Indemnification), 12 (Liability), and 15 (Governing Law) survive termination.</li>
+</ul>
+
+<h2>15. Governing law, jurisdiction, and disputes</h2>
+<ul>
+  <li>These Terms are governed by, and construed in accordance with, the laws of India, without regard to its conflict-of-laws provisions.</li>
+  <li>Subject to the dispute resolution process below, the courts of {{ biz.jurisdiction_city|pl }}, {{ biz.state|pl }} have <strong>exclusive jurisdiction</strong> over all disputes arising out of or relating to these Terms or the service.</li>
+  <li>Before initiating any legal action, you agree to first contact <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a> with a written description of the dispute, and to negotiate in good faith for at least 30 days.</li>
+  <li>You agree to resolve disputes individually. <strong>Class actions, collective actions, and representative proceedings are waived</strong> to the maximum extent permitted by law.</li>
+</ul>
+
+<h2>16. Changes to these Terms</h2>
+<p>
+  We may modify these Terms at any time. Material changes will be communicated
+  via the registered email address or by posting an updated "Last updated"
+  date on this page. Continued use of the service after such changes
+  constitutes acceptance. If you do not agree to a change, stop using the
+  service.
+</p>
+
+<h2>17. Notices</h2>
+<p>
+  All legal notices to us must be sent to
+  <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a> and
+  marked "Legal Notice". Notices to you are deemed delivered when sent to the
+  email associated with your account.
+</p>
+
+<h2>18. Assignment</h2>
+<p>
+  You may not assign or transfer your rights or obligations under these Terms
+  without our prior written consent. We may assign these Terms freely,
+  including in connection with a merger, acquisition, or sale of assets.
+</p>
+
+<h2>19. Severability and waiver</h2>
+<p>
+  If any provision of these Terms is held invalid or unenforceable, the
+  remaining provisions remain in full force and effect. Our failure to enforce
+  any right or provision is not a waiver of that right.
+</p>
+
+<h2>20. Entire agreement</h2>
+<p>
+  These Terms, together with the <a href="/privacy">Privacy Policy</a> and
+  <a href="/refund">Refund Policy</a>, constitute the entire agreement between
+  you and us regarding the service and supersede all prior agreements,
+  proposals, or communications, written or oral.
+</p>
+
+<h2>21. No partnership</h2>
+<p>
+  Nothing in these Terms creates any agency, partnership, joint venture, or
+  employment relationship between you and us.
+</p>
+
+<h2>22. Reporting and takedowns</h2>
+<p>
+  If you believe content generated through SastaSpeech infringes your rights,
+  email <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a>
+  with: (a) your contact information, (b) identification of the work
+  allegedly infringed, (c) the specific output or account in question, and
+  (d) a good-faith statement under penalty of perjury. We will review and
+  respond within a reasonable time.
+</p>
+
+<p style="margin-top:32px; color:#94a3b8; font-size:0.85rem;">
+  These Terms constitute a legally binding contract. If anything is unclear,
+  contact us BEFORE using the service.
 </p>
 {% endblock %}
