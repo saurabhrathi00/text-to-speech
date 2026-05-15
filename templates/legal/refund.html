@@ -16,8 +16,7 @@
 <p>You may request a full refund if ALL of these are true:</p>
 <ul>
   <li>You have NOT used any credits / generations from the plan.</li>
-  <li>The request is made within
-    <span class="legal-todo">[FILL IN: e.g. 7 days]</span> of payment.</li>
+  <li>The request is made within {{ biz.refund_window_days }} days of payment.</li>
   <li>The plan was purchased through our payment processor (proof of transaction available).</li>
 </ul>
 
@@ -25,7 +24,7 @@
 <p>
   Service-side outages causing extended unavailability (>24 hrs) qualify for
   pro-rata credit toward your next billing cycle. Email
-  <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a> with
+  <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a> with
   details.
 </p>
 
@@ -38,7 +37,7 @@
 
 <h2>How to request</h2>
 <p>
-  Email <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a>
+  Email <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a>
   with:
 </p>
 <ol>
@@ -47,10 +46,9 @@
   <li>Reason for refund.</li>
 </ol>
 <p>
-  We respond within
-  <span class="legal-todo">[FILL IN: e.g. 3 business days]</span>. Approved
-  refunds are processed back to the original payment method within 5–7 working
-  days.
+  We respond within {{ biz.support_response_sla|pl }} on {{ biz.support_hours }}.
+  Approved refunds are processed back to the original payment method within
+  {{ biz.refund_processing|pl }}.
 </p>
 
 <h2>Cancellation</h2>

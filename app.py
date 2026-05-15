@@ -321,6 +321,35 @@ def manifest():
 # ──────────────────────────────────────────────────────────────────────
 _LEGAL_PAGES = {"about", "contact", "privacy", "terms", "refund", "faq"}
 
+# Business / legal placeholder values — single source of truth.
+# Edit config/business.json to update; templates read via {{ biz.X }}.
+_BUSINESS_PATH = Path(__file__).parent / "config" / "business.json"
+try:
+    BUSINESS_CONFIG = json.loads(_BUSINESS_PATH.read_text(encoding="utf-8"))
+    BUSINESS_CONFIG.pop("_comment", None)
+except Exception as _e:
+    print(f"[app] business.json load failed: {_e} — legal pages will show empty fields")
+    BUSINESS_CONFIG = {}
+
+
+@app.context_processor
+def _inject_business():
+    """Expose `biz` to every template."""
+    return {"biz": BUSINESS_CONFIG}
+
+
+def _placeholder_filter(value):
+    """Wrap unfilled 'TBD:'-prefixed strings in the amber legal-todo
+    pill so they stand out on the page; render filled values plainly."""
+    from markupsafe import Markup, escape
+    s = str(value) if value is not None else ""
+    if s.startswith("TBD"):
+        return Markup(f'<span class="legal-todo">{escape(s)}</span>')
+    return s
+
+
+app.jinja_env.filters["pl"] = _placeholder_filter
+
 
 @app.route("/<page>")
 def legal_page(page: str):

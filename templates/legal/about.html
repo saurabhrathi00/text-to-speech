@@ -28,8 +28,8 @@
 
 <h2>Operator</h2>
 <p>
-  Operated by <span class="legal-todo">[FILL IN: legal entity name]</span>,
-  based in <span class="legal-todo">[FILL IN: city, state, India]</span>.
-  Contact via <a href="/contact">our contact page</a>.
+  Operated by {{ biz.legal_entity|pl }}, based in {{ biz.city|pl }},
+  {{ biz.state|pl }}, India. Contact via
+  <a href="/contact">our contact page</a>.
 </p>
 {% endblock %}

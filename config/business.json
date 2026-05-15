@@ -1,0 +1,22 @@
+{
+  "_comment": "Business / legal placeholders rendered into templates/legal/*.html via the {{ biz }} context. Values starting with 'TBD:' are highlighted by the |pl Jinja filter so unfilled spots are visually obvious before launch.",
+
+  "legal_entity":         "TBD: legal entity name (Pvt Ltd / Sole Proprietorship / etc.)",
+  "city":                 "TBD: city",
+  "state":                "TBD: state",
+  "address_full":         "TBD: full street address, city, state, PIN, India",
+
+  "support_email":        "support@sastaspeech.com",
+  "whatsapp":             "TBD: +91-XXXXX-XXXXX",
+
+  "support_response_sla": "24 hours",
+  "approval_sla":         "24 hours",
+  "refund_window_days":   7,
+  "refund_processing":    "5–7 working days",
+  "jurisdiction_city":    "TBD: city",
+  "gst_inclusive_note":   "TBD: confirm GST inclusive/exclusive",
+  "payment_processor":    "TBD: Razorpay / etc.",
+
+  "site_url":             "https://sastaspeech.com",
+  "support_hours":        "business days"
+}

@@ -6,7 +6,7 @@
 
 <p>
   By using SastaSpeech you agree to the terms below. Operator:
-  <span class="legal-todo">[FILL IN: legal entity name + address]</span>.
+  {{ biz.legal_entity|pl }}, {{ biz.address_full|pl }}.
 </p>
 
 <h2>1. Service</h2>
@@ -47,10 +47,10 @@
 
 <h2>6. Payment + billing</h2>
 <ul>
-  <li>Plans are billed in advance via <span class="legal-todo">[FILL IN: payment processor]</span>.</li>
+  <li>Plans are billed in advance via {{ biz.payment_processor|pl }}.</li>
   <li>Top-ups (e.g. Sabse Sasta) are one-time charges.</li>
   <li>Subscriptions auto-expire after their stated validity (e.g. 30 days). No auto-renewal unless explicitly enabled.</li>
-  <li>Pricing in INR. All applicable taxes (GST) included <span class="legal-todo">[VERIFY]</span>.</li>
+  <li>Pricing in INR. {{ biz.gst_inclusive_note|pl }}.</li>
 </ul>
 
 <h2>7. Intellectual property</h2>
@@ -77,8 +77,8 @@
 <h2>10. Governing law</h2>
 <p>
   These terms are governed by Indian law. Disputes are subject to the
-  jurisdiction of courts in
-  <span class="legal-todo">[FILL IN: city, state]</span>.
+  jurisdiction of courts in {{ biz.jurisdiction_city|pl }},
+  {{ biz.state|pl }}.
 </p>
 
 <h2>11. Changes</h2>

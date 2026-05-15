@@ -39,6 +39,7 @@ llm/              → ISOLATED. Only stdlib + requests. Read llm/README.md
 tts/              → synthesis engines: parler.py, bark.py, eleven.py, aligner.py
 config.py         → Python config (PROVIDERS, PARLER_SPEAKERS, ElevenLabs defaults)
 config/providers.json → declarative provider metadata (frontend + backend)
+config/business.json  → legal/business placeholders; rendered into templates/legal/*
 db/schema.sql     → idempotent (uses ALTER…IF NOT EXISTS)
 scripts/          → run.sh / run.bat / setup.sh / setup.bat (callable from anywhere; auto cd to repo root)
 docs/             → architecture.md, INSTALL.md, DEPLOY.md

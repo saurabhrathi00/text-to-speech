@@ -46,7 +46,7 @@
 <h2>Can I get a refund?</h2>
 <p>
   Yes, if you haven't used any credits and the request is within
-  <span class="legal-todo">[FILL IN: e.g. 7 days]</span> of payment. See
+  {{ biz.refund_window_days }} days of payment. See
   <a href="/refund">Refund Policy</a>.
 </p>
 
@@ -55,7 +55,7 @@
   Click "Upgrade" in the top bar after signing in. Pick your plan, drop your
   payment reference in the note field. We currently process payments out of
   band — admin will approve within
-  <span class="legal-todo">[FILL IN: SLA]</span>. Automated checkout coming
+  {{ biz.approval_sla|pl }}. Automated checkout coming
   soon.
 </p>
 
@@ -79,7 +79,7 @@
 
 <h2>Still stuck?</h2>
 <p>
-  Email <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a> or
+  Email <a href="mailto:{{ biz.support_email }}">{{ biz.support_email }}</a> or
   use the <a href="/contact">Contact page</a>.
 </p>
 {% endblock %}
