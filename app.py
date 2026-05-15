@@ -466,6 +466,15 @@ def tts():
     })
 
 
+@app.route("/api/my-audios")
+@auth.require_user
+def api_my_audios():
+    """Latest <=AUDIO_MAX_PER_USER audios for the signed-in user with
+    fresh signed URLs (1h TTL). Frontend polls this after each
+    successful generation."""
+    return jsonify({"audios": audio_storage.list_user_audio(g.user["id"])})
+
+
 @app.route("/api/me")
 @auth.require_user
 def api_me():

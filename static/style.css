@@ -1018,3 +1018,35 @@ audio::-webkit-media-controls-panel {
   text-decoration: none;
 }
 .login-footer a:hover { color: #c7d2fe; text-decoration: underline; }
+
+/* "Your recent audios" card */
+.my-audios-card details > summary { cursor: pointer; list-style: none; }
+.my-audios-card details > summary::-webkit-details-marker { display: none; }
+.my-audios-summary {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-weight: 600; color: var(--text);
+}
+.my-audios-summary::before {
+  content: '▸'; color: var(--text-soft); transition: transform 0.15s;
+}
+.my-audios-card details[open] .my-audios-summary::before { transform: rotate(90deg); }
+.my-audios-hint { font-size: 0.78rem; }
+
+.my-audios-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.my-audio-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "meta     download"
+    "player   player";
+  gap: 8px 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.my-audio-meta { grid-area: meta; display: flex; flex-direction: column; gap: 2px; font-size: 0.88rem; min-width: 0; }
+.my-audio-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-audio-row audio { grid-area: player; width: 100%; }
+.my-audio-download { grid-area: download; text-decoration: none; font-size: 0.85rem; padding: 6px 12px; }

@@ -166,6 +166,18 @@
       <div id="error" class="error hidden"></div>
     </section>
 
+    <section class="card my-audios-card">
+      <details open>
+        <summary class="my-audios-summary">
+          <span>🎧 Your recent audios</span>
+          <span class="muted my-audios-hint">latest, auto-deleted after 24h</span>
+        </summary>
+        <div id="myAudiosList" class="my-audios-list">
+          <p class="muted">Loading...</p>
+        </div>
+      </details>
+    </section>
+
     <section class="card image-card hidden" data-admin-only>
       <header class="image-header">
         <span>🎨 Image generation (ComfyUI + SDXL)</span>
@@ -318,6 +330,57 @@
       appRoot.classList.remove('hidden');
       _appReady = true;
       maybeHideLoader();
+      // Kick off the user-audios fetch in the background; harmless if
+      // the user has none.
+      refreshMyAudios();
+    }
+
+    // ── My audios — recent generations with download links ─────────────
+    function _fmtTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+    function _fmtSize(bytes) {
+      if (!bytes) return '';
+      const kb = bytes / 1024;
+      if (kb < 1024) return `${kb.toFixed(0)} KB`;
+      return `${(kb / 1024).toFixed(1)} MB`;
+    }
+
+    async function refreshMyAudios() {
+      const list = document.getElementById('myAudiosList');
+      if (!list) return;
+      try {
+        const r = await fetch('/api/my-audios');
+        if (!r.ok) {
+          list.innerHTML = '<p class="muted">Could not load audios.</p>';
+          return;
+        }
+        const data = await r.json();
+        const items = data.audios || [];
+        if (!items.length) {
+          list.innerHTML = '<p class="muted">No audios yet — generate one above.</p>';
+          return;
+        }
+        list.innerHTML = '';
+        items.forEach(a => {
+          const row = document.createElement('div');
+          row.className = 'my-audio-row';
+          row.innerHTML = `
+            <div class="my-audio-meta">
+              <strong>${a.filename}</strong>
+              <span class="muted">${_fmtTime(a.created_at)}${a.size ? ' · ' + _fmtSize(a.size) : ''}</span>
+            </div>
+            <audio controls preload="none" src="${a.signed_url || ''}"></audio>
+            <a class="secondary my-audio-download" href="${a.signed_url || '#'}" download="${a.filename}">⬇ Download</a>
+          `;
+          list.appendChild(row);
+        });
+      } catch (e) {
+        list.innerHTML = '<p class="error">Network error.</p>';
+      }
     }
 
     async function waitForLocalModels() {
@@ -1281,6 +1344,7 @@
         audio.src = data.audio_url;
         downloadBtn.href = data.audio_url;
         result.classList.remove('hidden');
+        refreshMyAudios();
       } catch (e) {
         showError('Server se connect nahi ho paya');
       } finally {
@@ -1311,6 +1375,7 @@
         if (!res.ok) { showError(data.error || 'Kuch galat ho gaya'); return; }
         audio.src = data.audio_url;
         downloadBtn.href = data.audio_url;
+        refreshMyAudios();
       } catch (e) {
         showError('Server se connect nahi ho paya');
       } finally {

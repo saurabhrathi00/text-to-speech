@@ -22,7 +22,7 @@ import auth
 BUCKET = os.getenv("AUDIO_BUCKET", "audio")
 SIGNED_URL_TTL_SEC = int(os.getenv("AUDIO_SIGNED_URL_TTL", "3600"))   # 1 hour
 RETENTION_HOURS    = int(os.getenv("AUDIO_RETENTION_HOURS", "24"))
-MAX_FILES_PER_USER = int(os.getenv("AUDIO_MAX_PER_USER", "5"))
+MAX_FILES_PER_USER = int(os.getenv("AUDIO_MAX_PER_USER", "10"))
 
 
 def _bucket():
@@ -121,6 +121,39 @@ def prune_user_audio(user_id: str):
         print(f"[audio] pruned {len(to_delete)} file(s) for {user_id}")
     except Exception as e:
         print(f"[audio] remove({user_id}) failed: {e}")
+
+
+def list_user_audio(user_id: str, limit: int = MAX_FILES_PER_USER) -> list[dict]:
+    """Return the user's recent audio files (newest first) as a list of
+    {filename, created_at, size, signed_url} dicts. signed_url is fresh
+    each call so it's safe to display immediately."""
+    if not user_id:
+        return []
+    try:
+        files = _bucket().list(_user_prefix(user_id).rstrip("/")) or []
+    except Exception as e:
+        print(f"[audio] list_user_audio({user_id}) failed: {e}")
+        return []
+
+    def created(f):
+        return (_parse_ts(f.get("created_at"))
+                or _parse_ts(f.get("updated_at"))
+                or datetime.min.replace(tzinfo=timezone.utc))
+    files.sort(key=created, reverse=True)
+
+    out = []
+    for f in files[:limit]:
+        name = f.get("name") or ""
+        if not name:
+            continue
+        url = signed_url_for(user_id, name)
+        out.append({
+            "filename":  name,
+            "created_at": f.get("created_at") or f.get("updated_at"),
+            "size":      (f.get("metadata") or {}).get("size"),
+            "signed_url": url,
+        })
+    return out
 
 
 def signed_url_for(user_id: str, filename: str) -> str | None:
