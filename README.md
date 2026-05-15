@@ -104,12 +104,13 @@ Same code, same Supabase, different env. Cloud server stays cheap and reliable; 
 
 ---
 
-## 🚀 Quickstart (local)
+## 🚀 Quickstart
 
 ### Prerequisites
 - Python 3.10+
-- Supabase project (free tier OK) with schema applied
-- Either a local GPU + Ollama + Parler, **or** Gemini + ElevenLabs API keys
+- Supabase project (free tier OK) with `db/schema.sql` applied
+- Google OAuth client (for sign-in) — Supabase → Authentication → Providers → Google
+- Either Gemini + ElevenLabs API keys (cloud-only mode), **or** local GPU + Ollama + Parler weights
 
 ### 1. Clone + install
 
@@ -117,53 +118,87 @@ Same code, same Supabase, different env. Cloud server stays cheap and reliable; 
 git clone https://github.com/saurabhrathi00/text-to-speech.git
 cd text-to-speech
 
-# Cloud-only deps
+# Cloud-only deps — enough for ElevenLabs + Gemini
 pip install -r requirements.txt
 
-# Add heavy ML deps if you'll run Parler / Qwen locally
+# Add heavy ML deps ONLY if you'll run Parler / Qwen on this box
 pip install -r requirements-local.txt
+```
+
+Or use the wrapper scripts:
+
+```bash
+./scripts/setup.sh        # Mac / Linux — venv + cloud deps
+scripts\setup.bat         # Windows — venv + CUDA torch + local deps
 ```
 
 ### 2. Configure `.env`
 
-Copy `.env.example → .env` and fill in:
+Copy `.env.example → .env`. Two presets:
 
+**A. Cloud-only (fastest to start, no GPU needed)**
 ```env
-# LLM
-LLM_PROVIDER=gemini              # or ollama
-GEMINI_API_KEY=...               # from aistudio.google.com
-GEMINI_MODEL=gemini-2.0-flash
-
-# TTS
-TTS_PROVIDER=elevenlabs          # or parler / bark
+LLM_PROVIDER=gemini
+TTS_PROVIDER=elevenlabs
+GEMINI_API_KEY=...
 ELEVENLABS_API_KEY=...
-
-# Supabase
 SUPABASE_URL=https://<ref>.supabase.co
 SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_KEY=...         # secret — server only
+SUPABASE_SERVICE_KEY=...
 SUPABASE_JWT_SECRET=...
-
-# Admin (env-only — no UI path to grant admin)
 ADMIN_EMAILS=you@example.com
+```
+
+**B. Local-models (admin GPU box, no cloud bill)**
+```env
+LLM_PROVIDER=ollama
+TTS_PROVIDER=parler              # or bark
+OLLAMA_URL=http://127.0.0.1:11434/api/chat
+OLLAMA_MODEL=qwen3:14b
+HF_TOKEN=hf_...                   # for Parler weight download
+# (Supabase + ADMIN_EMAILS same as above)
 ```
 
 ### 3. Apply DB schema
 
-In Supabase SQL Editor, paste `db/schema.sql` and run. Idempotent — re-run any time after pulling new changes.
+Supabase → SQL Editor → paste `db/schema.sql` → run. Idempotent; re-run after every `git pull` that touched the schema.
 
-### 4. Enable Google OAuth in Supabase
-
-Authentication → Providers → Google → toggle on → paste Google Cloud OAuth credentials. Authentication → URL Configuration → add `http://localhost:5000` to redirect URLs.
-
-### 5. Run
+### 4. Run
 
 ```bash
 python app.py
-# → Flask on http://localhost:5000
+# or
+./scripts/run.sh           # Mac / Linux
+scripts\run.bat            # Windows
 ```
 
-Open the URL → "Continue with Google" → generate your first audio.
+→ Flask on `http://localhost:5000`. Open it, click **Continue with Google**.
+
+---
+
+## 🌐 Running from another system
+
+### From your phone (same Wi-Fi)
+1. `.env`: `HOST=0.0.0.0`
+2. Find your PC's LAN IP: `ipconfig` (Win) / `ipconfig getifaddr en0` (Mac)
+3. Phone browser → `http://<PC-IP>:5000`
+4. Allow Python through Windows Firewall on first prompt.
+
+### Ollama / Qwen on a different machine
+Useful when the Flask box doesn't have a GPU but a beefier PC on the LAN does:
+
+```env
+OLLAMA_URL=http://192.168.1.10:11434/api/chat   # IP of the GPU box
+OLLAMA_MODEL=qwen3:14b
+```
+
+On the GPU box: `OLLAMA_HOST=0.0.0.0 ollama serve` so it accepts remote connections.
+
+### Cloud deploy (production)
+See [docs/DEPLOY.md](docs/DEPLOY.md) — full Render walk-through including env vars, custom domain, and the two-deployment model (cloud for paying users, local for admin).
+
+### More install detail
+[docs/INSTALL.md](docs/INSTALL.md) covers Windows / Mac / Linux step-by-step, HF token gating, and common troubleshooting.
 
 ---
 
