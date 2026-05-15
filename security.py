@@ -24,6 +24,15 @@ CORS_ALLOWED_ORIGINS = [
     if o.strip()
 ]
 
+# Per-route rate limits. Tuple = (max_calls, window_seconds).
+# Tune in one place; the routes just reference these names.
+RATE_GENERATE_USER  = (15, 60)
+RATE_GENERATE_IP    = (30, 60)
+RATE_TTS_USER       = (15, 60)
+RATE_TTS_IP         = (30, 60)
+RATE_NORMALIZE_IP   = (20, 60)
+RATE_UPGRADE_USER   = (5, 300)   # 5 requests per 5 min
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Sliding-window rate limiter

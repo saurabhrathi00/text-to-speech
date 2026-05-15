@@ -27,7 +27,7 @@ import auth
 import audio_storage
 import security
 
-from config import MAX_AUDIO_FILES, PROVIDERS as _CONFIG_PROVIDERS, PARLER_SPEAKERS as _CONFIG_PARLER_SPEAKERS
+from config import MAX_AUDIO_FILES, PROVIDERS, PARLER_SPEAKERS
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -107,15 +107,9 @@ except ImportError as _e:
     image_gen = None
 
 
-PARLER_SPEAKERS = _CONFIG_PARLER_SPEAKERS
-
-
 def _default_provider() -> str:
     """Provider from .env — used as initial UI state."""
     return (os.getenv("TTS_PROVIDER") or "parler").strip().lower()
-
-
-PROVIDERS = _CONFIG_PROVIDERS
 
 
 def _resolve_provider(requested: str | None) -> str:
@@ -340,7 +334,7 @@ def _build_voice_description(voice: dict) -> str:
 
 @app.route("/normalize", methods=["POST"])
 @security.require_json
-@security.rate_limit("ip", max_calls=20, window_sec=60)
+@security.rate_limit("ip", *security.RATE_NORMALIZE_IP)
 def normalize():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -362,8 +356,8 @@ def normalize():
 @app.route("/tts", methods=["POST"])
 @auth.require_user
 @security.require_json
-@security.rate_limit("user", max_calls=15, window_sec=60)
-@security.rate_limit("ip",   max_calls=30, window_sec=60)
+@security.rate_limit("user", *security.RATE_TTS_USER)
+@security.rate_limit("ip",   *security.RATE_TTS_IP)
 def tts():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
@@ -484,7 +478,7 @@ def api_plans():
 @app.route("/api/upgrade-request", methods=["POST"])
 @auth.require_user
 @security.require_json
-@security.rate_limit("user", max_calls=5, window_sec=300)
+@security.rate_limit("user", *security.RATE_UPGRADE_USER)
 def api_upgrade_request():
     """User asks to be moved to a higher plan. Admin reviews + approves
     out-of-band (payment handled outside the app for now)."""
@@ -615,8 +609,8 @@ def api_progress(job_id: str):
 @app.route("/generate", methods=["POST"])
 @auth.require_user
 @security.require_json
-@security.rate_limit("user", max_calls=15, window_sec=60)
-@security.rate_limit("ip",   max_calls=30, window_sec=60)
+@security.rate_limit("user", *security.RATE_GENERATE_USER)
+@security.rate_limit("ip",   *security.RATE_GENERATE_IP)
 def generate():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
