@@ -162,7 +162,7 @@ def _trim_chunk_audio(audio: np.ndarray, sr: int, chunk_text: str) -> np.ndarray
     """Run whisper on a single chunk's audio and trim trailing silence /
     repetition. Returns trimmed audio. Falls back to raw audio on failure.
     """
-    from aligner import align as _align, trim_audio_to_words
+    from .aligner import align as _align, trim_audio_to_words
 
     fd, tmp_path = tempfile.mkstemp(suffix=".wav")
     os.close(fd)

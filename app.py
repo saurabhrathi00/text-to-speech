@@ -75,29 +75,29 @@ def _llm_error_message(provider: str | None, detail: str = "") -> str:
     return f"{llm_display(provider)} se text refine nahi ho paya{tail}. Thodi der baad try kar."
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
-import eleven_tts  # cloud HTTP, no heavy deps
+from tts import eleven as eleven_tts  # cloud HTTP, no heavy deps
 
 # Heavy local-only modules (torch / transformers / parler_tts /
 # faster-whisper) are lazy-imported on the cloud build so the import
 # doesn't crash on a server that intentionally skipped requirements-local.txt.
 # On admin's GPU box all four resolve normally.
 try:
-    from tts_engine import synthesize as parler_synthesize, build_description, load_model
+    from tts.parler import synthesize as parler_synthesize, build_description, load_model
 except ImportError as _e:
-    print(f"[app] tts_engine unavailable ({_e}); Parler/Bark routes will 503")
+    print(f"[app] tts.parler unavailable ({_e}); Parler/Bark routes will 503")
     parler_synthesize = build_description = load_model = None
 
 try:
-    from aligner import align as align_words, load_aligner
+    from tts.aligner import align as align_words, load_aligner
 except ImportError as _e:
-    print(f"[app] aligner unavailable ({_e}); Whisper trim disabled")
+    print(f"[app] tts.aligner unavailable ({_e}); Whisper trim disabled")
     align_words = lambda *a, **kw: []
     load_aligner = lambda: None
 
 try:
-    import bark_tts
+    from tts import bark as bark_tts
 except ImportError as _e:
-    print(f"[app] bark_tts unavailable ({_e}); Bark routes will 503")
+    print(f"[app] tts.bark unavailable ({_e}); Bark routes will 503")
     bark_tts = None
 
 try:
@@ -947,11 +947,11 @@ def health():
     # Locally these imports succeed; on cloud the modules aren't present
     # and we report 'not loaded' (= cloud doesn't care about Parler etc.)
     try:
-        from tts_engine import _model as parler_model
+        from tts.parler import _model as parler_model
     except ImportError:
         parler_model = None
     try:
-        from aligner import _model as whisper_model
+        from tts.aligner import _model as whisper_model
     except ImportError:
         whisper_model = None
 

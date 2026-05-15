@@ -34,7 +34,9 @@ auth.py           → JWT + profiles + plans + quota + upgrades (will be split i
 security.py       → rate limits, CORS, body-size, suspicious flags
 audio_storage.py  → Supabase Storage, per-user folders, signed URLs
 normalizer.py     → Devanagari guard + sentence splitting (app-side LLM wrapper)
+image_gen.py      → ComfyUI image-gen (admin-only)
 llm/              → ISOLATED. Only stdlib + requests. Read llm/README.md
+tts/              → synthesis engines: parler.py, bark.py, eleven.py, aligner.py
 config.py         → Python config (PROVIDERS, PARLER_SPEAKERS, ElevenLabs defaults)
 config/providers.json → declarative provider metadata (frontend + backend)
 db/schema.sql     → idempotent (uses ALTER…IF NOT EXISTS)
