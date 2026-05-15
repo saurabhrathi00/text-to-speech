@@ -606,17 +606,27 @@
         }
       }
       role.textContent = rolePart;
-      if (me.limits && me.usage) {
+      // Display uses EFFECTIVE limits (base plan + any active top-up).
+      // The raw plan_limits row stays in me.limits for debugging /
+      // analytics, but the user-facing numbers come from effective_limits.
+      const eff = me.effective_limits;
+      if (eff) {
         const parts = [];
-        const { lifetime_uses, daily_uses, monthly_chars, max_chars_per_request } = me.limits;
-        if (lifetime_uses !== null && lifetime_uses !== undefined)
-          parts.push(`${me.usage.uses_total}/${lifetime_uses} uses`);
-        else if (daily_uses !== null && daily_uses !== undefined)
-          parts.push(`${me.usage.uses_24h}/${daily_uses} today`);
-        if (monthly_chars !== null && monthly_chars !== undefined)
-          parts.push(`${me.usage.chars_30d}/${monthly_chars} chars`);
-        if (max_chars_per_request !== null && max_chars_per_request !== undefined)
-          parts.push(`max ${max_chars_per_request}/req`);
+        const lifetime = me.limits?.lifetime_uses;
+        if (lifetime !== null && lifetime !== undefined) {
+          parts.push(`${me.usage.uses_total}/${lifetime} uses`);
+        } else if (eff.daily_cap !== null && eff.daily_cap !== undefined) {
+          parts.push(`${eff.daily_used}/${eff.daily_cap} today`);
+        }
+        if (eff.monthly_cap !== null && eff.monthly_cap !== undefined) {
+          parts.push(`${eff.monthly_used}/${eff.monthly_cap} chars`);
+        }
+        if (eff.max_chars_per_request) {
+          parts.push(`max ${eff.max_chars_per_request}/req`);
+        }
+        if (eff.has_topup) {
+          parts.push('⚡ top-up active');
+        }
         usage.textContent = parts.join(' · ');
       }
       renderUpgradeButton(me);
