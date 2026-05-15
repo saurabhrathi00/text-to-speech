@@ -100,7 +100,7 @@ All plans live in `plan_limits` (DB), editable by admin without a code change.
               └────────── same Supabase DB ──────────┘
 ```
 
-Same code, same Supabase, different env. Cloud server stays cheap and reliable; admin keeps Parler/Qwen privileges for personal use. See [DEPLOY.md](DEPLOY.md) for full deploy steps.
+Same code, same Supabase, different env. Cloud server stays cheap and reliable; admin keeps Parler/Qwen privileges for personal use. See [docs/DEPLOY.md](docs/DEPLOY.md) for full deploy steps.
 
 ---
 
@@ -194,7 +194,13 @@ text-to-speech/
 ├── requirements.txt          # Cloud-safe slim deps
 ├── requirements-local.txt    # Heavy ML deps (additive on top of base)
 ├── Procfile                  # gunicorn entrypoint for Render/Railway
-├── DEPLOY.md                 # Full deploy guide
+├── docs/
+│   ├── architecture.md       # Module map + request pipeline
+│   ├── DEPLOY.md             # Full cloud + local deploy guide
+│   └── INSTALL.md            # Quick install (Windows/Mac/Linux)
+├── scripts/
+│   ├── run.sh / run.bat      # Start server (auto cd to repo root)
+│   └── setup.sh / setup.bat  # One-time venv + deps
 └── README.md                 # ← you are here
 ```
 

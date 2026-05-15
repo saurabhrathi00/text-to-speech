@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # ====================================================
-# YouTube Narrator — One-time setup for Mac/Linux
+# SastaSpeech — One-time setup for Mac/Linux
+# Run from anywhere — script auto-cd's to repo root.
 # ====================================================
 set -e
+cd "$(dirname "$0")/.."
 
 echo "[1/3] Creating virtual environment..."
 python3 -m venv .venv
@@ -24,4 +26,4 @@ if [ ! -f .env ]; then
 fi
 
 echo ""
-echo "Setup complete! Run ./run.sh to start the server."
+echo "Setup complete! Run scripts/run.sh to start the server."

@@ -49,6 +49,12 @@ Things actually discovered during development. Not generic best-practice.
 - **Lazy-import local-only modules** in `app.py` with `try/except ImportError`. Don't crash the cloud container because `torch` isn't installed.
 - **Warmup must run on every entry path** (`python app.py`, `gunicorn`, `flask run`). Spawn at module import, not in `if __name__ == "__main__"`.
 
+## Folder structure
+
+- **`static/` + `templates/` are Flask-convention paths.** Moving them requires `Flask(__name__, static_folder=..., template_folder=...)` rewiring. Not worth it.
+- **`config.py` (Python module) and `config/` (data folder) coexist.** No actual conflict — Python imports the `.py` file, JSON is loaded by path. Cosmetic only.
+- **Shell scripts moved to `scripts/`** must pin CWD to repo root (`cd "$(dirname "$0")/.."` / `cd /d "%~dp0\.."`). Otherwise `.venv/`, `.env`, `app.py` lookups break.
+
 ## Things that looked clever but weren't
 
 - **Service-worker version bump on every deploy** — fragile. Better: network-first for HTML.

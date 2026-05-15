@@ -1,10 +1,12 @@
 @echo off
 REM ====================================================
-REM YouTube Narrator — Start server (Windows)
+REM SastaSpeech — Start server (Windows)
+REM Run from anywhere — script auto-cd's to repo root.
 REM ====================================================
+cd /d "%~dp0\.."
 
 if not exist .venv (
-  echo Virtual environment not found. Run setup.bat first.
+  echo Virtual environment not found. Run scripts\setup.bat first.
   exit /b 1
 )
 

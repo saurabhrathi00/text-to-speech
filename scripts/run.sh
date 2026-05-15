@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # ====================================================
-# YouTube Narrator — Start server (Mac/Linux)
+# SastaSpeech — Start server (Mac/Linux)
+# Run from anywhere — script auto-cd's to repo root.
 # ====================================================
 set -e
+cd "$(dirname "$0")/.."
 
 if [ ! -d .venv ]; then
-  echo "Virtual environment not found. Run ./setup.sh first."
+  echo "Virtual environment not found. Run scripts/setup.sh first."
   exit 1
 fi
 

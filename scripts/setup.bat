@@ -1,7 +1,9 @@
 @echo off
 REM ====================================================
-REM YouTube Narrator — One-time setup for Windows
+REM SastaSpeech — One-time setup for Windows
+REM Run from anywhere — script auto-cd's to repo root.
 REM ====================================================
+cd /d "%~dp0\.."
 
 echo [1/4] Creating virtual environment...
 python -m venv .venv
@@ -30,5 +32,5 @@ if not exist .env (
 )
 
 echo.
-echo Setup complete! Run "run.bat" to start the server.
+echo Setup complete! Run "scripts\run.bat" to start the server.
 pause

@@ -16,13 +16,13 @@ git clone <repo>  OR  unzip the project folder
 cd text-to-speech
 
 REM One-time setup
-setup.bat
+scripts\setup.bat
 
 REM Edit .env file: set HF_TOKEN
 notepad .env
 
 REM Start server
-run.bat
+scripts\run.bat
 ```
 
 Server: `http://localhost:5000`
@@ -36,13 +36,13 @@ Phone (same WiFi): `http://<your-PC-IP>:5000` — find your PC's IP with `ipconf
 cd text-to-speech
 
 # One-time setup
-./setup.sh
+./scripts/setup.sh
 
 # Edit .env: set HF_TOKEN
 nano .env
 
 # Start server
-./run.sh
+./scripts/run.sh
 ```
 
 Server: `http://localhost:5000`

@@ -6,7 +6,7 @@ SastaSpeech — Flask-based Hindi TTS SaaS. Two-deployment model:
 - **Local box** (admin): Parler + Whisper + Ollama/Qwen
 - **Cloud** (paying users): ElevenLabs + Gemini
 
-Same code, same Supabase DB, different `.env`. See [DEPLOY.md](DEPLOY.md).
+Same code, same Supabase DB, different `.env`. See [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Hard rules
 
@@ -35,8 +35,12 @@ security.py       → rate limits, CORS, body-size, suspicious flags
 audio_storage.py  → Supabase Storage, per-user folders, signed URLs
 normalizer.py     → Devanagari guard + sentence splitting (app-side LLM wrapper)
 llm/              → ISOLATED. Only stdlib + requests. Read llm/README.md
-config/providers.json → declarative provider metadata
+config.py         → Python config (PROVIDERS, PARLER_SPEAKERS, ElevenLabs defaults)
+config/providers.json → declarative provider metadata (frontend + backend)
 db/schema.sql     → idempotent (uses ALTER…IF NOT EXISTS)
+scripts/          → run.sh / run.bat / setup.sh / setup.bat (callable from anywhere; auto cd to repo root)
+docs/             → architecture.md, INSTALL.md, DEPLOY.md
+static/ templates/ → Flask convention paths — do NOT move
 ```
 
 ## Patterns to follow

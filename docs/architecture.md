@@ -146,4 +146,4 @@ Both `check_limits` (enforcement) and `/api/me` (UI) read from the same `get_eff
 - Redis / multi-host — single Render worker is enough for first 100 users
 - SQLAlchemy / migrations folder — single idempotent `schema.sql` is fine
 
-See [README.md](../README.md) for the roadmap, [DEPLOY.md](../DEPLOY.md) for cloud setup.
+See [README.md](../README.md) for the roadmap, [DEPLOY.md](DEPLOY.md) for cloud setup.
