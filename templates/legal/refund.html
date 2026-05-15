@@ -1,0 +1,61 @@
+{% extends "legal/_base.html" %}
+{% block title %}Refund & Cancellation Policy — SastaSpeech{% endblock %}
+{% block content %}
+<h1>Refund & Cancellation Policy</h1>
+<p class="updated">Last updated: {{ updated_at }}</p>
+
+<h2>Digital service — instant delivery</h2>
+<p>
+  SastaSpeech is a software-as-a-service product. Audio is generated and
+  delivered the moment you click "Generate", consuming third-party costs
+  (ElevenLabs, Gemini API) immediately. Because of this, refunds are not
+  available for already-used credits.
+</p>
+
+<h2>Eligible for refund</h2>
+<p>You may request a full refund if ALL of these are true:</p>
+<ul>
+  <li>You have NOT used any credits / generations from the plan.</li>
+  <li>The request is made within
+    <span class="legal-todo">[FILL IN: e.g. 7 days]</span> of payment.</li>
+  <li>The plan was purchased through our payment processor (proof of transaction available).</li>
+</ul>
+
+<h2>Partial refund cases</h2>
+<p>
+  Service-side outages causing extended unavailability (>24 hrs) qualify for
+  pro-rata credit toward your next billing cycle. Email
+  <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a> with
+  details.
+</p>
+
+<h2>Not eligible</h2>
+<ul>
+  <li>Already-consumed generations or characters.</li>
+  <li>Day passes / top-ups after any generation has been made.</li>
+  <li>Accounts suspended for violation of Terms.</li>
+</ul>
+
+<h2>How to request</h2>
+<p>
+  Email <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a>
+  with:
+</p>
+<ol>
+  <li>Registered email address.</li>
+  <li>Transaction ID (from your payment processor).</li>
+  <li>Reason for refund.</li>
+</ol>
+<p>
+  We respond within
+  <span class="legal-todo">[FILL IN: e.g. 3 business days]</span>. Approved
+  refunds are processed back to the original payment method within 5–7 working
+  days.
+</p>
+
+<h2>Cancellation</h2>
+<p>
+  Subscriptions are non-renewing by default — they simply expire after the
+  stated validity. There's no cancellation step needed.
+</p>
+{% endblock %}

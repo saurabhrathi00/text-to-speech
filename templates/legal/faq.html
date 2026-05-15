@@ -1,0 +1,85 @@
+{% extends "legal/_base.html" %}
+{% block title %}FAQ & Support — SastaSpeech{% endblock %}
+{% block content %}
+<h1>FAQ & Support</h1>
+<p class="updated">Last updated: {{ updated_at }}</p>
+
+<h2>What is SastaSpeech?</h2>
+<p>
+  A Hindi/Hinglish/English text-to-speech service for Indian creators. Type a
+  script, get studio-quality narrator audio in seconds.
+</p>
+
+<h2>What languages do you support?</h2>
+<p>
+  Hindi, Hinglish (mixed Roman + Devanagari), and English. Voice quality is
+  tuned for Hindi narration.
+</p>
+
+<h2>How long does a generation take?</h2>
+<p>
+  Typically under 10 seconds end-to-end: a couple of seconds for text refinement
+  (Gemini), a few more for voice synthesis (ElevenLabs).
+</p>
+
+<h2>What's the difference between plans?</h2>
+<p>
+  Each plan has three caps: max characters per request, generations per day,
+  and total characters per month. See the upgrade picker in-app for full
+  details. Day passes (Sabse Sasta) are one-time top-ups that ADD to your
+  current plan without replacing it.
+</p>
+
+<h2>Are the generated audios commercial-use?</h2>
+<p>
+  Yes. You own the audio output and can use it in commercial projects
+  (YouTube monetisation, paid courses, etc.). See
+  <a href="/terms">Terms</a> Section 7.
+</p>
+
+<h2>How long are audio files kept?</h2>
+<p>
+  Up to 24 hours, max 5 files per user. Download anything you want to keep —
+  files auto-delete after that.
+</p>
+
+<h2>Can I get a refund?</h2>
+<p>
+  Yes, if you haven't used any credits and the request is within
+  <span class="legal-todo">[FILL IN: e.g. 7 days]</span> of payment. See
+  <a href="/refund">Refund Policy</a>.
+</p>
+
+<h2>How do I upgrade my plan?</h2>
+<p>
+  Click "Upgrade" in the top bar after signing in. Pick your plan, drop your
+  payment reference in the note field. We currently process payments out of
+  band — admin will approve within
+  <span class="legal-todo">[FILL IN: SLA]</span>. Automated checkout coming
+  soon.
+</p>
+
+<h2>Why does my generation say "Daily limit reached"?</h2>
+<p>
+  Every plan has a daily cap (a rate-limit, not a quota). Wait 24 hours or buy
+  a Sabse Sasta top-up for +3 generations.
+</p>
+
+<h2>Can I clone my own voice?</h2>
+<p>
+  Not yet — currently only the curated voice library is available. Custom
+  voice cloning is on the roadmap.
+</p>
+
+<h2>Is my data used to train models?</h2>
+<p>
+  No. Your scripts and generated audio are never used to train any model. See
+  <a href="/privacy">Privacy Policy</a>.
+</p>
+
+<h2>Still stuck?</h2>
+<p>
+  Email <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a> or
+  use the <a href="/contact">Contact page</a>.
+</p>
+{% endblock %}

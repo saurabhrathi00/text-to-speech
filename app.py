@@ -315,6 +315,23 @@ def manifest():
     return send_from_directory(BASE_DIR / "static", "manifest.json", mimetype="application/manifest+json")
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Legal / business pages (public — no auth required so payment-gateway
+# KYC can verify them and so anyone can read T&C before signing up).
+# ──────────────────────────────────────────────────────────────────────
+_LEGAL_PAGES = {"about", "contact", "privacy", "terms", "refund", "faq"}
+
+
+@app.route("/<page>")
+def legal_page(page: str):
+    if page not in _LEGAL_PAGES:
+        from flask import abort
+        abort(404)
+    from datetime import date
+    return render_template(f"legal/{page}.html",
+                            updated_at=date.today().isoformat())
+
+
 def _build_voice_description(voice: dict) -> str:
     custom_desc = (voice.get("custom") or "").strip()
     if custom_desc:

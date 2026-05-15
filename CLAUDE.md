@@ -43,6 +43,7 @@ db/schema.sql     → idempotent (uses ALTER…IF NOT EXISTS)
 scripts/          → run.sh / run.bat / setup.sh / setup.bat (callable from anywhere; auto cd to repo root)
 docs/             → architecture.md, INSTALL.md, DEPLOY.md
 static/ templates/ → Flask convention paths — do NOT move
+templates/legal/  → about, contact, privacy, terms, refund, faq (public, no auth)
 ```
 
 ## Patterns to follow

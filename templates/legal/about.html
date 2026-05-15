@@ -1,0 +1,35 @@
+{% extends "legal/_base.html" %}
+{% block title %}About — SastaSpeech{% endblock %}
+{% block content %}
+<h1>About SastaSpeech</h1>
+<p class="updated">Last updated: {{ updated_at }}</p>
+
+<p>
+  SastaSpeech is a Hindi text-to-speech service built for Indian creators —
+  YouTubers, podcasters, educators, and storytellers who need natural-sounding
+  voiceovers without a recording studio.
+</p>
+
+<h2>What we do</h2>
+<p>
+  You type a Hindi, Hinglish, or English script. We refine it for natural
+  pronunciation (using Google Gemini) and synthesize studio-quality audio
+  (using ElevenLabs). Output is ready to drop into your video editor in
+  seconds.
+</p>
+
+<h2>Why we built this</h2>
+<p>
+  Existing TTS tools are expensive, English-first, and don't handle Hinglish
+  the way Indian audiences actually speak. SastaSpeech costs from ₹49 to
+  ₹1999/month — a fraction of dubbing studios — and is tuned for natural
+  Hindi narration with per-sentence emotion control.
+</p>
+
+<h2>Operator</h2>
+<p>
+  Operated by <span class="legal-todo">[FILL IN: legal entity name]</span>,
+  based in <span class="legal-todo">[FILL IN: city, state, India]</span>.
+  Contact via <a href="/contact">our contact page</a>.
+</p>
+{% endblock %}

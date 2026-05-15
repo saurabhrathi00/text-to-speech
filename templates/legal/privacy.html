@@ -1,0 +1,53 @@
+{% extends "legal/_base.html" %}
+{% block title %}Privacy Policy — SastaSpeech{% endblock %}
+{% block content %}
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: {{ updated_at }}</p>
+
+<p>
+  This policy explains what data SastaSpeech collects, why, and how we use it.
+  By using the service you accept what's described here.
+</p>
+
+<h2>What we collect</h2>
+<ul>
+  <li><strong>Account info</strong> — email address (via Google Sign-In). We do not store passwords; authentication is handled by Supabase + Google.</li>
+  <li><strong>Usage data</strong> — character counts per request, request timestamps, chosen voice + model. Used for quota enforcement and billing.</li>
+  <li><strong>Generated audio</strong> — your audio files are stored in a private, per-user folder in Supabase Storage, accessible only via short-lived signed URLs. Files are auto-deleted after 24 hours, with no more than 5 files retained per user at any time.</li>
+  <li><strong>Plan + payment metadata</strong> — your current plan, expiry, and upgrade-request history.</li>
+</ul>
+
+<h2>What we do NOT collect</h2>
+<ul>
+  <li>We do not retain your scripts beyond the time needed to generate audio.</li>
+  <li>We do not train any model on your input or audio.</li>
+  <li>We do not share or sell your data to third parties for advertising.</li>
+</ul>
+
+<h2>Third-party services we use</h2>
+<ul>
+  <li><strong>Supabase</strong> — authentication, database, file storage.</li>
+  <li><strong>Google Gemini</strong> — text refinement and emotion classification. Sent: your script. Not sent: your identity. Subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.</li>
+  <li><strong>ElevenLabs</strong> — voice synthesis. Sent: refined script + voice selection. Subject to <a href="https://elevenlabs.io/privacy" target="_blank" rel="noopener">ElevenLabs' privacy policy</a>.</li>
+  <li><strong>Payment processor</strong> — <span class="legal-todo">[FILL IN: Razorpay / etc.]</span> for billing. We do not store your card details.</li>
+</ul>
+
+<h2>Cookies</h2>
+<p>
+  We use only essential cookies for authentication (Supabase session token).
+  No tracking, analytics, or advertising cookies.
+</p>
+
+<h2>Your rights</h2>
+<p>
+  You can request account deletion (which cascades all your data) by emailing
+  <a href="mailto:support@sastaspeech.com">support@sastaspeech.com</a>. We will
+  comply within 7 business days.
+</p>
+
+<h2>Changes</h2>
+<p>
+  We may update this policy. The "Last updated" date above always reflects the
+  current version.
+</p>
+{% endblock %}

@@ -1000,3 +1000,21 @@ audio::-webkit-media-controls-panel {
   line-height: 1.55;
   text-align: center;
 }
+
+/* Login-page footer with links to legal/business pages. */
+.login-footer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px 22px;
+  padding: 24px 20px 36px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.login-footer a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+.login-footer a:hover { color: #c7d2fe; text-decoration: underline; }

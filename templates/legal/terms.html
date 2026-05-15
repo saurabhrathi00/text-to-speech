@@ -1,0 +1,88 @@
+{% extends "legal/_base.html" %}
+{% block title %}Terms & Conditions — SastaSpeech{% endblock %}
+{% block content %}
+<h1>Terms & Conditions</h1>
+<p class="updated">Last updated: {{ updated_at }}</p>
+
+<p>
+  By using SastaSpeech you agree to the terms below. Operator:
+  <span class="legal-todo">[FILL IN: legal entity name + address]</span>.
+</p>
+
+<h2>1. Service</h2>
+<p>
+  SastaSpeech is a software-as-a-service offering Hindi/Hinglish/English
+  text-to-speech generation. Plans, quotas, and pricing are listed in the app
+  and may change with notice.
+</p>
+
+<h2>2. Account</h2>
+<ul>
+  <li>One account per person. Sign-in via Google only.</li>
+  <li>You are responsible for activity on your account.</li>
+  <li>We may suspend accounts violating these terms (see Section 5).</li>
+</ul>
+
+<h2>3. Permitted use</h2>
+<p>You may generate audio for:</p>
+<ul>
+  <li>Personal projects, commercial videos, podcasts, courses, and similar lawful content.</li>
+</ul>
+
+<h2>4. Prohibited use</h2>
+<p>You may NOT use SastaSpeech to generate audio that:</p>
+<ul>
+  <li>Impersonates real people without consent.</li>
+  <li>Contains hate speech, defamation, or harassment.</li>
+  <li>Violates Indian law or third-party rights.</li>
+  <li>Generates spam, robocalls, or fraudulent material.</li>
+  <li>Attempts to circumvent quota or abuse detection.</li>
+</ul>
+
+<h2>5. Suspension</h2>
+<p>
+  We may suspend or terminate accounts that violate Section 4, fail to pay, or
+  abuse the service. Suspended accounts forfeit remaining credits.
+</p>
+
+<h2>6. Payment + billing</h2>
+<ul>
+  <li>Plans are billed in advance via <span class="legal-todo">[FILL IN: payment processor]</span>.</li>
+  <li>Top-ups (e.g. Sabse Sasta) are one-time charges.</li>
+  <li>Subscriptions auto-expire after their stated validity (e.g. 30 days). No auto-renewal unless explicitly enabled.</li>
+  <li>Pricing in INR. All applicable taxes (GST) included <span class="legal-todo">[VERIFY]</span>.</li>
+</ul>
+
+<h2>7. Intellectual property</h2>
+<ul>
+  <li>You own the input scripts you provide.</li>
+  <li>You own the audio outputs we generate for you and may use them commercially.</li>
+  <li>SastaSpeech retains rights to the platform, voice models (licensed from ElevenLabs), and software.</li>
+</ul>
+
+<h2>8. Service availability</h2>
+<p>
+  We aim for high uptime but do not guarantee 100% availability. Scheduled
+  maintenance + third-party outages (ElevenLabs, Gemini, Supabase) are
+  unavoidable.
+</p>
+
+<h2>9. Limitation of liability</h2>
+<p>
+  To the maximum extent permitted by law, SastaSpeech is not liable for
+  indirect, incidental, or consequential damages. Total liability for any
+  claim is limited to amounts paid by you in the preceding 3 months.
+</p>
+
+<h2>10. Governing law</h2>
+<p>
+  These terms are governed by Indian law. Disputes are subject to the
+  jurisdiction of courts in
+  <span class="legal-todo">[FILL IN: city, state]</span>.
+</p>
+
+<h2>11. Changes</h2>
+<p>
+  We may update these terms. Continued use after changes constitutes acceptance.
+</p>
+{% endblock %}
