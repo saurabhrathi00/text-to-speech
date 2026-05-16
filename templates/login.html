@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>SastaSpeech — Sasta + Mast Hindi voiceovers</title>
+  <title>Sign in — SastaSpeech</title>
   <meta name="theme-color" content="#0f172a" />
-  <meta name="description" content="Studio-quality Hindi text-to-speech for Indian creators. Plans start at ₹49." />
+  <meta name="description" content="Sign in to SastaSpeech with Google and start generating Hindi voiceovers in seconds." />
+  <!-- Login pages don't rank on their own — the landing at / is the
+       indexable surface. Still 'follow' so link-equity passes through. -->
+  <meta name="robots" content="noindex, follow" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -223,7 +226,7 @@
           headers: { Authorization: 'Bearer ' + existing.session.access_token },
         });
         if (probe.ok) {
-          window.location.replace('/');
+          window.location.replace('/app');
         } else {
           const body = await probe.json().catch(() => ({}));
           await supabase.auth.signOut();
@@ -254,7 +257,7 @@
       try {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: window.location.origin + '/' },
+          options: { redirectTo: window.location.origin + '/app' },
         });
         if (error) {
           showError(error.message);

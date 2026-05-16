@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>YouTube Narrator</title>
+  <title>SastaSpeech App — Generate Hindi voiceovers</title>
+  <!-- noindex: this is the authenticated app surface; the landing page
+       at / is what should rank. -->
+  <meta name="robots" content="noindex, nofollow" />
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#312e81" />
+  <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Narrator" />
@@ -986,7 +989,9 @@
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       if (window._supabase) await window._supabase.auth.signOut();
-      window.location.href = '/login';
+      // Land back on the public marketing page so the user sees the
+      // pitch on the way out, not a blank login form.
+      window.location.href = '/';
     });
 
     // ── Scene-prompt generation (Hindi → English image prompts) ──────

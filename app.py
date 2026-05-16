@@ -5,6 +5,7 @@ import uuid
 import threading
 import traceback
 from pathlib import Path
+from flask import Response
 
 
 def _load_env_file():
@@ -304,8 +305,24 @@ def _public_supabase_config() -> dict:
     }
 
 
+CANONICAL_HOST = os.getenv("CANONICAL_HOST", "https://sastaspeech.in").rstrip("/")
+
+
 @app.route("/")
-def index():
+def landing_page():
+    """Public marketing page — what crawlers and first-time visitors
+    see. Logged-in users get auto-redirected to /app by JS."""
+    return render_template(
+        "landing.html",
+        supabase=_public_supabase_config(),
+        canonical_host=CANONICAL_HOST,
+    )
+
+
+@app.route("/app")
+def app_page():
+    """The actual TTS UI — gated on auth via JS. Marked noindex so
+    Google doesn't try to rank a spinner."""
     return render_template("index.html", supabase=_public_supabase_config())
 
 
@@ -322,6 +339,16 @@ def service_worker():
 @app.route("/manifest.json")
 def manifest():
     return send_from_directory(BASE_DIR / "static", "manifest.json", mimetype="application/manifest+json")
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    return send_from_directory(BASE_DIR / "static", "robots.txt", mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    return send_from_directory(BASE_DIR / "static", "sitemap.xml", mimetype="application/xml")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -1144,3 +1171,22 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
     _kick_off_warmup()  # safe to call again — the lock dedupes
     app.run(host=host, port=port, debug=False, threaded=True)
+
+
+@app.route('/sitemap.xml')
+def sitemap():
+    sitemap_xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <url>
+    <loc>https://sastaspeech.in/</loc>
+  </url>
+
+  <url>
+    <loc>https://sastaspeech.in/pricing</loc>
+  </url>
+
+</urlset>
+'''
+
+    return Response(sitemap_xml, mimetype='application/xml')

@@ -1,0 +1,18 @@
+# SastaSpeech crawler rules.
+# Update CANONICAL_HOST in app.py to keep the sitemap URL in sync.
+
+User-agent: *
+Allow: /
+Disallow: /app
+Disallow: /api/
+Disallow: /audio/
+Disallow: /images/
+Disallow: /static/icon
+Disallow: /sw.js
+Disallow: /manifest.json
+
+# Sensitive surfaces — never index
+Disallow: /api/me
+Disallow: /api/admin/
+
+Sitemap: https://sastaspeech.in/sitemap.xml
