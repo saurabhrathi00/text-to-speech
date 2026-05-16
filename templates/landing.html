@@ -62,11 +62,9 @@
     "url": "{{ canonical_host }}",
     "description": "Hindi / Hinglish / English text-to-speech for content creators. 60+ emotion tags, per-sentence performance, signed-URL audio.",
     "offers": [
-      {"@type": "Offer", "name": "Free",        "price": "0",    "priceCurrency": "INR", "category": "free"},
-      {"@type": "Offer", "name": "Sabse Sasta", "price": "49",   "priceCurrency": "INR", "category": "one-time top-up"},
-      {"@type": "Offer", "name": "Starter",     "price": "299",  "priceCurrency": "INR", "category": "monthly subscription"},
-      {"@type": "Offer", "name": "Pro",         "price": "799",  "priceCurrency": "INR", "category": "monthly subscription"},
-      {"@type": "Offer", "name": "Pro Plus",    "price": "1999", "priceCurrency": "INR", "category": "monthly subscription"}
+      {%- for p in plans %}
+      {"@type": "Offer", "name": {{ (p.display_name or p.plan) | tojson }}, "price": "{{ p.price_inr_monthly or 0 }}", "priceCurrency": "INR", "category": "{{ 'one-time top-up' if p.is_topup else ('free' if not p.price_inr_monthly else 'monthly subscription') }}"}{%- if not loop.last %},{%- endif %}
+      {%- endfor %}
     ]
   }
   </script>
@@ -229,72 +227,66 @@
       <p class="landing-section-sub">All plans use Gemini for text refinement and ElevenLabs v3 for voice. Built around honest cost math: ~₹0.013 per character + sensible margin.</p>
 
       <div class="landing-pricing-grid">
-        <article class="pricing-card">
-          <h3>Free</h3>
-          <p class="pricing-price">₹0</p>
-          <p class="pricing-tag">Trial</p>
+        {%- for p in plans %}
+          {%- set is_free = (p.price_inr_monthly or 0) == 0 and not p.is_topup %}
+          {%- set is_featured = p.plan == 'pro' and not p.is_topup %}
+          {%- set card_class = 'pricing-card' + (' pricing-card-topup' if p.is_topup else (' pricing-card-featured' if is_featured else '')) %}
+          {%- set hours = p.audio_minutes // 60 %}
+          {%- set mins  = p.audio_minutes % 60 %}
+          {%- if p.audio_minutes >= 60 %}
+            {%- set audio_label = (hours|string) + ' hr' + (' ' + mins|string + ' min' if mins else '') + ' of audio' %}
+          {%- elif p.audio_minutes >= 1 %}
+            {%- set audio_label = (p.audio_minutes|string) + ' min of audio' %}
+          {%- elif (p.monthly_chars or 0) > 0 %}
+            {%- set audio_label = ((p.monthly_chars / 8.3) | round | int | string) + ' sec of audio' %}
+          {%- else %}
+            {%- set audio_label = '' %}
+          {%- endif %}
+        <article class="{{ card_class }}">
+          {%- if p.is_topup %}
+            <span class="pricing-badge">⚡ Top-up</span>
+          {%- elif is_featured %}
+            <span class="pricing-badge">Most popular</span>
+          {%- endif %}
+          <h3>{{ p.display_name or p.plan|title }}</h3>
+          <p class="pricing-price">
+            {%- if is_free %}
+              ₹0
+            {%- else %}
+              ₹{{ '{:,}'.format(p.price_inr_monthly or 0) }}
+              <span class="muted">{{ 'one-time' if p.is_topup else '/mo' }}</span>
+            {%- endif %}
+          </p>
+          <p class="pricing-tag">
+            {%- if is_free %}Trial
+            {%- elif p.is_topup %}Emergency refill
+            {%- elif p.plan == 'starter' %}Casual creators
+            {%- elif p.plan == 'pro' %}Regular creators
+            {%- elif p.plan == 'pro_plus' %}Power users · agencies
+            {%- else %}{{ p.notes or '' }}{%- endif %}
+          </p>
           <ul>
-            <li>1 generation per day</li>
-            <li>Up to 100 characters per script</li>
-            <li>~12 seconds of audio</li>
-            <li>Hindi · Hinglish · English</li>
+            {%- if p.is_topup %}
+              {%- if p.monthly_chars %}<li><strong>+{{ '{:,}'.format(p.monthly_chars) }} characters</strong> on top of your plan</li>{%- endif %}
+              {%- if p.daily_uses %}<li>+{{ p.daily_uses }} extra generations</li>{%- endif %}
+              {%- if p.max_chars_per_request %}<li>Per-request size lifted by {{ '{:,}'.format(p.max_chars_per_request) }} chars</li>{%- endif %}
+              {%- if p.validity_hours %}<li>Plan validity extended by {{ p.validity_hours }} hours</li>{%- endif %}
+              {%- if audio_label %}<li>~{{ audio_label }}</li>{%- endif %}
+            {%- else %}
+              {%- if p.daily_uses %}<li>{{ p.daily_uses }} generation{{ 's' if p.daily_uses != 1 else '' }} per day</li>{%- endif %}
+              {%- if p.max_chars_per_request %}<li>{{ '{:,}'.format(p.max_chars_per_request) }} chars per script</li>{%- endif %}
+              {%- if p.monthly_chars %}<li>{{ '{:,}'.format(p.monthly_chars) }} chars/month total</li>{%- endif %}
+              {%- if audio_label %}<li>~{{ audio_label }}</li>{%- endif %}
+              {%- if is_free %}<li>Hindi · Hinglish · English</li>{%- endif %}
+            {%- endif %}
           </ul>
-          <a class="pricing-cta" href="/login">Start free →</a>
+          <a class="pricing-cta" href="/login">
+            {%- if is_free %}Start free →
+            {%- elif p.is_topup %}Get top-up →
+            {%- else %}Choose {{ p.display_name or p.plan|title }} →{%- endif %}
+          </a>
         </article>
-
-        <article class="pricing-card pricing-card-topup">
-          <span class="pricing-badge">⚡ Top-up</span>
-          <h3>Sabse Sasta</h3>
-          <p class="pricing-price">₹49 <span class="muted">one-time</span></p>
-          <p class="pricing-tag">Emergency refill</p>
-          <ul>
-            <li><strong>+1,500 characters</strong> on top of your plan</li>
-            <li>+3 extra generations</li>
-            <li>Per-request size lifted to 500 chars</li>
-            <li>~3 minutes of audio</li>
-          </ul>
-          <a class="pricing-cta" href="/login">Get top-up →</a>
-        </article>
-
-        <article class="pricing-card">
-          <h3>Starter</h3>
-          <p class="pricing-price">₹299 <span class="muted">/mo</span></p>
-          <p class="pricing-tag">Casual creators</p>
-          <ul>
-            <li>5 generations per day</li>
-            <li>1,000 chars per script</li>
-            <li>20,000 chars/month total</li>
-            <li>~40 minutes of audio</li>
-          </ul>
-          <a class="pricing-cta" href="/login">Choose Starter →</a>
-        </article>
-
-        <article class="pricing-card pricing-card-featured">
-          <span class="pricing-badge">Most popular</span>
-          <h3>Pro</h3>
-          <p class="pricing-price">₹799 <span class="muted">/mo</span></p>
-          <p class="pricing-tag">Regular creators</p>
-          <ul>
-            <li>10 generations per day</li>
-            <li>3,000 chars per script</li>
-            <li>50,000 chars/month total</li>
-            <li>~1 hour 40 min of audio</li>
-          </ul>
-          <a class="pricing-cta" href="/login">Choose Pro →</a>
-        </article>
-
-        <article class="pricing-card">
-          <h3>Pro Plus</h3>
-          <p class="pricing-price">₹1,999 <span class="muted">/mo</span></p>
-          <p class="pricing-tag">Power users · agencies</p>
-          <ul>
-            <li>20 generations per day</li>
-            <li>5,000 chars per script</li>
-            <li>150,000 chars/month total</li>
-            <li>~5 hours of audio</li>
-          </ul>
-          <a class="pricing-cta" href="/login">Choose Pro Plus →</a>
-        </article>
+        {%- endfor %}
       </div>
     </section>
 

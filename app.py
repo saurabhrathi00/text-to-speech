@@ -308,14 +308,43 @@ def _public_supabase_config() -> dict:
 CANONICAL_HOST = os.getenv("CANONICAL_HOST", "https://sastaspeech.in").rstrip("/")
 
 
+CHARS_PER_AUDIO_MINUTE = 500   # rough Hindi narration pace; same as UI
+
+
+def _public_plans() -> list[dict]:
+    """Plan ladder for the public landing — same query as /api/plans.
+    Returns [] on DB error so the page still renders (just without
+    the pricing section). The landing template tolerates an empty
+    list by hiding the pricing grid."""
+    try:
+        res = (auth.admin_client().table("plan_limits")
+               .select("plan,display_name,price_inr_monthly,validity_hours,kind,"
+                       "daily_uses,max_chars_per_request,monthly_chars,notes")
+               .neq("plan", "admin")
+               .execute())
+        rows = getattr(res, "data", None) or []
+        rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
+        for r in rows:
+            chars = r.get("monthly_chars") or 0
+            r["audio_minutes"] = round(chars / CHARS_PER_AUDIO_MINUTE) if chars else 0
+            r["is_topup"] = (r.get("kind") or "subscription").lower() == "topup"
+        return rows
+    except Exception as e:
+        print(f"[app] _public_plans failed: {e}")
+        return []
+
+
 @app.route("/")
 def landing_page():
     """Public marketing page — what crawlers and first-time visitors
-    see. Logged-in users get auto-redirected to /app by JS."""
+    see. Pricing is server-rendered from plan_limits so the landing
+    never drifts from the DB. Logged-in users get auto-redirected
+    to /app by JS."""
     return render_template(
         "landing.html",
         supabase=_public_supabase_config(),
         canonical_host=CANONICAL_HOST,
+        plans=_public_plans(),
     )
 
 
