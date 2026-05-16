@@ -118,10 +118,10 @@ values
      1,    null, 100,   100,
      array['gemini'], array['elevenlabs'],
      'Free trial: 1 generation per day, max 100 chars'),
-    ('sabse_sasta',  'Sabse Sasta',  49,   null,
+    ('sabse_sasta',  'Sabse Sasta',  49,   48,
      3,    null, 500,   1500,
      array['gemini'], array['elevenlabs'],
-     'Top-up bundle: +1500 chars, +3 generations, up to 500 chars/req'),
+     'Top-up bundle: +1500 chars, +3 gens, +500 chars/req · extends active plan by 48h'),
     ('starter',      'Starter',      299,  720,
      5,    null, 1000,  20000,
      array['gemini'], array['elevenlabs'],
@@ -143,15 +143,17 @@ on conflict (plan) do nothing;
 -- Backfill validity_hours / kind for pre-existing seeded rows.
 update public.plan_limits set validity_hours = 720 where plan in ('starter','pro','pro_plus') and validity_hours is null;
 
--- Sabse Sasta switched from plan-replacement to top-up. Refund-only,
--- so it no longer needs a validity window (chars credit lives on the
--- usage_events ledger and naturally rolls out after 30 days).
+-- Sabse Sasta: top-up bundle. Now carries validity_hours=48 — on
+-- approve we extend the user's plan_expires_at by 48h (true additive
+-- overlay: every limit grows, validity grows). Chars credit still
+-- rides on usage_events; bonus_uses + bonus_max_chars_per_request
+-- still ride on profiles.
 update public.plan_limits
    set kind = 'topup',
-       validity_hours = null,
+       validity_hours = 48,
        daily_uses = 3,
        max_chars_per_request = 500,
-       notes = 'Top-up bundle: +1500 chars, +3 generations, up to 500 chars/req'
+       notes = 'Top-up bundle: +1500 chars, +3 gens, +500 chars/req · extends active plan by 48h'
  where plan = 'sabse_sasta';
 update public.plan_limits set kind = 'subscription' where kind is null;
 

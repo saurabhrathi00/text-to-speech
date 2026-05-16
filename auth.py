@@ -516,24 +516,31 @@ def resolve_upgrade_request(request_id: int, action: str,
             kind = (limits.get("kind") or "subscription").lower()
 
             if kind == "topup":
-                # Top-up grants three things atomically:
-                #   1. monthly_chars worth of chars — inserted as a
-                #      negative usage_event so existing check_limits
-                #      arithmetic naturally allows that many more chars.
-                #   2. daily_uses extra generations — added to
-                #      profiles.bonus_uses. Each successful gen past
-                #      the base plan's daily cap decrements this pool.
-                #   3. max_chars_per_request override — stored on
-                #      profiles.bonus_max_chars_per_request, in effect
-                #      while bonus_uses > 0.
-                # Plan + expiry stay untouched — the user keeps their
-                # subscription.
+                # Top-up is a TRUE additive overlay — every base-plan
+                # limit grows by the top-up's value, and the user's
+                # active plan validity is extended by the top-up's
+                # validity_hours. Mechanics:
+                #   1. chars  → negative usage_events row (rolling-30d
+                #      arithmetic naturally allows +monthly_chars more).
+                #   2. gens   → profiles.bonus_uses += topup.daily_uses.
+                #               check_limits sees daily_cap = base + bonus.
+                #   3. max/req → profiles.bonus_max_chars_per_request
+                #                += topup.max_chars_per_request.
+                #                get_effective_limits sums it onto the
+                #                base. Stacks if user buys multiple.
+                #   4. validity → plan_expires_at += topup.validity_hours.
+                #                 If the user's plan had already expired
+                #                 (or never had one — free users) we start
+                #                 the clock from now.
                 bonus_chars = int(limits.get("monthly_chars") or 0)
                 bonus_reqs  = int(limits.get("daily_uses") or 0)
-                bonus_max   = limits.get("max_chars_per_request")
-                if bonus_chars <= 0 and bonus_reqs <= 0:
+                bonus_max   = int(limits.get("max_chars_per_request") or 0)
+                bonus_hours = int(limits.get("validity_hours") or 0)
+                if (bonus_chars <= 0 and bonus_reqs <= 0
+                        and bonus_max <= 0 and bonus_hours <= 0):
                     return None, "Top-up plan has nothing to grant — contact support"
                 try:
+                    # (1) chars credit on the ledger
                     if bonus_chars > 0:
                         admin_client().table("usage_events").insert({
                             "user_id": req["user_id"],
@@ -543,20 +550,30 @@ def resolve_upgrade_request(request_id: int, action: str,
                             "cost_usd": 0,
                             "meta": {"topup_plan": target_plan, "request_id": req["id"]},
                         }).execute()
-                    # Stack bonus reqs on top of any unconsumed ones (e.g.
-                    # if the user bought two Sabse Sastas without using
-                    # the first), and lift max-per-request to the higher
-                    # of current bonus and this top-up.
+
+                    # (2)+(3) bump bonus_uses + bonus_max on profile
                     cur_profile = get_profile(req["user_id"]) or {}
+                    profile_update = {"updated_at": "now()"}
                     new_bonus_uses = int(cur_profile.get("bonus_uses") or 0) + bonus_reqs
-                    cur_bonus_max = cur_profile.get("bonus_max_chars_per_request") or 0
-                    new_bonus_max = max(int(cur_bonus_max or 0), int(bonus_max or 0)) or None
-                    if bonus_reqs > 0 or bonus_max:
-                        admin_client().table("profiles").update({
-                            "bonus_uses": new_bonus_uses,
-                            "bonus_max_chars_per_request": new_bonus_max,
-                            "updated_at": "now()",
-                        }).eq("user_id", req["user_id"]).execute()
+                    new_bonus_max  = int(cur_profile.get("bonus_max_chars_per_request") or 0) + bonus_max
+                    if bonus_reqs > 0:
+                        profile_update["bonus_uses"] = new_bonus_uses
+                    if bonus_max > 0:
+                        profile_update["bonus_max_chars_per_request"] = new_bonus_max
+
+                    # (4) extend plan_expires_at by topup's validity_hours
+                    if bonus_hours > 0:
+                        from datetime import timedelta
+                        current_expiry = _parse_ts(cur_profile.get("plan_expires_at"))
+                        # If expiry already passed or never set, start from now
+                        base_ts = current_expiry if (current_expiry and current_expiry > _now_utc()) else _now_utc()
+                        profile_update["plan_expires_at"] = (
+                            base_ts + timedelta(hours=bonus_hours)
+                        ).isoformat()
+
+                    if len(profile_update) > 1:  # more than just updated_at
+                        admin_client().table("profiles").update(profile_update).eq(
+                            "user_id", req["user_id"]).execute()
                 except Exception as e:
                     return None, f"Failed to credit top-up: {e}"
             else:
@@ -633,11 +650,12 @@ def get_effective_limits(profile: dict, summary: dict | None = None) -> dict:
     gen_chars_30d  = int(summary.get("gen_chars_30d") or 0)
     uses_24h       = int(summary.get("uses_24h") or 0)
 
-    # Effective caps. Each goes max(base, bonus-derived) and lets the
-    # higher of the two win. None means unlimited.
-    eff_max     = max(int(base_max or 0),     int(bonus_max or 0)) if (base_max or bonus_max) else None
-    eff_daily   = (int(base_daily or 0) + bonus_uses) if base_daily is not None else None
-    eff_monthly = (int(base_monthly or 0) + topup_credit) if base_monthly is not None else None
+    # All three caps are additive: base + bonus. User's stated intent —
+    # buying a top-up grows every limit by the top-up's value, never
+    # replaces. None means unlimited (kept as None to preserve admin).
+    eff_max     = ((int(base_max or 0)     + int(bonus_max or 0)))  if (base_max or bonus_max) else None
+    eff_daily   = (int(base_daily or 0)    + bonus_uses)            if base_daily   is not None else None
+    eff_monthly = (int(base_monthly or 0)  + topup_credit)          if base_monthly is not None else None
 
     return {
         "max_chars_per_request": eff_max,
