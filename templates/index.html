@@ -428,6 +428,13 @@
     function ttsDisplay(id) { return (ttsEntry(id) || {}).display || id || ''; }
     function isLocalTts(id) { return (ttsEntry(id) || {}).kind === 'local'; }
     function isLocalLlm(id) { return (llmEntry(id) || {}).kind === 'local'; }
+    // 'available' is server-computed — whether THIS deployment can
+    // actually run the provider. A user's plan may allow Parler, but
+    // a cloud box without torch reports available:false and we hide
+    // the button + skip the local-models splash. Old builds without
+    // the flag default to true so we don't break dev.
+    function isAvailableTts(id) { const e = ttsEntry(id); return e ? e.available !== false : false; }
+    function isAvailableLlm(id) { const e = llmEntry(id); return e ? e.available !== false : false; }
 
     async function loadProviderRegistry() {
       try {
@@ -509,38 +516,43 @@
     }
 
     async function _applyTtsWhitelist(me) {
-      const allowedTts = me?.allowed_providers?.tts;
+      // Effective TTS list = allowed (per plan) ∩ available (per deploy).
+      // Cloud admin: allowed=[elevenlabs,parler,bark] ∩ available=[elevenlabs] = [elevenlabs].
+      const rawAllowed = (me?.allowed_providers?.tts || []).map(s => s.toLowerCase());
+      const allowedTts = rawAllowed.length
+        ? rawAllowed.filter(isAvailableTts)
+        : rawAllowed;
       const ttsBtns = document.querySelectorAll('.prov-btn');
       const ttsRow = document.getElementById('ttsToggle');
       let firstTtsBtn = null;
       if (allowedTts && allowedTts.length) {
-        const ttsSet = new Set(allowedTts.map(s => s.toLowerCase()));
+        const ttsSet = new Set(allowedTts);
         ttsBtns.forEach(b => {
           const ok = ttsSet.has((b.dataset.provider || '').toLowerCase());
           b.classList.toggle('hidden', !ok);
           if (ok && !firstTtsBtn) firstTtsBtn = b;
         });
-        // Hide the row when the user has no real choice — same UX as
-        // the LLM row. Avoids leaking provider names (ElevenLabs etc.)
-        // to users who can't switch anyway, and keeps the UI clean.
+        // Hide the row when the user has no real choice — keeps the
+        // UI clean and avoids leaking provider names.
         if (ttsRow) ttsRow.classList.toggle('hidden', allowedTts.length <= 1);
       } else {
-        // No whitelist (auth disabled / missing /api/me) — keep every
-        // button visible and just pick the first one in the DOM.
+        // No whitelist (auth disabled) — pick first DOM button.
         firstTtsBtn = ttsBtns[0] || null;
       }
-      // Await setProvider so voices are populated before reveal.
       if (firstTtsBtn) {
         await setProvider(firstTtsBtn.dataset.provider);
       }
     }
 
     function _applyLlmWhitelist(me) {
-      const allowedLlm = me?.allowed_providers?.llm;
+      const rawAllowed = (me?.allowed_providers?.llm || []).map(s => s.toLowerCase());
+      const allowedLlm = rawAllowed.length
+        ? rawAllowed.filter(isAvailableLlm)
+        : rawAllowed;
       const llmBtns = document.querySelectorAll('.llm-btn');
       const llmRow = document.getElementById('llmToggle');
       if (!allowedLlm || !allowedLlm.length) return;
-      const llmSet = new Set(allowedLlm.map(s => s.toLowerCase()));
+      const llmSet = new Set(allowedLlm);
       let firstLlm = null;
       llmBtns.forEach(b => {
         const ok = llmSet.has((b.dataset.llm || '').toLowerCase());
@@ -573,14 +585,15 @@
 
 
     function userNeedsLocalModels(me) {
-      // If ANY allowed provider (TTS or LLM) is local, this user
-      // might use it during the session — so we should wait for the
-      // weights to warm. Admins typically have both cloud + local in
-      // their list; cloud-only plans (free/pro) skip the wait.
-      // "local vs cloud" comes from the registry, not a hardcoded set.
+      // If ANY allowed provider is BOTH local AND available on this
+      // deployment, the user might use it → splash waits for warmup.
+      // 'available' filter is what stops an admin logged into the
+      // cloud box from waiting on Parler/Qwen weights that don't
+      // exist there.
       const tts = (me?.allowed_providers?.tts || []).map(s => s.toLowerCase());
       const llm = (me?.allowed_providers?.llm || []).map(s => s.toLowerCase());
-      return tts.some(isLocalTts) || llm.some(isLocalLlm);
+      return tts.some(id => isLocalTts(id) && isAvailableTts(id))
+          || llm.some(id => isLocalLlm(id) && isAvailableLlm(id));
     }
 
     async function continueBoot(me) {

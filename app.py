@@ -142,16 +142,20 @@ def _resolve_llm_provider_for_user(requested: str | None = None) -> tuple[str | 
     profile = auth.get_profile(user["id"])
     if profile is not None:
         profile["role"] = user.get("role") or profile.get("role")
-    allowed = auth.get_allowed_providers(profile).get("llm") or []
+    raw_allowed = auth.get_allowed_providers(profile).get("llm") or []
+    # Same allowed × available intersection as the TTS resolver — a
+    # cloud deploy without Ollama drops 'ollama' even for admins whose
+    # plan technically grants it.
+    allowed = [p for p in raw_allowed if _provider_available("llm", p)]
     if not allowed:
-        return None, ("No LLM providers configured for your plan. "
-                      "Contact support.")
+        return None, ("No LLM providers configured for your plan on this "
+                      "server. Contact support.")
 
     if requested_clean and requested_clean in allowed:
         return requested_clean, None
     if requested_clean and requested_clean not in allowed:
         return None, (f"Text model '{requested_clean}' not available on "
-                      f"your plan. Allowed: {', '.join(allowed)}.")
+                      f"your plan. Allowed here: {', '.join(allowed)}.")
 
     if env_default in allowed:
         return env_default, None
@@ -183,16 +187,21 @@ def _resolve_tts_provider_for_user(requested: str | None) -> tuple[str | None, s
     if profile is not None:
         profile["role"] = g.user.get("role") or profile.get("role")
     allowed = auth.get_allowed_providers(profile).get("tts") or []
-    allowed_supported = [p for p in allowed if p in PROVIDERS]
+    # 1. plan-allowed AND in this build's registry, then
+    # 2. actually runnable on THIS deployment (Parler needs torch,
+    #    Bark needs torch, ElevenLabs needs the API key). Cloud admin
+    #    has parler/bark in their plan but only elevenlabs survives.
+    allowed_supported = [p for p in allowed
+                         if p in PROVIDERS and _provider_available("tts", p)]
     if not allowed_supported:
-        return None, ("No TTS providers configured for your plan. "
-                      "Contact support.")
+        return None, ("No TTS providers configured for your plan on this "
+                      "server. Contact support.")
 
     if requested_clean and requested_clean in allowed_supported:
         return requested_clean, None
     if requested_clean and requested_clean not in allowed_supported:
         return None, (f"Provider '{requested_clean}' not available on "
-                      f"your plan. Allowed: {', '.join(allowed_supported)}.")
+                      f"your plan. Allowed here: {', '.join(allowed_supported)}.")
 
     # No specific request — prefer env default if user has it, else first allowed
     env_default = _default_provider()
@@ -1058,12 +1067,43 @@ def api_providers():
     })
 
 
+def _provider_available(kind: str, pid: str) -> bool:
+    """Runtime check: is this provider actually runnable on THIS box?
+    Cloud deploys skip torch/parler/bark/ollama; same code, different
+    answer. Used by the frontend to gray out unreachable buttons even
+    when the user's plan technically allows them."""
+    pid = (pid or "").lower()
+    if kind == "tts":
+        if pid == "parler":     return parler_synthesize is not None
+        if pid == "bark":       return bark_tts is not None
+        if pid == "elevenlabs": return eleven_tts.is_configured()
+        return False
+    if kind == "llm":
+        if pid == "ollama":
+            # Treat env presence as intent + reachability hint. Real
+            # reachability is whatever llm.warmup() resolved to.
+            return os.getenv("LLM_PROVIDER", "").lower() == "ollama" or bool(
+                os.getenv("OLLAMA_URL"))
+        if pid == "gemini":
+            return bool(os.getenv("GEMINI_API_KEY"))
+    return False
+
+
 @app.route("/api/providers/registry")
 def api_providers_registry():
-    """Static metadata: id → display/icon/kind for every TTS + LLM
-    provider this build knows about. Frontend renders buttons and
-    labels from this — no provider name should be typed into the UI."""
-    return jsonify(PROVIDER_REGISTRY)
+    """Static metadata + a per-entry `available` flag computed at
+    request time so the frontend can render only what THIS deployment
+    can actually serve. Cloud admins still get whatever the local box
+    has (elevenlabs + gemini); their Parler / Bark / Ollama options
+    quietly disappear instead of failing on click."""
+    payload = {"tts": [], "llm": []}
+    for kind in ("tts", "llm"):
+        for entry in PROVIDER_REGISTRY.get(kind, []):
+            payload[kind].append({
+                **entry,
+                "available": _provider_available(kind, entry["id"]),
+            })
+    return jsonify(payload)
 
 
 @app.route("/api/providers/<name>/voices")
