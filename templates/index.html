@@ -1364,7 +1364,10 @@
         result.classList.remove('hidden');
         refreshMyAudios();
       } catch (e) {
-        showError('Server se connect nahi ho paya');
+        showError('Connection toot gaya — audio ban raha hoga. Neeche "Your recent audios" check karein.');
+        refreshMyAudios();
+        setTimeout(refreshMyAudios, 15000);
+        setTimeout(refreshMyAudios, 45000);
       } finally {
         clearInterval(pollProgress);
         setLoading(false);
