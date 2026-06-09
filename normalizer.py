@@ -125,13 +125,26 @@ def _apply_tags_per_sentence(text: str, tags: list[str | None],
     return " ".join(out_parts), inserted
 
 
+_EMOTION_BATCH_SIZE = 30
+
+
 def _add_emotion_tags(text: str, provider: str,
                        llm_provider: str | None = None) -> str:
     sentences = _split_sentences(text)
     if not sentences:
         return text
     print(f"[normalizer] classifying emotions for {len(sentences)} sentence(s)...")
-    tags = _llm_classify_emotions(sentences, provider=llm_provider)
+
+    if len(sentences) <= _EMOTION_BATCH_SIZE:
+        tags = _llm_classify_emotions(sentences, provider=llm_provider)
+    else:
+        tags: list[str | None] = []
+        for i in range(0, len(sentences), _EMOTION_BATCH_SIZE):
+            batch = sentences[i:i + _EMOTION_BATCH_SIZE]
+            print(f"[normalizer] emotion batch {i // _EMOTION_BATCH_SIZE + 1} "
+                  f"({len(batch)} sentences)...")
+            tags.extend(_llm_classify_emotions(batch, provider=llm_provider))
+
     allowed = BARK_SUPPORTED_TAGS if provider == "bark" else None
     new_text, count = _apply_tags_per_sentence(text, tags, allowed=allowed)
     print(f"[normalizer] applied {count} {provider} tag(s)")

@@ -91,18 +91,24 @@ def verify_jwt(token: str) -> dict:
     JWT signing keys where the dashboard "JWT Secret" doesn't HMAC-verify
     the tokens locally.
     """
-    # ── Step 1: local HS256 ────────────────────────────────────────────
+    # ── Step 1: local HMAC verification (fast, no network) ──────────
     if SUPABASE_JWT_SECRET:
         try:
-            return pyjwt.decode(
-                token, SUPABASE_JWT_SECRET,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
-        except pyjwt.ExpiredSignatureError as e:
-            raise AuthError("token expired") from e
-        except pyjwt.InvalidTokenError as e:
-            print(f"[auth] local HS256 verify failed ({e}); falling back to Supabase SDK")
+            header = pyjwt.get_unverified_header(token)
+        except pyjwt.DecodeError:
+            header = {}
+        alg = header.get("alg", "")
+        if alg.startswith("HS"):
+            try:
+                return pyjwt.decode(
+                    token, SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    audience="authenticated",
+                )
+            except pyjwt.ExpiredSignatureError as e:
+                raise AuthError("token expired") from e
+            except pyjwt.InvalidTokenError as e:
+                print(f"[auth] local HS256 verify failed ({e}); falling back to Supabase SDK")
 
     # ── Step 2: ask Supabase to validate ──────────────────────────────
     try:
