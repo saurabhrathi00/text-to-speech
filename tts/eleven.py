@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 
 from config import (
@@ -7,6 +8,8 @@ from config import (
     ELEVEN_DEFAULT_VOICE_SETTINGS,
     ELEVEN_DEFAULT_SIMILARITY_BOOST,
 )
+
+_MAX_CHARS = 4800
 
 DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGBDnXBQb")
@@ -57,6 +60,26 @@ def is_configured() -> bool:
     return bool(os.getenv("ELEVENLABS_API_KEY"))
 
 
+def _chunk_text(text: str, limit: int = _MAX_CHARS) -> list[str]:
+    if len(text) <= limit:
+        return [text]
+    sentences = re.split(r"(?<=[।.!?])\s*", text)
+    chunks: list[str] = []
+    buf = ""
+    for s in sentences:
+        s = s.strip()
+        if not s:
+            continue
+        if buf and len(buf) + 1 + len(s) > limit:
+            chunks.append(buf)
+            buf = s
+        else:
+            buf = f"{buf} {s}" if buf else s
+    if buf:
+        chunks.append(buf)
+    return chunks or [text]
+
+
 def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> str:
     """Generate audio via ElevenLabs and save as MP3.
     Returns the actual file path written (extension may be .mp3).
@@ -69,11 +92,6 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     voice_id = voice_config.get("voice_id") or DEFAULT_VOICE_ID
     model_id = voice_config.get("model_id") or DEFAULT_MODEL
 
-    # Per-sentence emotion tags come from the LLM emotion-classify
-    # pipeline (see llm/prompts/emotions.md) and live INSIDE the text
-    # already. The legacy 'global mood' tag map was dead — UI never
-    # sent emotion != 'none' — and got removed. Stability/style stay
-    # at sensible neutral-narrator defaults from config.
     settings = dict(ELEVEN_DEFAULT_VOICE_SETTINGS)
 
     url = f"{API_BASE}/text-to-speech/{voice_id}"
@@ -82,31 +100,46 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
         "Content-Type": "application/json",
         "Accept": "audio/mpeg",
     }
-    payload = {
-        "text": text,
-        "model_id": model_id,
-        "voice_settings": {
-            "stability": voice_config.get("stability", settings["stability"]),
-            "similarity_boost": voice_config.get("similarity_boost", ELEVEN_DEFAULT_SIMILARITY_BOOST),
-            "style": voice_config.get("style", settings["style"]),
-            "use_speaker_boost": True,
-        },
+    voice_settings = {
+        "stability": voice_config.get("stability", settings["stability"]),
+        "similarity_boost": voice_config.get("similarity_boost", ELEVEN_DEFAULT_SIMILARITY_BOOST),
+        "style": voice_config.get("style", settings["style"]),
+        "use_speaker_boost": True,
     }
 
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=180)
-    except requests.RequestException as e:
-        raise ElevenLabsError(f"network error: {e}") from e
-
-    if r.status_code != 200:
-        raise ElevenLabsError(f"API error {r.status_code}: {r.text[:300]}")
-
-    # Save as MP3 — change extension if caller passed .wav
     mp3_path = out_path
     if out_path.endswith(".wav"):
         mp3_path = out_path[:-4] + ".mp3"
 
+    chunks = _chunk_text(text)
+
+    if len(chunks) == 1:
+        audio = _eleven_request(url, headers, chunks[0], model_id, voice_settings)
+        with open(mp3_path, "wb") as f:
+            f.write(audio)
+        return mp3_path
+
+    print(f"[elevenlabs] text too long ({len(text)} chars), splitting into {len(chunks)} chunks")
     with open(mp3_path, "wb") as f:
-        f.write(r.content)
+        for i, chunk in enumerate(chunks):
+            print(f"[elevenlabs] chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)")
+            audio = _eleven_request(url, headers, chunk, model_id, voice_settings)
+            f.write(audio)
 
     return mp3_path
+
+
+def _eleven_request(url: str, headers: dict, text: str,
+                    model_id: str, voice_settings: dict) -> bytes:
+    payload = {
+        "text": text,
+        "model_id": model_id,
+        "voice_settings": voice_settings,
+    }
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=180)
+    except requests.RequestException as e:
+        raise ElevenLabsError(f"network error: {e}") from e
+    if r.status_code != 200:
+        raise ElevenLabsError(f"API error {r.status_code}: {r.text[:300]}")
+    return r.content
