@@ -124,9 +124,33 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
         for i, chunk in enumerate(chunks):
             print(f"[elevenlabs] chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)")
             audio = _eleven_request(url, headers, chunk, model_id, voice_settings)
+            if i > 0:
+                audio = _strip_mp3_headers(audio)
             f.write(audio)
 
     return mp3_path
+
+
+def _strip_mp3_headers(data: bytes) -> bytes:
+    """Strip ID3v2 header (front) and ID3v1 tag (last 128 bytes) so
+    concatenated chunks form a single valid MP3 stream."""
+    offset = 0
+    # ID3v2: starts with "ID3", size at bytes 6-9 (syncsafe int)
+    if data[:3] == b"ID3" and len(data) > 10:
+        size_bytes = data[6:10]
+        size = (size_bytes[0] << 21 | size_bytes[1] << 14 |
+                size_bytes[2] << 7 | size_bytes[3])
+        offset = 10 + size
+    # Skip forward to first MPEG sync word (0xFF 0xE* or 0xFF 0xF*)
+    while offset < len(data) - 1:
+        if data[offset] == 0xFF and (data[offset + 1] & 0xE0) == 0xE0:
+            break
+        offset += 1
+    # Strip trailing ID3v1 tag (128 bytes starting with "TAG")
+    end = len(data)
+    if end >= 128 and data[end - 128:end - 125] == b"TAG":
+        end -= 128
+    return data[offset:end]
 
 
 def _eleven_request(url: str, headers: dict, text: str,
