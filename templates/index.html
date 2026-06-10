@@ -1321,42 +1321,47 @@
         if (r <= 1.1) return '😊';   // almost there
         return '🐢';                  // slower than expected, still going
       }
-      const pollProgress = setInterval(async () => {
-        try {
-          const r = await fetch('/api/progress/' + jobId);
-          if (!r.ok) return;
-          const p = await r.json();
-          if (!p.stage || p.stage === 'unknown') return;
-          const label = STAGE_LABEL[p.stage] || p.stage;
-          const emoji = progressEmoji(p.elapsed || 0, p.eta_seconds || 0);
-          statusText.textContent = `${emoji} ${label}...`;
-        } catch (e) { /* ignore */ }
-      }, 5000);
-
       try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 15 * 60 * 1000);
-        let res;
-        try {
-          res = await fetch('/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text,
-              voice: getVoice(),
-              skip_normalize: skip,
-              provider: activeProvider,
-              llm_provider: activeLLM,
-              emotion_tags: useEmotionTags,
-              job_id: jobId,
-            }),
-            signal: ctrl.signal,
-          });
-        } finally {
-          clearTimeout(timer);
-        }
-        const data = await res.json();
-        if (!res.ok) { showError(data.error || 'Kuch galat ho gaya, dobara koshish karein'); return; }
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            voice: getVoice(),
+            skip_normalize: skip,
+            provider: activeProvider,
+            llm_provider: activeLLM,
+            emotion_tags: useEmotionTags,
+            job_id: jobId,
+          }),
+        });
+        const submitData = await res.json();
+        if (!res.ok) { showError(submitData.error || 'Kuch galat ho gaya, dobara koshish karein'); return; }
+
+        const data = await new Promise((resolve, reject) => {
+          const poll = setInterval(async () => {
+            try {
+              const r = await fetch('/api/progress/' + jobId);
+              if (!r.ok) return;
+              const p = await r.json();
+              if (!p.stage || p.stage === 'unknown' || p.stage === 'queued') return;
+              if (p.stage === 'done') {
+                clearInterval(poll);
+                resolve(p.result);
+                return;
+              }
+              if (p.stage === 'error') {
+                clearInterval(poll);
+                reject(new Error(p.error || 'Generation failed'));
+                return;
+              }
+              const label = STAGE_LABEL[p.stage] || p.stage;
+              const emoji = progressEmoji(p.elapsed || 0, p.eta_seconds || 0);
+              statusText.textContent = `${emoji} ${label}...`;
+            } catch (e) { /* ignore network blip */ }
+          }, 3000);
+          setTimeout(() => { clearInterval(poll); reject(new Error('timeout')); }, 15 * 60 * 1000);
+        });
 
         normalizedEdit.value = data.normalized_text;
         audio.src = data.audio_url;
@@ -1364,12 +1369,11 @@
         result.classList.remove('hidden');
         refreshMyAudios();
       } catch (e) {
-        showError('Connection toot gaya — audio ban raha hoga. Neeche "Your recent audios" check karein.');
+        showError(e.message === 'timeout'
+          ? 'Bahut zyada time lag gaya — neeche "Your recent audios" check karein.'
+          : (e.message || 'Kuch galat ho gaya'));
         refreshMyAudios();
-        setTimeout(refreshMyAudios, 15000);
-        setTimeout(refreshMyAudios, 45000);
       } finally {
-        clearInterval(pollProgress);
         setLoading(false);
       }
     });

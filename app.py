@@ -274,7 +274,22 @@ def _set_progress(job_id: str | None, stage: str, eta_seconds: int):
         _progress[job_id] = {
             "stage": stage,
             "eta_seconds": eta_seconds,
-            "started_at": time.time(),
+            "started_at": _progress.get(job_id, {}).get("started_at", time.time()),
+        }
+
+
+def _finish_progress(job_id: str | None, result: dict | None = None,
+                     error: str | None = None):
+    if not job_id:
+        return
+    with _progress_lock:
+        entry = _progress.get(job_id, {})
+        _progress[job_id] = {
+            "stage": "error" if error else "done",
+            "eta_seconds": 0,
+            "started_at": entry.get("started_at", time.time()),
+            "result": result,
+            "error": error,
         }
 
 
@@ -716,14 +731,22 @@ def api_admin_user_update(user_id: str):
 def api_progress(job_id: str):
     with _progress_lock:
         entry = _progress.get(job_id)
-    if not entry:
-        return jsonify({"stage": "unknown", "elapsed": 0, "eta_seconds": 0}), 200
+        if not entry:
+            return jsonify({"stage": "unknown", "elapsed": 0, "eta_seconds": 0}), 200
+        terminal = entry["stage"] in ("done", "error")
+        if terminal:
+            _progress.pop(job_id, None)
     elapsed = max(0, time.time() - entry["started_at"])
-    return jsonify({
+    resp = {
         "stage": entry["stage"],
         "elapsed": round(elapsed, 1),
         "eta_seconds": entry["eta_seconds"],
-    })
+    }
+    if entry["stage"] == "done":
+        resp["result"] = entry.get("result")
+    elif entry["stage"] == "error":
+        resp["error"] = entry.get("error")
+    return jsonify(resp)
 
 
 @app.route("/generate", methods=["POST"])
@@ -737,7 +760,7 @@ def generate():
     if not text:
         return jsonify({"error": "Pehle kuch type karein"}), 400
 
-    job_id = (data.get("job_id") or "").strip() or None
+    job_id = (data.get("job_id") or "").strip() or str(uuid.uuid4())
     _prune_old_progress()
 
     skip_normalize = bool(data.get("skip_normalize"))
@@ -748,80 +771,89 @@ def generate():
     if err:
         return jsonify({"error": err}), 403
 
-    t_req = time.time()
     print(f"[app] /generate request → {len(text)} chars, provider={provider}, "
           f"skip_normalize={skip_normalize}, emotion_tags={add_emotion_tags}, voice={voice}")
 
-    # Cloud-mode quota check (no-op in local mode)
-    if g.user:
-        ok, msg = auth.check_limits(g.user["id"], len(text))
+    user = g.user
+    if user:
+        ok, msg = auth.check_limits(user["id"], len(text))
         if not ok:
-            return jsonify({"error": msg}), 402  # 402 Payment Required
+            return jsonify({"error": msg}), 402
 
     llm_provider, err = _resolve_llm_provider_for_user(data.get("llm_provider"))
     if err:
         return jsonify({"error": err}), 403
 
-    if skip_normalize:
-        normalized = text
-    else:
-        t_llm = time.time()
+    _set_progress(job_id, "queued", 60)
+
+    def _run_generate():
+        t_req = time.time()
         try:
-            normalized = normalize_text(
-                text, target_provider=provider,
-                add_emotion_tags=add_emotion_tags,
-                progress_cb=lambda stage, eta: _set_progress(job_id, stage, eta),
-                llm_provider=llm_provider,
-            )
-            print(f"[app] llm({llm_provider}) done in {time.time() - t_llm:.1f}s → {len(normalized)} chars")
-        except OllamaError as e:
-            print(f"[app] llm({llm_provider}) FAILED in {time.time() - t_llm:.1f}s: {e}")
-            _clear_progress(job_id)
-            return jsonify({"error": _llm_error_message(llm_provider, str(e))}), 502
+            if skip_normalize:
+                normalized = text
+            else:
+                t_llm = time.time()
+                try:
+                    normalized = normalize_text(
+                        text, target_provider=provider,
+                        add_emotion_tags=add_emotion_tags,
+                        progress_cb=lambda stage, eta: _set_progress(job_id, stage, eta),
+                        llm_provider=llm_provider,
+                    )
+                    print(f"[app] llm({llm_provider}) done in {time.time() - t_llm:.1f}s → {len(normalized)} chars")
+                except OllamaError as e:
+                    print(f"[app] llm({llm_provider}) FAILED in {time.time() - t_llm:.1f}s: {e}")
+                    _finish_progress(job_id, error=_llm_error_message(llm_provider, str(e)))
+                    return
 
-    filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
-    out_path = AUDIO_DIR / filename
+            filename = f"output_{int(time.time())}_{uuid.uuid4().hex[:6]}.wav"
+            out_path = AUDIO_DIR / filename
 
-    _set_progress(job_id, "tts", 30)
-    try:
-        actual_path = _tts_synthesize(normalized, str(out_path), description, voice, provider)
-    except Exception:
-        traceback.print_exc()
-        _clear_progress(job_id)
-        return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
-
-    actual_filename = Path(actual_path).name
-    words = align_words(actual_path) if provider == "parler" else []
-    _prune_old_audio()
-
-    audio_url = f"/audio/{actual_filename}"
-    if g.user:
-        signed = audio_storage.upload(g.user["id"], actual_path, actual_filename)
-        if signed:
-            audio_url = signed
+            _set_progress(job_id, "tts", 30)
             try:
-                Path(actual_path).unlink(missing_ok=True)
+                actual_path = _tts_synthesize(normalized, str(out_path), description, voice, provider)
             except Exception:
-                pass
-        audio_storage.prune_user_audio(g.user["id"])
-        auth.log_usage(
-            user_id=g.user["id"],
-            kind="tts.generate",
-            provider=provider,
-            chars=len(normalized),
-            meta={"input_chars": len(text), "emotion_tags": add_emotion_tags},
-        )
-        auth.consume_bonus_if_used(g.user["id"])
+                traceback.print_exc()
+                _finish_progress(job_id, error="Awaaz generate nahi ho payi, dobara try karein")
+                return
 
-    _clear_progress(job_id)
-    print(f"[app] /generate response in {time.time() - t_req:.1f}s → {actual_filename}")
-    return jsonify({
-        "normalized_text": normalized,
-        "audio_url": audio_url,
-        "description_used": description if provider == "parler" else "",
-        "words": words,
-        "provider": provider,
-    })
+            actual_filename = Path(actual_path).name
+            words = align_words(actual_path) if provider == "parler" else []
+            _prune_old_audio()
+
+            audio_url = f"/audio/{actual_filename}"
+            if user:
+                signed = audio_storage.upload(user["id"], actual_path, actual_filename)
+                if signed:
+                    audio_url = signed
+                    try:
+                        Path(actual_path).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                audio_storage.prune_user_audio(user["id"])
+                auth.log_usage(
+                    user_id=user["id"],
+                    kind="tts.generate",
+                    provider=provider,
+                    chars=len(normalized),
+                    meta={"input_chars": len(text), "emotion_tags": add_emotion_tags},
+                )
+                auth.consume_bonus_if_used(user["id"])
+
+            print(f"[app] /generate done in {time.time() - t_req:.1f}s → {actual_filename}")
+            _finish_progress(job_id, result={
+                "normalized_text": normalized,
+                "audio_url": audio_url,
+                "description_used": description if provider == "parler" else "",
+                "words": words,
+                "provider": provider,
+            })
+        except Exception:
+            traceback.print_exc()
+            _finish_progress(job_id, error="Kuch galat ho gaya, dobara try karein")
+
+    threading.Thread(target=_run_generate, daemon=True).start()
+    return jsonify({"job_id": job_id}), 202
 
 
 @app.route("/audio/<path:filename>")
