@@ -776,7 +776,7 @@
     // Provider registry must load before continueBoot so applyAllowedProviders
     // has something to render. Plans ladder lets the upgrade button know
     // the next tier and its price. Both before continueBoot.
-    setPageLoaderStatus('Plans + providers fetch ho rahe hain...');
+    setPageLoaderStatus('Fetching plans + providers...');
     await Promise.all([loadProviderRegistry(), loadPlans()]);
 
     if (AUTH_DISABLED) {
@@ -1568,7 +1568,7 @@
       // what's happening to their script right now.
       const STAGE_LABEL = {
         llm_normalize: 'Refining the script',
-        llm_emotions: 'Emotions analyze ho rahe hain',
+        llm_emotions: 'Analyzing emotions',
         tts: 'Generating audio',
       };
       // Vibe over numbers — pick an emoji based on how close we are to
