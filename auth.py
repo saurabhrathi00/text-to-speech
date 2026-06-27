@@ -37,11 +37,28 @@ _UNLIMITED_ROLES = {
 }
 
 
+_auth_disabled_warned = False
+
+
 def auth_disabled() -> bool:
     """Escape hatch — disables auth entirely. Useful only for first-run
     local dev / smoke tests before Supabase keys exist. Default off so
-    production stays safe by default."""
-    return os.getenv("AUTH_DISABLED") == "1"
+    production stays safe by default.
+
+    Safety: refuse to honor the bypass in a real deployment. A configured
+    SUPABASE_SERVICE_KEY means this is a prod/cloud instance, where a stray
+    AUTH_DISABLED=1 in the env would otherwise expose every route (including
+    admin) to the public. In that case we ignore it and warn loudly."""
+    if os.getenv("AUTH_DISABLED") != "1":
+        return False
+    if SUPABASE_SERVICE_KEY:
+        global _auth_disabled_warned
+        if not _auth_disabled_warned:
+            print("[auth] WARNING: AUTH_DISABLED=1 IGNORED because "
+                  "SUPABASE_SERVICE_KEY is set (production safety guard).")
+            _auth_disabled_warned = True
+        return False
+    return True
 
 
 # ──────────────────────────────────────────────────────────────────────

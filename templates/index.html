@@ -110,6 +110,7 @@
 
       <label for="script" class="label">Write your script (any language)</label>
       <textarea id="script" rows="12" placeholder="Today, let's talk about photosynthesis..."></textarea>
+      <div id="charCounter" class="char-counter" aria-live="polite"></div>
 
       <details class="voice-controls" open>
         <summary>🎚️ Voice tuning</summary>
@@ -289,6 +290,37 @@
       return String(s ?? '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
+
+    // ── Plan-aware character limit on the script box ─────────────────
+    let _maxCharsPerReq = null;  // null = unlimited (admin)
+    function applyCharLimit(me) {
+      _maxCharsPerReq = me?.effective_limits?.max_chars_per_request ?? null;
+      const script = document.getElementById('script');
+      if (script) {
+        // Hard-stop typing/pasting past the plan's per-request cap.
+        if (_maxCharsPerReq && _maxCharsPerReq > 0) script.maxLength = _maxCharsPerReq;
+        else script.removeAttribute('maxlength');
+      }
+      updateCharCounter();
+    }
+    function updateCharCounter() {
+      const script = document.getElementById('script');
+      const cc = document.getElementById('charCounter');
+      if (!script || !cc) return;
+      const len = script.value.length;
+      if (!_maxCharsPerReq || _maxCharsPerReq <= 0) {
+        cc.textContent = `${len.toLocaleString()} characters`;
+        cc.classList.remove('at-limit');
+        return;
+      }
+      const atLimit = len >= _maxCharsPerReq;
+      cc.classList.toggle('at-limit', atLimit);
+      cc.innerHTML = `${len.toLocaleString()} / ${_maxCharsPerReq.toLocaleString()} characters`
+        + (atLimit ? ' · limit reached<span class="cc-upgrade" id="ccUpgrade">Upgrade for more</span>' : '');
+      const up = document.getElementById('ccUpgrade');
+      if (up) up.addEventListener('click', () => { const b = document.getElementById('upgradeBtn'); if (b && !b.disabled) openTierPicker(); });
+    }
+    document.getElementById('script')?.addEventListener('input', updateCharCounter);
 
     const SUPABASE_URL = {{ supabase.url | tojson }};
     const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
@@ -752,6 +784,7 @@
         }
         usage.textContent = parts.join(' · ');
       }
+      applyCharLimit(me);
       renderUpgradeButton(me);
       bar.classList.remove('hidden');
     }
@@ -886,13 +919,13 @@
         const badgeLabel = isTopup(t) ? '<span class="upgrade-tier-badge">⚡ Top-up</span>' : '';
         card.innerHTML = `
           <div class="upgrade-tier-head">
-            <strong>${t.display_name || t.plan}${badgeLabel}</strong>
+            <strong>${escapeHtml(t.display_name || t.plan)}${badgeLabel}</strong>
             <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${priceSuffix(t)}</span></span>
           </div>
           ${audioHint ? `<div class="upgrade-tier-audio">${audioLabel}</div>` : ''}
           <div class="upgrade-tier-features">${features.join(' · ') || '&nbsp;'}</div>
-          ${t.notes ? `<p class="muted upgrade-tier-notes">${t.notes}</p>` : ''}
-          <button class="primary" data-plan="${t.plan}">${isTopup(t) ? 'Buy' : 'Choose'} ${t.display_name || t.plan}</button>
+          ${t.notes ? `<p class="muted upgrade-tier-notes">${escapeHtml(t.notes)}</p>` : ''}
+          <button class="primary" data-plan="${escapeHtml(t.plan)}">${isTopup(t) ? 'Buy' : 'Choose'} ${escapeHtml(t.display_name || t.plan)}</button>
         `;
         list.appendChild(card);
       });
@@ -1184,7 +1217,7 @@
         chars.forEach(c => {
           const chip = document.createElement('div');
           chip.className = 'character-chip';
-          chip.innerHTML = `<strong>${c.name}</strong>: ${c.description}`;
+          chip.innerHTML = `<strong>${escapeHtml(c.name)}</strong>: ${escapeHtml(c.description)}`;
           charBox.appendChild(chip);
         });
         scenesResult.appendChild(charBox);
@@ -1195,8 +1228,8 @@
         card.className = 'scene-card';
         card.innerHTML = `
           <div class="scene-header">Scene ${i + 1}</div>
-          <div class="scene-hindi">${s.hindi || ''}</div>
-          <div class="scene-prompt">${s.prompt}</div>
+          <div class="scene-hindi">${escapeHtml(s.hindi || '')}</div>
+          <div class="scene-prompt">${escapeHtml(s.prompt)}</div>
         `;
         const useBtn = document.createElement('button');
         useBtn.className = 'secondary';

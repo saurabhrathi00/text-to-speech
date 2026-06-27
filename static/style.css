@@ -1651,3 +1651,19 @@ input[type="password"], select {
 textarea:focus, input:focus, select:focus {
   background: rgba(0,0,0,0.34);
 }
+
+/* Live character counter under the script box (plan-aware limit). */
+.char-counter {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  margin: 7px 4px 0;
+  text-align: right;
+  transition: color 0.2s ease;
+}
+.char-counter.at-limit { color: #fbbf24; font-weight: 600; }
+.char-counter .cc-upgrade {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 8px;
+}

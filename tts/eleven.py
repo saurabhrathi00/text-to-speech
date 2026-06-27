@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import requests
 
 from config import (
@@ -151,22 +152,50 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
 
     chunks = _chunk_text(text, _max_chars_for(model_id))
 
-    if len(chunks) == 1:
-        audio = _eleven_request(url, headers, chunks[0], model_id, voice_settings)
-        with open(mp3_path, "wb") as f:
-            f.write(audio)
-        return mp3_path
-
-    print(f"[elevenlabs] text too long ({len(text)} chars), splitting into {len(chunks)} chunks")
-    with open(mp3_path, "wb") as f:
-        for i, chunk in enumerate(chunks):
-            print(f"[elevenlabs] chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)")
-            audio = _eleven_request(url, headers, chunk, model_id, voice_settings)
-            if i > 0:
-                audio = _strip_mp3_headers(audio)
-            f.write(audio)
+    # Write to a temp file and only rename to the final path on FULL
+    # success, so a chunk failure mid-stream never leaves a truncated /
+    # corrupt MP3 that the pipeline would treat as a valid result.
+    tmp_path = mp3_path + ".part"
+    try:
+        if len(chunks) > 1:
+            print(f"[elevenlabs] text too long ({len(text)} chars), "
+                  f"splitting into {len(chunks)} chunks")
+        with open(tmp_path, "wb") as f:
+            for i, chunk in enumerate(chunks):
+                if len(chunks) > 1:
+                    print(f"[elevenlabs] chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)")
+                audio = _eleven_request_retry(url, headers, chunk, model_id, voice_settings)
+                if i > 0:
+                    audio = _strip_mp3_headers(audio)
+                f.write(audio)
+        os.replace(tmp_path, mp3_path)
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
     return mp3_path
+
+
+def _eleven_request_retry(url: str, headers: dict, text: str, model_id: str,
+                          voice_settings: dict, retries: int = 2) -> bytes:
+    """_eleven_request with a couple of backoff retries — long multi-chunk
+    jobs are exactly where a transient 429/5xx/timeout is most likely, and
+    re-billing one chunk is far cheaper than failing the whole generation."""
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            return _eleven_request(url, headers, text, model_id, voice_settings)
+        except ElevenLabsError as e:
+            last_err = e
+            if attempt < retries:
+                print(f"[elevenlabs] request failed (attempt {attempt + 1}/"
+                      f"{retries + 1}), retrying: {e}")
+                time.sleep(1.5 * (attempt + 1))
+    raise last_err
 
 
 def _strip_mp3_headers(data: bytes) -> bytes:
@@ -180,10 +209,17 @@ def _strip_mp3_headers(data: bytes) -> bytes:
                 size_bytes[2] << 7 | size_bytes[3])
         offset = 10 + size
     # Skip forward to first MPEG sync word (0xFF 0xE* or 0xFF 0xF*)
+    found_sync = False
     while offset < len(data) - 1:
         if data[offset] == 0xFF and (data[offset + 1] & 0xE0) == 0xE0:
+            found_sync = True
             break
         offset += 1
+    if not found_sync:
+        # No MPEG frame in this chunk (empty / error body that still came
+        # back 200). Appending the tail would corrupt the stream — fail
+        # loudly so the retry/temp-file path discards it instead.
+        raise ElevenLabsError("chunk contained no decodable MP3 audio")
     # Strip trailing ID3v1 tag (128 bytes starting with "TAG")
     end = len(data)
     if end >= 128 and data[end - 128:end - 125] == b"TAG":

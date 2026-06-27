@@ -1,7 +1,7 @@
 // Bump CACHE whenever this file changes — old SW will clear stale caches
 // on activate. App code itself is network-first, so deploys don't need
 // a bump just to push new HTML/JS.
-const CACHE = 'narrator-v4';
+const CACHE = 'narrator-v5';
 
 // Assets safe to precache aggressively (they rarely change; when they
 // do we'll bump CACHE above).
