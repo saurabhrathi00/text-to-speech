@@ -1,0 +1,98 @@
+{
+  "_comment": "Data-driven SEO landing pages. Each key is a URL slug served by the /<page> route (app.py) via templates/seo_page.html. Add a new page here + a <url> in static/sitemap.xml — no code change needed. Keep titles ~55-60 chars, meta ~150-160.",
+
+  "free-text-to-speech": {
+    "keyword": "free text to speech",
+    "title": "Free Text to Speech Online — Natural AI Voices | SastaSpeech",
+    "meta": "Turn text into natural, expressive AI speech for free. Any language, real emotion, studio quality. Start free — no credit card needed.",
+    "h1": "Free Text to Speech, with Real Emotion",
+    "sub": "Type anything and hear it spoken in a natural, expressive AI voice — in almost any language. Start free, no credit card.",
+    "intro": "Most free text-to-speech tools sound flat and robotic. SastaSpeech uses ElevenLabs v3 voices and per-sentence emotion tags, so your words are actually performed — whispered, excited, or calm — not just read aloud. Try it free, today.",
+    "sections": [
+      {"h": "Genuinely natural voices", "p": "Powered by ElevenLabs v3, the voices sound human across dozens of languages — with real intonation, pacing, and emotion. No more monotone narration."},
+      {"h": "Free to start, no card", "p": "The free plan gives you a daily generation so you can test the full pipeline end to end. Upgrade only when you need more — plans start at just ₹49."},
+      {"h": "Emotion that you control", "p": "Toggle emotion tags and our Gemini-powered pipeline picks the right cue for every sentence — [happy], [whispers], [sobbing], [excited] and 50+ more — then the voice performs it."}
+    ],
+    "faq": [
+      {"q": "Is it really free?", "a": "Yes — the free plan includes a daily generation up to 100 characters, enough to try the full text-to-speech pipeline. No credit card required."},
+      {"q": "What languages are supported?", "a": "Dozens, including English, Spanish, French, German, Hindi, Portuguese and Arabic, each with natural, native-sounding prosody."},
+      {"q": "Can I download the audio?", "a": "Yes. Generated audio is yours to download and, on any paid plan, use commercially in videos, podcasts, ads and more."}
+    ]
+  },
+
+  "elevenlabs-alternative": {
+    "keyword": "elevenlabs alternative",
+    "title": "Affordable ElevenLabs Alternative — From ₹49 | SastaSpeech",
+    "meta": "Looking for a cheaper ElevenLabs alternative? SastaSpeech gives you the same v3 voice quality and emotion tags from ₹49, with a real free plan.",
+    "h1": "An Affordable ElevenLabs Alternative",
+    "sub": "Same studio-quality v3 voices and emotion tags — at a fraction of the price. Start free, scale from ₹49.",
+    "intro": "SastaSpeech is built on the same ElevenLabs v3 engine you already trust for expressive, multilingual speech — but packaged for creators who want honest, transparent pricing. You get per-sentence emotion control and a genuinely usable free tier, without the steep monthly commitment.",
+    "sections": [
+      {"h": "Same engine, honest pricing", "p": "We use ElevenLabs v3 for voice and Gemini for text refinement. Pricing is built on real per-character cost plus a sensible margin — a day pass is ₹49, monthly plans start at ₹299."},
+      {"h": "Pay only for what you use", "p": "Character-by-character usage is shown right in the app. One-time top-ups stack on any plan, so you are never locked into a big subscription to finish a project."},
+      {"h": "Built for creators worldwide", "p": "Multilingual voices, automatic emotion tagging, and audio ready to drop into your editor in seconds — for YouTube, podcasts, ads and courses."}
+    ],
+    "faq": [
+      {"q": "Is the voice quality the same as ElevenLabs?", "a": "Yes — SastaSpeech generates voice using ElevenLabs v3, including inline emotion tags, so output quality matches what you would get directly."},
+      {"q": "How much cheaper is it?", "a": "You can start free, grab a ₹49 day-pass top-up, or take a monthly plan from ₹299 — with usage shown transparently so there are no surprise bills."},
+      {"q": "Do I need a long-term subscription?", "a": "No. One-time top-ups let you add credits to any plan, including free, so you can pay as you go."}
+    ]
+  },
+
+  "ai-voiceover-for-youtube": {
+    "keyword": "ai voiceover for youtube",
+    "title": "AI Voiceover for YouTube Videos & Shorts | SastaSpeech",
+    "meta": "Create natural AI voiceovers for YouTube videos, Shorts and Reels in seconds. Expressive, multilingual, commercial-use ready. Start free.",
+    "h1": "AI Voiceovers for YouTube, in Seconds",
+    "sub": "Turn your script into a natural, expressive narrator's voice — perfect for videos, Shorts and Reels. Commercial-use ready.",
+    "intro": "Faceless channels, explainers, Shorts, documentaries — they all live and die by the voiceover. SastaSpeech gives your script a real narrator's voice with genuine emotion, in almost any language, fast enough to keep up with a daily upload schedule.",
+    "sections": [
+      {"h": "Sounds like a real narrator", "p": "ElevenLabs v3 voices deliver natural pacing and emotion — so your videos hold attention instead of sounding like a robot reading a list."},
+      {"h": "Fast enough for daily uploads", "p": "A typical 500-character script is voiced end to end in under 10 seconds. No queue, no waitlist — write, generate, edit, publish."},
+      {"h": "Yours to monetize", "p": "On any paid plan the audio is yours to use commercially — YouTube monetization, ads, sponsorships and courses included."}
+    ],
+    "faq": [
+      {"q": "Can I use the audio on a monetized channel?", "a": "Yes. Audio generated on a paid plan can be used in monetized YouTube videos, Shorts, ads and other commercial work."},
+      {"q": "Is it good for faceless channels?", "a": "Absolutely — expressive, consistent narration is exactly what faceless and explainer channels need, in the language of your audience."},
+      {"q": "How long can my script be?", "a": "Per-request length depends on your plan; longer scripts are automatically chunked and stitched into one clean audio file."}
+    ]
+  },
+
+  "text-to-speech-with-emotion": {
+    "keyword": "text to speech with emotion",
+    "title": "Text to Speech with Emotion — AI Voice Tags | SastaSpeech",
+    "meta": "Generate text to speech with real emotion. 60+ inline tags — [happy], [sobbing], [whispers] — added automatically. Any language. Start free.",
+    "h1": "Text to Speech That Actually Has Emotion",
+    "sub": "Whisper, shout, laugh, cry — 60+ emotion tags performed automatically, in any language. Start free.",
+    "intro": "Plain text-to-speech reads words. SastaSpeech performs them. Our Gemini-powered pipeline analyzes every sentence and picks the right inline performance cue, then ElevenLabs v3 renders it in the voice — so a sad line sounds sad and an excited line lands with energy.",
+    "sections": [
+      {"h": "60+ performance tags", "p": "From [happy], [excited] and [whispers] to [sobbing], [giggles] and [breathless] — the model performs the cue, it doesn't read it out. You can leave it automatic or fine-tune."},
+      {"h": "Picked for you, automatically", "p": "Toggle emotion tags and Gemini classifies each sentence, choosing the most natural cue. No manual tagging, no guesswork — just paste your script and generate."},
+      {"h": "Works in any language", "p": "Emotion isn't English-only. The same expressive range works across the dozens of languages ElevenLabs v3 supports."}
+    ],
+    "faq": [
+      {"q": "How do the emotion tags work?", "a": "When enabled, Gemini reads each sentence and inserts an inline cue like [whispers] or [excited]; ElevenLabs v3 then performs that cue in the generated voice."},
+      {"q": "Do I have to tag sentences myself?", "a": "No — tagging is automatic. Advanced users can still adjust the refined text before generating if they want precise control."},
+      {"q": "Does emotion work in non-English languages?", "a": "Yes, the expressive performance carries across all supported languages, not just English."}
+    ]
+  },
+
+  "hindi-text-to-speech": {
+    "keyword": "hindi text to speech",
+    "title": "Hindi Text to Speech with Real Emotion | SastaSpeech",
+    "meta": "Natural Hindi & Hinglish text to speech with real emotion. Studio-quality AI voiceovers for creators — from ₹49. Start free, no card.",
+    "h1": "Hindi Text to Speech, with Real Emotion",
+    "sub": "Natural Hindi and Hinglish narration that actually sounds human — expressive, fast and affordable. Start free.",
+    "intro": "Hindi content deserves more than a robotic voice. SastaSpeech delivers natural Hindi and Hinglish speech with real emotional range — built on ElevenLabs v3 and tuned with per-sentence emotion tags — so your stories, explainers and ads connect with Indian audiences.",
+    "sections": [
+      {"h": "Natural Hindi & Hinglish", "p": "Mix Devanagari, Roman Hindi and English freely. The voices handle code-mixed scripts the way people actually speak."},
+      {"h": "Emotion that fits the story", "p": "A heartfelt line sounds heartfelt; a punchy ad line lands. Gemini tags each sentence and the voice performs it — automatically."},
+      {"h": "Affordable for every creator", "p": "Start free, grab a ₹49 top-up when you need a few more, or go monthly from ₹299. Usage is shown transparently."}
+    ],
+    "faq": [
+      {"q": "Does it support Hinglish?", "a": "Yes — mixed Hindi-English (Hinglish) scripts in both Devanagari and Roman text are fully supported."},
+      {"q": "How natural is the Hindi voice?", "a": "Very — it uses ElevenLabs v3 with natural prosody and per-sentence emotion, far beyond traditional robotic Hindi TTS."},
+      {"q": "What does it cost?", "a": "There's a free daily generation, a ₹49 one-time top-up, and monthly plans from ₹299 with higher limits."}
+    ]
+  }
+}

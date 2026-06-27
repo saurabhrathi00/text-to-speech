@@ -411,6 +411,17 @@ except Exception as _e:
     print(f"[app] business.json load failed: {_e} — legal pages will show empty fields")
     BUSINESS_CONFIG = {}
 
+# Data-driven SEO landing pages (config/seo_pages.json). Each slug is served
+# by the /<page> route via templates/seo_page.html. Add a page there + a
+# <url> in static/sitemap.xml — no code change needed.
+_SEO_PATH = Path(__file__).parent / "config" / "seo_pages.json"
+try:
+    SEO_PAGES = json.loads(_SEO_PATH.read_text(encoding="utf-8"))
+    SEO_PAGES.pop("_comment", None)
+except Exception as _e:
+    print(f"[app] seo_pages.json load failed: {_e} — SEO landing pages disabled")
+    SEO_PAGES = {}
+
 
 @app.context_processor
 def _inject_business():
@@ -434,6 +445,11 @@ app.jinja_env.filters["pl"] = _placeholder_filter
 
 @app.route("/<page>")
 def legal_page(page: str):
+    # SEO landing pages first (config-driven, indexable marketing pages).
+    if page in SEO_PAGES:
+        related = {s: p for s, p in SEO_PAGES.items() if s != page}
+        return render_template("seo_page.html", page=SEO_PAGES[page],
+                                slug=page, related=related)
     if page not in _LEGAL_PAGES:
         from flask import abort
         abort(404)
