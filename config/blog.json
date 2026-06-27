@@ -1,0 +1,68 @@
+{
+  "_comment": "Data-driven blog. Each key is a slug served at /blog/<slug> via templates/blog_post.html; /blog lists them. 'blocks' render in order by type: p, h2, ul, ol. Add an article here + a <url> in static/sitemap.xml. Keep titles ~55-60 chars, meta ~150-160. Dates ISO (YYYY-MM-DD).",
+
+  "best-free-text-to-speech-with-emotion-2026": {
+    "title": "7 Best Free Text-to-Speech Tools with Emotion (2026)",
+    "meta": "The best free text-to-speech tools that actually sound human in 2026 — with real emotion, multiple languages, and downloadable audio. Tested and ranked.",
+    "date": "2026-06-27",
+    "h1": "7 Best Free Text-to-Speech Tools with Emotion (2026)",
+    "excerpt": "Most free TTS tools sound robotic. These actually perform your text — with emotion, in multiple languages. Here's how they compare.",
+    "read": "6 min read",
+    "blocks": [
+      {"type": "p", "text": "For years, \"free text-to-speech\" meant a flat, robotic voice that nobody wanted to listen to. That changed when AI models learned to perform text instead of just reading it — adding emotion, pacing, and natural intonation. This guide ranks the free TTS tools that actually sound human in 2026, with a focus on emotional range, language support, and whether you can download and use the audio."},
+      {"type": "h2", "text": "What makes a TTS tool actually good now"},
+      {"type": "p", "text": "Three things separate a modern AI voice from old-school TTS:"},
+      {"type": "ul", "items": ["Emotion: can it whisper, laugh, sound excited or sad — or does every line sound the same?", "Languages: does it sound native in your audience's language, not just English?", "Usable output: can you download the file and use it commercially, or is it locked behind a watermark?"]},
+      {"type": "h2", "text": "The shortlist"},
+      {"type": "p", "text": "After testing the popular options on the same emotional script, these stood out for free or affordable use. The biggest differentiator was emotion — surprisingly few tools handle it well without a steep paid plan."},
+      {"type": "ol", "items": ["SastaSpeech — built on ElevenLabs v3 with automatic per-sentence emotion tags and dozens of languages. A genuinely usable free tier, with paid top-ups from just ₹49.", "ElevenLabs — excellent quality and the engine many tools build on, but the free tier is limited and paid plans ramp quickly.", "Play.ht — solid voice library, emotion control mostly behind paid tiers.", "Murf — great for studio-style narration; free plan is preview-only.", "Microsoft / Google TTS — reliable and cheap at scale, but emotional range is limited and setup is technical."]},
+      {"type": "h2", "text": "Why emotion is the real test"},
+      {"type": "p", "text": "Run the same sad-then-happy script through each tool and the gap is obvious. Tools that perform emotion keep listeners engaged; tools that read flatly lose them in seconds. The newest approach — used by SastaSpeech — is to let an LLM (Gemini) tag each sentence with a cue like [whispers] or [excited], then have the voice model perform it. You paste plain text and the emotion is handled for you."},
+      {"type": "h2", "text": "Our pick for free + affordable"},
+      {"type": "p", "text": "If you want the most natural, emotional output without a big commitment, SastaSpeech is the easiest to recommend: the free plan lets you test the full pipeline, emotion tagging is automatic, it works across languages, and you can scale with a ₹49 top-up instead of a monthly subscription. Try it free and run your own emotional script through it — that's the only test that matters."}
+    ]
+  },
+
+  "how-to-make-ai-voiceovers-for-youtube": {
+    "title": "How to Make AI Voiceovers for YouTube (Step by Step)",
+    "meta": "A simple step-by-step guide to creating natural AI voiceovers for YouTube videos and Shorts in 2026 — with real emotion, in minutes, ready to monetize.",
+    "date": "2026-06-27",
+    "h1": "How to Make AI Voiceovers for YouTube (Step by Step)",
+    "excerpt": "Faceless channels live and die by the voiceover. Here's how to make a natural, emotional AI voiceover for your next video in minutes.",
+    "read": "5 min read",
+    "blocks": [
+      {"type": "p", "text": "Whether you run a faceless channel, post daily Shorts, or narrate explainers, the voiceover is what keeps viewers watching. Recording yourself is slow and inconsistent; old text-to-speech sounds robotic. Modern AI voiceovers solve both — here's the exact workflow."},
+      {"type": "h2", "text": "Step 1: Write a tight script"},
+      {"type": "p", "text": "Keep sentences short and conversational. AI voices follow your punctuation, so a clear script with natural breaks produces natural delivery. Write the way you'd actually speak to a viewer."},
+      {"type": "h2", "text": "Step 2: Choose a voice and turn on emotion"},
+      {"type": "p", "text": "Pick a voice that matches your channel's tone. The key step most creators miss: enable emotion. On SastaSpeech, toggling emotion tags makes Gemini analyze each sentence and add cues like [excited] or [whispers], so the delivery has energy where it matters instead of sounding flat."},
+      {"type": "h2", "text": "Step 3: Generate and review"},
+      {"type": "p", "text": "Generate the audio — a typical 500-character script takes under 10 seconds. Listen back. If a line should land harder, tweak the wording or punctuation and regenerate. Long scripts are automatically split and stitched into one clean file."},
+      {"type": "h2", "text": "Step 4: Download and drop into your editor"},
+      {"type": "p", "text": "Download the audio and import it into your editor (Premiere, CapCut, DaVinci — anything). Align it to your footage, add b-roll and captions, and you're done. On a paid plan the audio is yours to use in monetized videos."},
+      {"type": "h2", "text": "Tips for natural-sounding voiceovers"},
+      {"type": "ul", "items": ["Match the voice's language to your audience — native prosody beats an English voice forcing another language.", "Use emotion sparingly but deliberately; let calm narration breathe and save big cues for big moments.", "Read your script out loud first — if it's awkward for you, it'll be awkward for the AI."]},
+      {"type": "p", "text": "That's the whole workflow. Write, enable emotion, generate, download. You can do your first YouTube voiceover free — paste a script and hear it come alive in seconds."}
+    ]
+  },
+
+  "best-elevenlabs-alternatives-2026": {
+    "title": "Best ElevenLabs Alternatives in 2026 (Cheaper Picks)",
+    "meta": "Looking for a cheaper ElevenLabs alternative in 2026? Here are the best options for expressive, multilingual AI voices — compared on price, quality and emotion.",
+    "date": "2026-06-27",
+    "h1": "Best ElevenLabs Alternatives in 2026",
+    "excerpt": "ElevenLabs is great — but the pricing adds up. Here are the best alternatives for expressive AI voices, compared honestly.",
+    "read": "5 min read",
+    "blocks": [
+      {"type": "p", "text": "ElevenLabs set the bar for expressive AI voices, and most creators agree the quality is excellent. The catch is pricing — character limits and monthly plans add up fast, especially if you generate a lot. If you want the same expressive quality at a friendlier price, here are the alternatives worth knowing in 2026."},
+      {"type": "h2", "text": "What to look for in an alternative"},
+      {"type": "ul", "items": ["Voice quality and emotion — don't trade natural delivery for a lower price.", "Transparent pricing — you should know what a generation costs.", "A real free tier — so you can test before committing.", "Language coverage — native-sounding prosody, not just English."]},
+      {"type": "h2", "text": "Top alternatives"},
+      {"type": "ol", "items": ["SastaSpeech — built on the ElevenLabs v3 engine itself, so quality matches, but with honest per-character pricing, automatic emotion tagging, and ₹49 top-ups instead of big subscriptions. Best for creators who want the quality without the bill.", "Play.ht — large voice library and good quality; pricing is mid-range and emotion control is mostly paid.", "Murf — polished, studio-style narration with a clean editor; better for corporate than expressive storytelling.", "OpenAI / Azure voices — cheap at scale and reliable, but emotional range is limited and you'll need some technical setup."]},
+      {"type": "h2", "text": "Quality vs price: the honest take"},
+      {"type": "p", "text": "If raw quality is all that matters and budget is no object, ElevenLabs directly is hard to beat. But for most creators the smarter move is a tool that uses the same engine while making pricing transparent and approachable. That's exactly the gap SastaSpeech fills — ElevenLabs v3 voices and emotion tags, with a free tier and pay-as-you-go top-ups."},
+      {"type": "h2", "text": "Try before you decide"},
+      {"type": "p", "text": "The only fair test is your own script. Take a paragraph with a mix of emotions, run it through your shortlist, and compare. You can do that free on SastaSpeech right now — no card required."}
+    ]
+  }
+}

@@ -422,6 +422,17 @@ except Exception as _e:
     print(f"[app] seo_pages.json load failed: {_e} — SEO landing pages disabled")
     SEO_PAGES = {}
 
+# Data-driven blog (config/blog.json). /blog lists posts; /blog/<slug>
+# renders one via templates/blog_post.html. Add an article there + a <url>
+# in static/sitemap.xml — no code change needed.
+_BLOG_PATH = Path(__file__).parent / "config" / "blog.json"
+try:
+    BLOG_POSTS = json.loads(_BLOG_PATH.read_text(encoding="utf-8"))
+    BLOG_POSTS.pop("_comment", None)
+except Exception as _e:
+    print(f"[app] blog.json load failed: {_e} — blog disabled")
+    BLOG_POSTS = {}
+
 
 @app.context_processor
 def _inject_business():
@@ -441,6 +452,24 @@ def _placeholder_filter(value):
 
 
 app.jinja_env.filters["pl"] = _placeholder_filter
+
+
+@app.route("/blog")
+def blog_index():
+    posts = [{**v, "slug": k} for k, v in
+             sorted(BLOG_POSTS.items(),
+                    key=lambda kv: kv[1].get("date", ""), reverse=True)]
+    return render_template("blog_index.html", posts=posts)
+
+
+@app.route("/blog/<slug>")
+def blog_post(slug: str):
+    post = BLOG_POSTS.get(slug)
+    if not post:
+        from flask import abort
+        abort(404)
+    related = {s: p for s, p in BLOG_POSTS.items() if s != slug}
+    return render_template("blog_post.html", page=post, slug=slug, related=related)
 
 
 @app.route("/<page>")

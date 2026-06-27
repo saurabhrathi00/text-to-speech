@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ page.title }} | SastaSpeech Blog</title>
+  <meta name="description" content="{{ page.meta }}" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="canonical" href="{{ canonical_host }}/blog/{{ slug }}" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="SastaSpeech" />
+  <meta property="og:title" content="{{ page.title }}" />
+  <meta property="og:description" content="{{ page.meta }}" />
+  <meta property="og:url" content="{{ canonical_host }}/blog/{{ slug }}" />
+  <meta property="og:image" content="{{ canonical_host }}{{ url_for('static', filename='icon-192.png') }}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ page.title }}" />
+  <meta name="twitter:description" content="{{ page.meta }}" />
+
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}" />
+  <meta name="theme-color" content="#07080f" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": {{ page.title | tojson }},
+    "description": {{ page.meta | tojson }},
+    "datePublished": "{{ page.date }}",
+    "dateModified": "{{ page.date }}",
+    "author": {"@type": "Organization", "name": "SastaSpeech", "url": "{{ canonical_host }}"},
+    "publisher": {"@type": "Organization", "name": "SastaSpeech", "logo": {"@type": "ImageObject", "url": "{{ canonical_host }}{{ url_for('static', filename='icon-192.png') }}"}},
+    "mainEntityOfPage": {"@type": "WebPage", "@id": "{{ canonical_host }}/blog/{{ slug }}"}
+  }
+  </script>
+
+  <style>
+    :root{ --bg:#07080f; --bd:rgba(255,255,255,.09); --bd2:rgba(255,255,255,.16);
+      --tx:#e9ebf4; --mut:#9aa3b6; --mut2:#6b7387; --grad:linear-gradient(120deg,#818cf8,#a78bfa 42%,#f472b6); }
+    *{ box-sizing:border-box; }
+    body{ margin:0; background:var(--bg); color:var(--tx); overflow-x:hidden;
+      font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased; letter-spacing:-.011em; }
+    a{ color:#a5b4fc; text-decoration:none; } a:hover{ text-decoration:underline; }
+    .aurora{ position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+    .blob{ position:absolute; border-radius:50%; filter:blur(95px); }
+    .b1{ width:520px;height:520px; top:-180px;left:-120px; opacity:.42; background:radial-gradient(circle,#6366f1,transparent 70%); animation:f1 28s ease-in-out infinite; }
+    .b2{ width:560px;height:560px; top:-140px;right:-160px; opacity:.3; background:radial-gradient(circle,#ec4899,transparent 70%); animation:f2 32s ease-in-out infinite; }
+    @keyframes f1{ 50%{ transform:translate(110px,80px) scale(1.12);} }
+    @keyframes f2{ 50%{ transform:translate(-100px,110px) scale(1.1);} }
+    .aurora::after{ content:''; position:absolute; inset:0; background:radial-gradient(ellipse 110% 65% at 50% -5%,transparent 45%,var(--bg) 85%); }
+
+    nav.top{ display:flex; align-items:center; justify-content:space-between; max-width:760px; margin:0 auto; padding:18px 22px; position:relative; z-index:2; }
+    nav.top .logo{ font-weight:800; font-size:1.02rem; color:var(--tx); }
+    nav.top .logo:hover{ text-decoration:none; }
+    nav.top .cta{ padding:9px 17px; border-radius:10px; font-size:.9rem; font-weight:600; color:var(--tx); background:rgba(255,255,255,.06); border:1px solid var(--bd2); }
+    nav.top .cta:hover{ text-decoration:none; background:rgba(255,255,255,.12); }
+
+    article{ position:relative; z-index:1; max-width:720px; margin:0 auto; padding:34px 22px 0; }
+    .crumb{ font-size:.85rem; color:var(--mut2); margin-bottom:18px; }
+    .crumb a{ color:var(--mut); }
+    h1{ font-size:clamp(1.9rem,4.5vw,2.7rem); line-height:1.12; font-weight:800; letter-spacing:-.03em; margin:0 0 14px;
+      background:linear-gradient(120deg,#e9ebf4,#c4b5fd); -webkit-background-clip:text; background-clip:text; color:transparent; }
+    .meta-row{ color:var(--mut2); font-size:.88rem; margin-bottom:32px; display:flex; gap:14px; }
+    article p{ color:#cdd3e3; line-height:1.75; font-size:1.06rem; margin:0 0 20px; }
+    article h2{ font-size:1.5rem; font-weight:720; letter-spacing:-.02em; margin:38px 0 14px; color:var(--tx); }
+    article ul, article ol{ color:#cdd3e3; line-height:1.7; font-size:1.04rem; padding-left:24px; margin:0 0 20px; }
+    article li{ margin-bottom:10px; }
+
+    .cta-band{ margin:46px 0 0; padding:36px 26px; border-radius:22px; text-align:center;
+      background:linear-gradient(135deg,rgba(99,102,241,.16),rgba(236,72,153,.1)); border:1px solid var(--bd2); }
+    .cta-band h3{ font-size:1.35rem; margin:0 0 8px; font-weight:760; color:var(--tx); letter-spacing:-.02em; }
+    .cta-band p{ color:var(--mut); margin:0 0 20px; }
+    .btn{ display:inline-flex; align-items:center; gap:8px; padding:13px 26px; border-radius:13px; font-weight:650; color:#fff !important;
+      background:linear-gradient(135deg,#6366f1,#8b5cf6 55%,#d946ef); box-shadow:0 14px 40px -12px rgba(124,58,237,.7); }
+    .btn:hover{ text-decoration:none; transform:translateY(-2px); }
+
+    .more{ max-width:720px; margin:50px auto 0; padding:0 22px; position:relative; z-index:1; }
+    .more h3{ font-size:1.15rem; margin:0 0 14px; color:var(--tx); }
+    .more a{ display:block; padding:15px 18px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid var(--bd); margin-bottom:10px; color:var(--tx); }
+    .more a:hover{ text-decoration:none; border-color:var(--bd2); background:rgba(255,255,255,.05); }
+    .more a span{ display:block; color:var(--mut); font-size:.85rem; margin-top:3px; }
+
+    footer{ max-width:720px; margin:64px auto 0; padding:28px 22px 50px; border-top:1px solid var(--bd); position:relative; z-index:1;
+      display:flex; flex-wrap:wrap; gap:14px; justify-content:space-between; color:var(--mut2); font-size:.86rem; }
+    footer nav{ display:flex; gap:20px; } footer nav a{ color:var(--mut); }
+    @media(prefers-reduced-motion:reduce){ .blob{ animation:none; } }
+  </style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span></div>
+
+  <nav class="top">
+    <a href="/" class="logo">🎙️ SastaSpeech</a>
+    <a href="/login" class="cta">Start free</a>
+  </nav>
+
+  <article>
+    <p class="crumb"><a href="/">Home</a> · <a href="/blog">Blog</a></p>
+    <h1>{{ page.h1 }}</h1>
+    <div class="meta-row"><span>{{ page.date }}</span>{% if page.read %}<span>· {{ page.read }}</span>{% endif %}</div>
+
+    {%- for b in page.blocks %}
+    {%- if b.type == 'h2' %}<h2>{{ b.text }}</h2>
+    {%- elif b.type == 'p' %}<p>{{ b.text }}</p>
+    {%- elif b.type == 'ul' %}<ul>{%- for it in b['items'] %}<li>{{ it }}</li>{%- endfor %}</ul>
+    {%- elif b.type == 'ol' %}<ol>{%- for it in b['items'] %}<li>{{ it }}</li>{%- endfor %}</ol>
+    {%- endif %}
+    {%- endfor %}
+
+    <div class="cta-band">
+      <h3>See it for yourself</h3>
+      <p>Paste a script, turn on emotion, and hear the difference — free.</p>
+      <a href="/login" class="btn">Try SastaSpeech free →</a>
+    </div>
+  </article>
+
+  {%- if related %}
+  <div class="more">
+    <h3>Keep reading</h3>
+    {%- for r_slug, r in related.items() %}
+    <a href="/blog/{{ r_slug }}">{{ r.h1 }}<span>{{ r.excerpt }}</span></a>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+
+  <footer>
+    <p>© SastaSpeech · Expressive AI text-to-speech for creators worldwide</p>
+    <nav>
+      <a href="/">Home</a>
+      <a href="/blog">Blog</a>
+      <a href="/login">Sign in</a>
+    </nav>
+  </footer>
+</body>
+</html>

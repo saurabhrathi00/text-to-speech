@@ -91,4 +91,30 @@
         <priority>0.8</priority>
     </url>
 
+    <!-- Blog (config/blog.json) -->
+    <url>
+        <loc>https://sastaspeech.in/blog</loc>
+        <lastmod>2026-06-27</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://sastaspeech.in/blog/best-free-text-to-speech-with-emotion-2026</loc>
+        <lastmod>2026-06-27</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://sastaspeech.in/blog/how-to-make-ai-voiceovers-for-youtube</loc>
+        <lastmod>2026-06-27</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://sastaspeech.in/blog/best-elevenlabs-alternatives-2026</loc>
+        <lastmod>2026-06-27</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+
 </urlset>
