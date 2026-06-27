@@ -97,6 +97,12 @@
 
     /* User bar */
     .user-bar{ background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }
+    /* Top-up "Boosted" badge — gold so a credited account reads as paid, not Free */
+    .user-role.boosted{
+      background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.22)) !important;
+      border:1px solid rgba(251,191,36,.45) !important;
+      color:#fcd34d !important;
+    }
 
     /* Inputs */
     textarea, input[type="text"], input[type="email"], input[type="password"], select{
@@ -833,6 +839,12 @@
         }
       }
       role.textContent = rolePart;
+      // A top-up keeps the plan name (e.g. "Free") but boosts the quota.
+      // Show "⚡ Boosted" prominently so a paying customer never sees a bare
+      // "Free" after a successful purchase and assumes it failed.
+      const boosted = !!me.effective_limits?.has_topup && me.user?.role !== 'admin';
+      role.classList.toggle('boosted', boosted);
+      if (boosted) role.textContent = `${rolePart} · ⚡ Boosted`;
       // Display uses EFFECTIVE limits (base plan + any active top-up).
       // The raw plan_limits row stays in me.limits for debugging /
       // analytics, but the user-facing numbers come from effective_limits.
@@ -1090,7 +1102,10 @@
           showToast(data.error || 'Payment verification failed. If you were charged, it will update automatically shortly — otherwise contact support.', 'error', 8000);
           return;
         }
-        showToast(`🎉 ${capitalize(targetPlan)} is now active!`, 'success');
+        const boughtTier = availablePlans.find(p => p.plan === targetPlan) || {};
+        showToast(isTopup(boughtTier)
+          ? '🎉 Top-up added — your credits are boosted! (Your plan name stays the same.)'
+          : `🎉 ${capitalize(targetPlan)} is now active!`, 'success');
         closeTierPicker();
         // Refresh plan + quota in place; fall back to a reload if it fails.
         const ok = await refreshProfile();
