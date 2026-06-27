@@ -5,7 +5,6 @@ import uuid
 import threading
 import traceback
 from pathlib import Path
-from flask import Response
 
 
 def _load_env_file():
@@ -76,6 +75,7 @@ def _llm_error_message(provider: str | None, detail: str = "") -> str:
     return f"{llm_display(provider)} se text refine nahi ho paya{tail}. Thodi der baad try kar."
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
+import payments  # Razorpay checkout — requests + stdlib only, no heavy deps
 from tts import eleven as eleven_tts  # cloud HTTP, no heavy deps
 
 # Heavy local-only modules (torch / transformers / parler_tts /
@@ -414,8 +414,9 @@ except Exception as _e:
 
 @app.context_processor
 def _inject_business():
-    """Expose `biz` to every template."""
-    return {"biz": BUSINESS_CONFIG}
+    """Expose `biz` + canonical_host to every template (legal pages use
+    canonical_host for their <link rel=canonical>)."""
+    return {"biz": BUSINESS_CONFIG, "canonical_host": CANONICAL_HOST}
 
 
 def _placeholder_filter(value):
@@ -624,6 +625,59 @@ def api_upgrade_request():
     if err:
         return jsonify({"error": err}), 400
     return jsonify({"request": row})
+
+
+# ── Self-serve payments (Razorpay) ─────────────────────────────────────
+
+@app.route("/api/checkout/create-order", methods=["POST"])
+@auth.require_user
+@security.require_json
+@security.rate_limit("user", *security.RATE_UPGRADE_USER)
+def api_checkout_create_order():
+    """Start a Razorpay checkout for a plan. When payments aren't
+    configured (e.g. the local admin box) returns 503 + fallback:true so
+    the frontend uses the manual upgrade-request flow instead."""
+    if not payments.is_configured():
+        return jsonify({"error": "Payments not configured", "fallback": True}), 503
+    data = request.get_json(silent=True) or {}
+    plan = (data.get("plan") or "").lower().strip()
+    order, err = payments.create_order(g.user["id"], plan)
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify(order)
+
+
+@app.route("/api/checkout/verify", methods=["POST"])
+@auth.require_user
+@security.require_json
+@security.rate_limit("user", *security.RATE_UPGRADE_USER)
+def api_checkout_verify():
+    """Verify the Razorpay checkout callback signature and apply the plan
+    (UX fast-path; the webhook is the authoritative backstop)."""
+    data = request.get_json(silent=True) or {}
+    result, err = payments.verify_payment(
+        g.user["id"],
+        (data.get("razorpay_order_id") or "").strip(),
+        (data.get("razorpay_payment_id") or "").strip(),
+        (data.get("razorpay_signature") or "").strip(),
+    )
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify(result)
+
+
+@app.route("/api/webhooks/razorpay", methods=["POST"])
+def api_razorpay_webhook():
+    """Razorpay server-to-server webhook. No auth decorator — the HMAC
+    signature on the raw body IS the authentication. Always 200 on a
+    verified event (even if ignored) so Razorpay stops retrying; 400
+    only when the signature itself fails."""
+    raw = request.get_data()  # raw bytes — required for signature check
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    ok, err = payments.handle_webhook(raw, signature)
+    if not ok:
+        return jsonify({"error": err or "rejected"}), 400
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/admin/security/recent")
@@ -1232,22 +1286,3 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
     _kick_off_warmup()  # safe to call again — the lock dedupes
     app.run(host=host, port=port, debug=False, threaded=True)
-
-
-@app.route('/sitemap.xml')
-def sitemap():
-    sitemap_xml = '''<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
-  <url>
-    <loc>https://sastaspeech.in/</loc>
-  </url>
-
-  <url>
-    <loc>https://sastaspeech.in/pricing</loc>
-  </url>
-
-</urlset>
-'''
-
-    return Response(sitemap_xml, mimetype='application/xml')

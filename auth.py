@@ -496,6 +496,86 @@ def list_upgrade_requests(status: str | None = "pending") -> list[dict]:
         return []
 
 
+def apply_plan_grant(user_id: str, target_plan: str,
+                      source_ref: str | None = None) -> tuple[bool, str | None]:
+    """Apply a purchased/approved plan to a user's profile.
+
+    Shared by admin approval (resolve_upgrade_request) and self-serve
+    payment capture (payments.handle_webhook / verify). `source_ref` is
+    a label stored on the top-up credit ledger row for traceability
+    (e.g. 'request:12', 'order:order_abc'). Returns (ok, error).
+
+    Mechanics mirror the original resolve_upgrade_request logic:
+      - subscription → stamp profiles.plan + plan_expires_at
+      - top-up       → additive overlay (chars ledger credit, bump
+        bonus_uses + bonus_max_chars_per_request, extend expiry)
+    """
+    limits = get_plan_limits(target_plan) or {}
+    if not limits:
+        return False, f"Unknown plan '{target_plan}'"
+    kind = (limits.get("kind") or "subscription").lower()
+
+    if kind == "topup":
+        bonus_chars = int(limits.get("monthly_chars") or 0)
+        bonus_reqs  = int(limits.get("daily_uses") or 0)
+        bonus_max   = int(limits.get("max_chars_per_request") or 0)
+        bonus_hours = int(limits.get("validity_hours") or 0)
+        if (bonus_chars <= 0 and bonus_reqs <= 0
+                and bonus_max <= 0 and bonus_hours <= 0):
+            return False, "Top-up plan has nothing to grant — contact support"
+        try:
+            # (1) chars credit on the ledger
+            if bonus_chars > 0:
+                admin_client().table("usage_events").insert({
+                    "user_id": user_id,
+                    "kind": "credit.topup",
+                    "provider": None,
+                    "chars": -bonus_chars,
+                    "cost_usd": 0,
+                    "meta": {"topup_plan": target_plan, "source": source_ref},
+                }).execute()
+
+            # (2)+(3) bump bonus_uses + bonus_max on profile
+            cur_profile = get_profile(user_id) or {}
+            profile_update = {"updated_at": "now()"}
+            if bonus_reqs > 0:
+                profile_update["bonus_uses"] = (
+                    int(cur_profile.get("bonus_uses") or 0) + bonus_reqs)
+            if bonus_max > 0:
+                profile_update["bonus_max_chars_per_request"] = (
+                    int(cur_profile.get("bonus_max_chars_per_request") or 0) + bonus_max)
+
+            # (4) extend plan_expires_at by topup's validity_hours
+            if bonus_hours > 0:
+                from datetime import timedelta
+                current_expiry = _parse_ts(cur_profile.get("plan_expires_at"))
+                base_ts = current_expiry if (current_expiry and current_expiry > _now_utc()) else _now_utc()
+                profile_update["plan_expires_at"] = (
+                    base_ts + timedelta(hours=bonus_hours)).isoformat()
+
+            if len(profile_update) > 1:  # more than just updated_at
+                admin_client().table("profiles").update(profile_update).eq(
+                    "user_id", user_id).execute()
+        except Exception as e:
+            return False, f"Failed to credit top-up: {e}"
+    else:
+        # Subscription: stamp plan + expiry timestamp atomically.
+        validity = limits.get("validity_hours")
+        update = {"plan": target_plan, "updated_at": "now()"}
+        if validity:
+            from datetime import timedelta
+            update["plan_expires_at"] = (
+                _now_utc() + timedelta(hours=int(validity))).isoformat()
+        else:
+            update["plan_expires_at"] = None
+        try:
+            admin_client().table("profiles").update(update).eq(
+                "user_id", user_id).execute()
+        except Exception as e:
+            return False, f"Failed to apply subscription: {e}"
+    return True, None
+
+
 def resolve_upgrade_request(request_id: int, action: str,
                              admin_user_id: str) -> tuple[dict | None, str | None]:
     """Admin marks a request approved or rejected. On approve, also
@@ -517,85 +597,11 @@ def resolve_upgrade_request(request_id: int, action: str,
         new_status = "approved" if action == "approve" else "rejected"
 
         if action == "approve":
-            target_plan = req["requested_plan"]
-            limits = get_plan_limits(target_plan) or {}
-            kind = (limits.get("kind") or "subscription").lower()
-
-            if kind == "topup":
-                # Top-up is a TRUE additive overlay — every base-plan
-                # limit grows by the top-up's value, and the user's
-                # active plan validity is extended by the top-up's
-                # validity_hours. Mechanics:
-                #   1. chars  → negative usage_events row (rolling-30d
-                #      arithmetic naturally allows +monthly_chars more).
-                #   2. gens   → profiles.bonus_uses += topup.daily_uses.
-                #               check_limits sees daily_cap = base + bonus.
-                #   3. max/req → profiles.bonus_max_chars_per_request
-                #                += topup.max_chars_per_request.
-                #                get_effective_limits sums it onto the
-                #                base. Stacks if user buys multiple.
-                #   4. validity → plan_expires_at += topup.validity_hours.
-                #                 If the user's plan had already expired
-                #                 (or never had one — free users) we start
-                #                 the clock from now.
-                bonus_chars = int(limits.get("monthly_chars") or 0)
-                bonus_reqs  = int(limits.get("daily_uses") or 0)
-                bonus_max   = int(limits.get("max_chars_per_request") or 0)
-                bonus_hours = int(limits.get("validity_hours") or 0)
-                if (bonus_chars <= 0 and bonus_reqs <= 0
-                        and bonus_max <= 0 and bonus_hours <= 0):
-                    return None, "Top-up plan has nothing to grant — contact support"
-                try:
-                    # (1) chars credit on the ledger
-                    if bonus_chars > 0:
-                        admin_client().table("usage_events").insert({
-                            "user_id": req["user_id"],
-                            "kind": "credit.topup",
-                            "provider": None,
-                            "chars": -bonus_chars,
-                            "cost_usd": 0,
-                            "meta": {"topup_plan": target_plan, "request_id": req["id"]},
-                        }).execute()
-
-                    # (2)+(3) bump bonus_uses + bonus_max on profile
-                    cur_profile = get_profile(req["user_id"]) or {}
-                    profile_update = {"updated_at": "now()"}
-                    new_bonus_uses = int(cur_profile.get("bonus_uses") or 0) + bonus_reqs
-                    new_bonus_max  = int(cur_profile.get("bonus_max_chars_per_request") or 0) + bonus_max
-                    if bonus_reqs > 0:
-                        profile_update["bonus_uses"] = new_bonus_uses
-                    if bonus_max > 0:
-                        profile_update["bonus_max_chars_per_request"] = new_bonus_max
-
-                    # (4) extend plan_expires_at by topup's validity_hours
-                    if bonus_hours > 0:
-                        from datetime import timedelta
-                        current_expiry = _parse_ts(cur_profile.get("plan_expires_at"))
-                        # If expiry already passed or never set, start from now
-                        base_ts = current_expiry if (current_expiry and current_expiry > _now_utc()) else _now_utc()
-                        profile_update["plan_expires_at"] = (
-                            base_ts + timedelta(hours=bonus_hours)
-                        ).isoformat()
-
-                    if len(profile_update) > 1:  # more than just updated_at
-                        admin_client().table("profiles").update(profile_update).eq(
-                            "user_id", req["user_id"]).execute()
-                except Exception as e:
-                    return None, f"Failed to credit top-up: {e}"
-            else:
-                # Subscription: stamp plan + expiry timestamp atomically.
-                # validity_hours = null only on free / admin rows.
-                validity = limits.get("validity_hours")
-                update = {"plan": target_plan, "updated_at": "now()"}
-                if validity:
-                    from datetime import timedelta
-                    update["plan_expires_at"] = (
-                        _now_utc() + timedelta(hours=int(validity))
-                    ).isoformat()
-                else:
-                    update["plan_expires_at"] = None
-                admin_client().table("profiles").update(update).eq(
-                    "user_id", req["user_id"]).execute()
+            ok, grant_err = apply_plan_grant(
+                req["user_id"], req["requested_plan"],
+                source_ref=f"request:{req['id']}")
+            if not ok:
+                return None, grant_err
 
         upd = admin_client().table("upgrade_requests").update({
             "status": new_status,

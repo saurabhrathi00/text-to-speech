@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Narrator" />
+  <meta name="apple-mobile-web-app-title" content="SastaSpeech" />
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}" />
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
@@ -877,7 +877,89 @@
       document.getElementById('upgradePicker').classList.add('hidden');
     }
 
+    // Lazily inject Razorpay's checkout.js only when a purchase starts —
+    // keeps initial load lean and the local admin box (no payments) clean.
+    function loadRazorpay() {
+      if (window.Razorpay) return Promise.resolve(true);
+      if (window._rzpLoading) return window._rzpLoading;
+      window._rzpLoading = new Promise(resolve => {
+        const s = document.createElement('script');
+        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.onload = () => resolve(true);
+        s.onerror = () => resolve(false);
+        document.head.appendChild(s);
+      });
+      return window._rzpLoading;
+    }
+
     async function submitUpgrade(targetPlan) {
+      let order;
+      try {
+        const res = await fetch('/api/checkout/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: targetPlan }),
+        });
+        const data = await res.json().catch(() => ({}));
+        // Payments off (local box) → manual admin-approved flow.
+        if (res.status === 503 && data.fallback) return submitUpgradeManual(targetPlan);
+        if (!res.ok) { alert(data.error || 'Checkout shuru nahi ho paya.'); return; }
+        order = data;
+      } catch (e) {
+        return submitUpgradeManual(targetPlan);
+      }
+
+      const loaded = await loadRazorpay();
+      if (!loaded || !window.Razorpay) {
+        alert('Payment screen load nahi hua — internet check karke dobara try karein.');
+        return;
+      }
+
+      const me = window._lastMe || {};
+      const rzp = new window.Razorpay({
+        key: order.key_id,
+        order_id: order.order_id,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'SastaSpeech',
+        description: `${order.display_name} plan`,
+        prefill: { email: me.profile?.email || me.email || '' },
+        theme: { color: '#6366f1' },
+        handler: resp => confirmPayment(resp, targetPlan),
+      });
+      rzp.on('payment.failed', resp => {
+        alert('Payment fail ho gaya: ' + (resp.error?.description || 'dobara try karein'));
+      });
+      closeTierPicker();
+      rzp.open();
+    }
+
+    async function confirmPayment(resp, targetPlan) {
+      try {
+        const res = await fetch('/api/checkout/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpay_order_id: resp.razorpay_order_id,
+            razorpay_payment_id: resp.razorpay_payment_id,
+            razorpay_signature: resp.razorpay_signature,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || 'Payment verify nahi hua. Paisa kata hai to thodi der me apne aap update ho jayega, warna support se baat karein.');
+          return;
+        }
+        alert(`🎉 ${capitalize(targetPlan)} active ho gaya!`);
+        location.reload();
+      } catch (e) {
+        alert('Verify me network error — page refresh karke check karein, ya thodi der baad.');
+      }
+    }
+
+    // Fallback when payments aren't configured: the original manual,
+    // admin-approved upgrade-request flow (pay out-of-band via UPI/WA).
+    async function submitUpgradeManual(targetPlan) {
       const tierInfo = availablePlans.find(p => p.plan === targetPlan) || {};
       const isT = isTopup(tierInfo);
       const headline = isT

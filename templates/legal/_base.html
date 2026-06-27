@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}SastaSpeech{% endblock %}</title>
+  <meta name="description" content="{% block description %}SastaSpeech — sasta, mast Hindi text-to-speech. Studio-quality Hindi & Hinglish voiceovers for creators from ₹49.{% endblock %}" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="{{ canonical_host }}{{ request.path }}" />
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icon.svg') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
     .legal-shell {

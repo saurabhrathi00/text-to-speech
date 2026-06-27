@@ -1,7 +1,7 @@
 {
-  "name": "YouTube Narrator",
-  "short_name": "Narrator",
-  "description": "Local Indian narrator voice generator for YouTube scripts",
+  "name": "SastaSpeech",
+  "short_name": "SastaSpeech",
+  "description": "Sasta, mast Hindi & Hinglish text-to-speech — studio-quality voiceovers for creators.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

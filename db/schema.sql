@@ -250,6 +250,42 @@ create policy "upgrade_requests_self_read"
 
 
 -- ─────────────────────────────────────────────────────────────────────
+-- payment_orders: self-serve Razorpay purchases. One row per checkout
+-- attempt. The webhook (payment.captured / order.paid) is the source of
+-- truth for granting the plan; the client-side verify is a UX fast-path.
+-- `granted` makes plan application idempotent so a webhook + verify
+-- (or a webhook retry) never double-credits.
+-- ─────────────────────────────────────────────────────────────────────
+create table if not exists public.payment_orders (
+    id                  bigserial primary key,
+    user_id             uuid not null references auth.users(id) on delete cascade,
+    plan                text not null,                    -- target plan_limits.plan
+    razorpay_order_id   text not null unique,             -- 'order_...'
+    razorpay_payment_id text,                             -- 'pay_...' once captured
+    amount_paise        integer not null,                 -- charged amount in paise
+    currency            text not null default 'INR',
+    status              text not null default 'created',  -- created | paid | failed
+    granted             boolean not null default false,   -- plan applied to profile?
+    note                text,                             -- optional failure reason / meta
+    created_at          timestamptz not null default now(),
+    paid_at             timestamptz,
+    meta                jsonb
+);
+
+create index if not exists payment_orders_user_idx
+    on public.payment_orders (user_id, created_at desc);
+
+alter table public.payment_orders enable row level security;
+
+-- Users can read only their own orders. All writes go through the
+-- service-role backend (order creation + webhook capture).
+drop policy if exists "payment_orders_self_read" on public.payment_orders;
+create policy "payment_orders_self_read"
+    on public.payment_orders for select
+    using (auth.uid() = user_id);
+
+
+-- ─────────────────────────────────────────────────────────────────────
 -- usage_events: every billable action (TTS generation, etc.) logged
 -- ─────────────────────────────────────────────────────────────────────
 create table if not exists public.usage_events (
