@@ -12,7 +12,10 @@ LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "gemini").strip().lower()
 
 # ─── Gemini ───────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+# 2.5-flash: stronger emotion/nuance reasoning than 2.0-flash while
+# staying fast + cheap for per-sentence classification. Override with
+# GEMINI_MODEL=gemini-2.5-pro for maximum nuance (slower, costlier).
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_API_BASE = os.getenv(
     "GEMINI_API_BASE",
     "https://generativelanguage.googleapis.com/v1beta",

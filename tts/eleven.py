@@ -9,10 +9,55 @@ from config import (
     ELEVEN_DEFAULT_SIMILARITY_BOOST,
 )
 
-_MAX_CHARS = 4800
+# v3 alpha caps a single request lower than v2. Chunk to the model's
+# ceiling so long scripts still go through (concatenated afterwards).
+_MAX_CHARS_V2 = 4800
+_MAX_CHARS_V3 = 2800
 
-DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
+DEFAULT_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_v3")
 DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGBDnXBQb")
+
+# v3 only accepts three discrete stability values (0.0 Creative,
+# 0.5 Natural, 1.0 Robust) and has no `style` knob — the inline
+# performance tags ([excited], [whispers], [sobbing], …) the emotion
+# pipeline injects carry the expression instead. v2 takes continuous
+# stability + style. We build the right payload shape per model.
+_V3_STABILITY_STEPS = (0.0, 0.5, 1.0)
+
+
+def _is_v3(model_id: str) -> bool:
+    return "v3" in (model_id or "").lower()
+
+
+def _max_chars_for(model_id: str) -> int:
+    return _MAX_CHARS_V3 if _is_v3(model_id) else _MAX_CHARS_V2
+
+
+def _snap_v3_stability(value: float) -> float:
+    """Round an arbitrary 0–1 stability to the nearest v3-legal step."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        value = 0.5
+    return min(_V3_STABILITY_STEPS, key=lambda s: abs(s - value))
+
+
+def _build_voice_settings(model_id: str, voice_config: dict) -> dict:
+    defaults = dict(ELEVEN_DEFAULT_VOICE_SETTINGS)
+    stability = voice_config.get("stability", defaults["stability"])
+    similarity = voice_config.get("similarity_boost", ELEVEN_DEFAULT_SIMILARITY_BOOST)
+    if _is_v3(model_id):
+        return {
+            "stability": _snap_v3_stability(stability),
+            "similarity_boost": similarity,
+            "use_speaker_boost": True,
+        }
+    return {
+        "stability": stability,
+        "similarity_boost": similarity,
+        "style": voice_config.get("style", defaults["style"]),
+        "use_speaker_boost": True,
+    }
 
 
 def list_voices() -> list[dict]:
@@ -60,7 +105,7 @@ def is_configured() -> bool:
     return bool(os.getenv("ELEVENLABS_API_KEY"))
 
 
-def _chunk_text(text: str, limit: int = _MAX_CHARS) -> list[str]:
+def _chunk_text(text: str, limit: int = _MAX_CHARS_V2) -> list[str]:
     if len(text) <= limit:
         return [text]
     sentences = re.split(r"(?<=[।.!?])\s*", text)
@@ -92,26 +137,19 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
     voice_id = voice_config.get("voice_id") or DEFAULT_VOICE_ID
     model_id = voice_config.get("model_id") or DEFAULT_MODEL
 
-    settings = dict(ELEVEN_DEFAULT_VOICE_SETTINGS)
-
     url = f"{API_BASE}/text-to-speech/{voice_id}"
     headers = {
         "xi-api-key": api_key,
         "Content-Type": "application/json",
         "Accept": "audio/mpeg",
     }
-    voice_settings = {
-        "stability": voice_config.get("stability", settings["stability"]),
-        "similarity_boost": voice_config.get("similarity_boost", ELEVEN_DEFAULT_SIMILARITY_BOOST),
-        "style": voice_config.get("style", settings["style"]),
-        "use_speaker_boost": True,
-    }
+    voice_settings = _build_voice_settings(model_id, voice_config)
 
     mp3_path = out_path
     if out_path.endswith(".wav"):
         mp3_path = out_path[:-4] + ".mp3"
 
-    chunks = _chunk_text(text)
+    chunks = _chunk_text(text, _max_chars_for(model_id))
 
     if len(chunks) == 1:
         audio = _eleven_request(url, headers, chunks[0], model_id, voice_settings)
