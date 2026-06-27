@@ -282,6 +282,14 @@
     }
     window.showToast = showToast;
 
+    // Escape untrusted values before they go into innerHTML (admin panel,
+    // tier cards, scene cards). Prevents stored XSS from e.g. a user's
+    // upgrade-request note rendering in the admin's session.
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     const SUPABASE_URL = {{ supabase.url | tojson }};
     const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
     const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
@@ -1064,14 +1072,14 @@
           row.className = 'upgrade-row';
           row.innerHTML = `
             <div class="upgrade-meta">
-              <strong>${r.email || r.user_id}</strong>
-              <span class="muted">${r.current_plan || '?'} → <b>${r.requested_plan}</b></span>
-              ${r.note ? `<div class="upgrade-note">"${r.note}"</div>` : ''}
-              <span class="muted">${new Date(r.created_at).toLocaleString()}</span>
+              <strong>${escapeHtml(r.email || r.user_id)}</strong>
+              <span class="muted">${escapeHtml(r.current_plan || '?')} → <b>${escapeHtml(r.requested_plan)}</b></span>
+              ${r.note ? `<div class="upgrade-note">"${escapeHtml(r.note)}"</div>` : ''}
+              <span class="muted">${escapeHtml(new Date(r.created_at).toLocaleString())}</span>
             </div>
             <div class="upgrade-actions">
-              <button class="primary" data-act="approve" data-id="${r.id}">Approve</button>
-              <button class="secondary" data-act="reject" data-id="${r.id}">Reject</button>
+              <button class="primary" data-act="approve" data-id="${escapeHtml(r.id)}">Approve</button>
+              <button class="secondary" data-act="reject" data-id="${escapeHtml(r.id)}">Reject</button>
             </div>`;
           list.appendChild(row);
         });

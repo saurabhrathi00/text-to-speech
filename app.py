@@ -460,7 +460,9 @@ def _build_voice_description(voice: dict) -> str:
 
 
 @app.route("/normalize", methods=["POST"])
+@auth.require_user
 @security.require_json
+@security.rate_limit("user", *security.RATE_GENERATE_USER)
 @security.rate_limit("ip", *security.RATE_NORMALIZE_IP)
 def normalize():
     data = request.get_json(silent=True) or {}
@@ -787,9 +789,9 @@ def api_progress(job_id: str):
         entry = _progress.get(job_id)
         if not entry:
             return jsonify({"stage": "unknown", "elapsed": 0, "eta_seconds": 0}), 200
-        terminal = entry["stage"] in ("done", "error")
-        if terminal:
-            _progress.pop(job_id, None)
+        # Do NOT pop terminal entries on read — a dropped/duplicated poll
+        # (network blip, backgrounded tab) would otherwise lose the result
+        # permanently. _prune_old_progress reclaims them by age (600s).
     elapsed = max(0, time.time() - entry["started_at"])
     resp = {
         "stage": entry["stage"],

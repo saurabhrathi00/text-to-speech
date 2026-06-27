@@ -353,9 +353,15 @@ create policy "profiles_self_read"
     on public.profiles for select
     using (auth.uid() = user_id);
 
-create policy "profiles_self_update"
-    on public.profiles for update
-    using (auth.uid() = user_id);
+-- NO self-update policy on purpose. A `for update ... using (auth.uid()
+-- = user_id)` policy with no WITH CHECK would let any signed-in user
+-- rewrite their OWN privileged columns (plan, role, plan_expires_at,
+-- bonus_uses) straight from the browser via the public anon key —
+-- self-granting paid plans / admin / unlimited quota and bypassing every
+-- app-layer check. All profile writes go through the service-role backend
+-- (which ignores RLS), so end-users need no UPDATE grant at all.
+-- (Previously this dropped + recreated a self-update policy; the recreate
+-- is intentionally removed.)
 
 create policy "usage_self_read"
     on public.usage_events for select

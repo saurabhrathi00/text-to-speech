@@ -121,7 +121,14 @@ def create_order(user_id: str, plan: str) -> tuple[dict | None, str | None]:
 
 def _grant_order(order_id: str, payment_id: str | None) -> tuple[dict | None, str | None]:
     """Apply the order's plan to its user exactly once. Safe to call
-    from both the client verify and the webhook."""
+    concurrently from both the client verify and the webhook.
+
+    Idempotency is enforced by an ATOMIC claim: we flip `granted` from
+    false→true in a single conditional UPDATE before doing any grant work,
+    so only ONE caller (the winner of that update) ever reaches
+    apply_plan_grant. Without this, a webhook + verify (or a webhook retry)
+    racing inside the grant window would double-credit additive top-ups.
+    """
     try:
         res = (auth.admin_client().table("payment_orders")
                .select("*").eq("razorpay_order_id", order_id).execute())
@@ -135,27 +142,36 @@ def _grant_order(order_id: str, payment_id: str | None) -> tuple[dict | None, st
     if order.get("granted"):
         return order, None  # already applied — idempotent no-op
 
-    ok, err = auth.apply_plan_grant(
-        order["user_id"], order["plan"], source_ref=f"order:{order_id}")
-    if not ok:
-        return None, err or "Failed to apply plan"
-
+    # Atomic claim: only the caller whose UPDATE actually matches a row
+    # (granted still false) wins the right to apply the grant. Concurrent
+    # callers get zero rows back and bail as a no-op.
     try:
-        upd = (auth.admin_client().table("payment_orders").update({
+        claim = (auth.admin_client().table("payment_orders").update({
             "status": "paid",
             "granted": True,
             "razorpay_payment_id": payment_id,
             "paid_at": "now()",
-        }).eq("razorpay_order_id", order_id).execute())
-        rows = getattr(upd, "data", None) or []
-        return (rows[0] if rows else order), None
+        }).eq("razorpay_order_id", order_id).eq("granted", False).execute())
+        claimed = getattr(claim, "data", None) or []
     except Exception as e:
-        # Plan was applied but the row update failed — log loudly; a
-        # webhook retry will see granted=False and re-apply. apply_plan_grant
-        # for subscriptions is a plain plan stamp (safe to repeat); top-ups
-        # could double-credit on retry, so surface this for manual review.
-        print(f"[payments] GRANTED order {order_id} but row update failed: {e}")
-        return order, None
+        return None, f"Order claim failed: {e}"
+    if not claimed:
+        return order, None  # someone else already claimed it — no double-credit
+
+    ok, err = auth.apply_plan_grant(
+        order["user_id"], order["plan"], source_ref=f"order:{order_id}")
+    if not ok:
+        # We claimed but the grant failed — release the claim so a webhook
+        # retry can re-attempt cleanly instead of leaving paid-but-ungranted.
+        try:
+            auth.admin_client().table("payment_orders").update({
+                "status": "created", "granted": False,
+            }).eq("razorpay_order_id", order_id).execute()
+        except Exception as e2:
+            print(f"[payments] FAILED to release claim on {order_id}: {e2}")
+        return None, err or "Failed to apply plan"
+
+    return claimed[0], None
 
 
 # ── Client-side verify (fast path) ─────────────────────────────────────
@@ -227,7 +243,11 @@ def handle_webhook(raw_body: bytes, signature: str) -> tuple[bool, str | None]:
         return True, None  # nothing to match; acknowledge
 
     _, err = _grant_order(order_id, payment_id)
-    if err and err != "Order not found":
+    if err:
+        # Return non-200 so Razorpay retries (with backoff, over hours).
+        # "Order not found" usually means the webhook beat create_order's
+        # INSERT — a retry will land after the row exists. The webhook is
+        # the source of truth, so we must NOT silently ACK-and-drop it.
         print(f"[payments] webhook grant error for {order_id}: {err}")
         return False, err
     return True, None
