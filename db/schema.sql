@@ -118,7 +118,7 @@ values
      1,    null, 100,   100,
      array['gemini'], array['elevenlabs'],
      'Free trial: 1 generation per day, max 100 chars'),
-    ('sabse_sasta',  'Sabse Sasta',  49,   48,
+    ('sabse_sasta',  'Quick Top-up',  49,   48,
      3,    null, 500,   1500,
      array['gemini'], array['elevenlabs'],
      'Top-up bundle: +1500 chars, +3 gens, +500 chars/req · extends active plan by 48h'),
@@ -156,6 +156,12 @@ update public.plan_limits
        notes = 'Top-up bundle: +1500 chars, +3 gens, +500 chars/req · extends active plan by 48h'
  where plan = 'sabse_sasta';
 update public.plan_limits set kind = 'subscription' where kind is null;
+
+-- Globalize the top-up's display name. Only flips the old Hindi default so
+-- an admin rename via /api/admin/limits is never clobbered. The plan KEY
+-- ('sabse_sasta') is internal and stays; only the user-visible name changes.
+update public.plan_limits set display_name = 'Quick Top-up'
+ where plan = 'sabse_sasta' and display_name = 'Sabse Sasta';
 
 -- Bring the original pro row up to current seed values. Earlier seed
 -- had max=5000; new tiered pricing uses 3000/req. daily=10 was right

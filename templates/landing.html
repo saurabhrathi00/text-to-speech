@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en-IN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <!-- ─── SEO basics ────────────────────────────────────────────── -->
-  <title>SastaSpeech — Sasta + Mast Hindi Text-to-Speech | Voiceovers from ₹49</title>
-  <meta name="description" content="Studio-quality Hindi text-to-speech for Indian creators. Convert Hindi / Hinglish / English scripts to natural narrator audio in seconds. Plans start at ₹49 — pay per day or monthly. Powered by ElevenLabs + Gemini." />
-  <meta name="keywords" content="hindi text to speech, hindi tts, hindi voiceover, sasta tts, hindi ai voice, hinglish voiceover, youtube hindi narrator, सस्ता हिंदी टीटीएस, हिंदी वॉइसओवर" />
+  <title>SastaSpeech — Expressive AI Text-to-Speech & Voiceovers in Any Language</title>
+  <meta name="description" content="Affordable, studio-quality AI voiceovers in any language. Turn any script into natural, expressive narration with real emotion in seconds. Powered by ElevenLabs v3 + Gemini. Start free." />
+  <meta name="keywords" content="ai text to speech, ai voiceover, text to speech with emotion, multilingual tts, ai voice generator, expressive tts, ai narration, text to voice, voiceover generator" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="SastaSpeech" />
   <meta name="theme-color" content="#0f172a" />
@@ -16,17 +16,16 @@
   <!-- ─── Open Graph (Facebook, LinkedIn, WhatsApp previews) ────── -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SastaSpeech" />
-  <meta property="og:title" content="SastaSpeech — Sasta + Mast Hindi Text-to-Speech" />
-  <meta property="og:description" content="Studio-quality Hindi voiceovers, starting at ₹49. Built for Indian creators." />
+  <meta property="og:title" content="SastaSpeech — Expressive AI Text-to-Speech in Any Language" />
+  <meta property="og:description" content="Affordable, studio-quality AI voiceovers with real emotion — in any language. Powered by ElevenLabs v3 + Gemini." />
   <meta property="og:url" content="{{ canonical_host }}/" />
   <meta property="og:image" content="{{ canonical_host }}{{ url_for('static', filename='icon-192.png') }}" />
-  <meta property="og:locale" content="en_IN" />
-  <meta property="og:locale:alternate" content="hi_IN" />
+  <meta property="og:locale" content="en_US" />
 
   <!-- ─── Twitter Card ──────────────────────────────────────────── -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="SastaSpeech — Hindi voiceovers from ₹49" />
-  <meta name="twitter:description" content="Studio-quality Hindi text-to-speech for Indian creators." />
+  <meta name="twitter:title" content="SastaSpeech — Expressive AI voiceovers in any language" />
+  <meta name="twitter:description" content="Affordable, studio-quality AI text-to-speech with real emotion, in any language." />
   <meta name="twitter:image" content="{{ canonical_host }}{{ url_for('static', filename='icon-192.png') }}" />
 
   <!-- ─── Icons & PWA ───────────────────────────────────────────── -->
@@ -48,7 +47,7 @@
     "name": "SastaSpeech",
     "url": "{{ canonical_host }}",
     "logo": "{{ canonical_host }}{{ url_for('static', filename='icon-192.png') }}",
-    "description": "Studio-quality Hindi text-to-speech for Indian creators."
+    "description": "Affordable, studio-quality AI text-to-speech and expressive voiceovers in any language."
   }
   </script>
 
@@ -60,7 +59,7 @@
     "applicationCategory": "MultimediaApplication",
     "operatingSystem": "Web",
     "url": "{{ canonical_host }}",
-    "description": "Hindi / Hinglish / English text-to-speech for content creators. 60+ emotion tags, per-sentence performance, signed-URL audio.",
+    "description": "Multilingual AI text-to-speech for content creators. 60+ emotion tags, per-sentence performance, signed-URL audio.",
     "offers": [
       {%- for p in plans %}
       {"@type": "Offer", "name": {{ (p.display_name or p.plan) | tojson }}, "price": "{{ p.price_inr_monthly or 0 }}", "priceCurrency": "INR", "category": "{{ 'one-time top-up' if p.is_topup else ('free' if not p.price_inr_monthly else 'monthly subscription') }}"}{%- if not loop.last %},{%- endif %}
@@ -77,7 +76,7 @@
       {
         "@type": "Question",
         "name": "What is SastaSpeech?",
-        "acceptedAnswer": {"@type": "Answer", "text": "SastaSpeech is a Hindi text-to-speech platform for Indian creators. Type a script in Hindi, Hinglish, or English and get studio-quality narrator audio in seconds. Plans start from ₹49."}
+        "acceptedAnswer": {"@type": "Answer", "text": "SastaSpeech is an expressive AI text-to-speech platform for creators worldwide. Type a script in almost any language and get studio-quality narrator audio in seconds — affordable, no studio required."}
       },
       {
         "@type": "Question",
@@ -86,8 +85,8 @@
       },
       {
         "@type": "Question",
-        "name": "Does SastaSpeech support Hindi voices?",
-        "acceptedAnswer": {"@type": "Answer", "text": "Yes — Hindi is the primary supported language. We also handle Hinglish (Roman-script Hindi) and English. Voices are powered by ElevenLabs v3 with natural prosody."}
+        "name": "Which languages does SastaSpeech support?",
+        "acceptedAnswer": {"@type": "Answer", "text": "SastaSpeech is multilingual. Powered by ElevenLabs v3, it speaks dozens of languages — English, Spanish, French, German, Hindi, Portuguese, Arabic, and many more — with natural, expressive prosody."}
       },
       {
         "@type": "Question",
@@ -101,8 +100,8 @@
       },
       {
         "@type": "Question",
-        "name": "What is the Sabse Sasta top-up?",
-        "acceptedAnswer": {"@type": "Answer", "text": "Sabse Sasta is a one-time ₹49 top-up that adds 1,500 characters, 3 extra generations, and lifts the per-request limit to 500 characters — all stacked on top of whatever plan you are on. Perfect when your monthly quota runs out and you need a few more audios without renewing the full plan."}
+        "name": "What is the quick top-up?",
+        "acceptedAnswer": {"@type": "Answer", "text": "The top-up is a one-time ₹49 add-on that grants 1,500 characters, 3 extra generations, and lifts the per-request limit to 500 characters — all stacked on top of whatever plan you are on. Perfect when your monthly quota runs out and you need a few more audios without renewing the full plan."}
       },
       {
         "@type": "Question",
@@ -168,14 +167,14 @@
   <main>
     <!-- ─── HERO ─────────────────────────────────────────────── -->
     <section class="landing-hero" aria-labelledby="heroHeading">
-      <p class="landing-eyebrow">Hindi · Hinglish · English</p>
+      <p class="landing-eyebrow">Any language · Real emotion · Studio quality</p>
       <h1 id="heroHeading">
-        Studio-quality <span class="accent">Hindi voiceovers</span>,<br />
-        starting at ₹49.
+        Studio-quality <span class="accent">AI voiceovers</span>,<br />
+        in any language.
       </h1>
       <p class="landing-sub">
-        Type your script. Get a natural narrator's voice in seconds. Built for
-        Indian creators — Reels, YouTube, podcasts, ads.
+        Type your script. Get a natural narrator's voice — with real emotion —
+        in seconds. Built for creators everywhere: Reels, YouTube, podcasts, ads.
       </p>
       <div class="landing-cta-row">
         <a href="/login" class="landing-cta-primary">Start free →</a>
@@ -189,9 +188,9 @@
       <h2 id="featuresHeading">Why creators pick SastaSpeech</h2>
       <div class="landing-features-grid">
         <article class="landing-feature reveal">
-          <span class="feature-icon">🇮🇳</span>
-          <h3>Real Hindi prosody</h3>
-          <p>ElevenLabs v3 voices that sound human — not the robotic Hindi TTS you've heard before.</p>
+          <span class="feature-icon">🌍</span>
+          <h3>Truly multilingual</h3>
+          <p>ElevenLabs v3 voices that sound human in dozens of languages — not the robotic TTS you've heard before.</p>
         </article>
         <article class="landing-feature reveal">
           <span class="feature-icon">🎭</span>
@@ -205,7 +204,7 @@
         </article>
         <article class="landing-feature reveal">
           <span class="feature-icon">💸</span>
-          <h3>Sasta pricing, honest math</h3>
+          <h3>Affordable, honest math</h3>
           <p>Day pass ₹49. Monthly from ₹299. Char-by-char usage shown — no surprise bills.</p>
         </article>
         <article class="landing-feature reveal">
@@ -216,7 +215,7 @@
         <article class="landing-feature reveal">
           <span class="feature-icon">🎯</span>
           <h3>Switch plans freely</h3>
-          <p>Top-ups stack on any plan. Pro user out of credits? ₹49 keeps you running.</p>
+          <p>Top-ups stack on any plan. Out of credits mid-project? ₹49 keeps you running.</p>
         </article>
       </div>
     </section>
@@ -277,7 +276,7 @@
               {%- if p.max_chars_per_request %}<li>{{ '{:,}'.format(p.max_chars_per_request) }} chars per script</li>{%- endif %}
               {%- if p.monthly_chars %}<li>{{ '{:,}'.format(p.monthly_chars) }} chars/month total</li>{%- endif %}
               {%- if audio_label %}<li>~{{ audio_label }}</li>{%- endif %}
-              {%- if is_free %}<li>Hindi · Hinglish · English</li>{%- endif %}
+              {%- if is_free %}<li>Any language · real emotion</li>{%- endif %}
             {%- endif %}
           </ul>
           <a class="pricing-cta" href="/login">
@@ -296,7 +295,7 @@
       <ol class="landing-steps reveal">
         <li>
           <strong>Type or paste your script</strong>
-          <p>Hindi, Hinglish, or English — mix freely.</p>
+          <p>Almost any language — mix freely.</p>
         </li>
         <li>
           <strong>Gemini cleans + tags emotions</strong>
@@ -304,7 +303,7 @@
         </li>
         <li>
           <strong>ElevenLabs v3 speaks it</strong>
-          <p>Natural Hindi prosody with real emotional range.</p>
+          <p>Natural, multilingual prosody with real emotional range.</p>
         </li>
         <li>
           <strong>Download the audio</strong>
@@ -319,15 +318,15 @@
       <div class="landing-faq">
         <details>
           <summary>What is SastaSpeech?</summary>
-          <p>A Hindi text-to-speech platform for Indian creators. Type a script in Hindi, Hinglish, or English and get studio-quality narrator audio in seconds.</p>
+          <p>An expressive AI text-to-speech platform for creators worldwide. Type a script in almost any language and get studio-quality narrator audio in seconds.</p>
         </details>
         <details>
           <summary>Is there a free plan?</summary>
           <p>Yes — one generation per day up to 100 characters. Enough to try the full pipeline before paying.</p>
         </details>
         <details>
-          <summary>Does it support Hindi voices?</summary>
-          <p>Hindi is the primary supported language. Hinglish (Roman-script Hindi) and English work too. Voices use ElevenLabs v3 with native-sounding prosody.</p>
+          <summary>Which languages does it support?</summary>
+          <p>Dozens — English, Spanish, French, German, Hindi, Portuguese, Arabic, and many more. Voices use ElevenLabs v3 with native-sounding prosody in each language.</p>
         </details>
         <details>
           <summary>How do emotion tags work?</summary>
@@ -338,7 +337,7 @@
           <p>Under 10 seconds for a typical 500-char script. Text refinement + voice synthesis happen in parallel.</p>
         </details>
         <details>
-          <summary>What's the Sabse Sasta top-up?</summary>
+          <summary>What's the quick top-up?</summary>
           <p>A one-time ₹49 add-on: 1,500 extra characters, 3 bonus generations, 500-char per-request limit. Stacks on whatever plan you're already on.</p>
         </details>
         <details>
@@ -361,7 +360,7 @@
   </main>
 
   <footer class="landing-footer">
-    <p>© SastaSpeech · Made for Indian creators · Built with chai ☕ and compute.</p>
+    <p>© SastaSpeech · Made for creators worldwide · Built with care ☕ and compute.</p>
     <nav aria-label="Footer navigation">
       <a href="/login">Sign in</a>
       <a href="#pricing">Pricing</a>

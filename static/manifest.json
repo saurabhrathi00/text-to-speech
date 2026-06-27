@@ -1,7 +1,7 @@
 {
   "name": "SastaSpeech",
   "short_name": "SastaSpeech",
-  "description": "Sasta, mast Hindi & Hinglish text-to-speech — studio-quality voiceovers for creators.",
+  "description": "Affordable, expressive AI text-to-speech in any language — studio-quality voiceovers for creators.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

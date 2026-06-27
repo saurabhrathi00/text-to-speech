@@ -72,7 +72,7 @@ def _llm_error_message(provider: str | None, detail: str = "") -> str:
     """User-facing message that names the actual model that failed —
     don't blame Qwen when Gemini timed out."""
     tail = f" ({detail})" if detail else ""
-    return f"{llm_display(provider)} se text refine nahi ho paya{tail}. Thodi der baad try kar."
+    return f"{llm_display(provider)} couldn't refine the text{tail}. Please try again in a moment."
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
 import payments  # Razorpay checkout — requests + stdlib only, no heavy deps
@@ -466,7 +466,7 @@ def normalize():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     if not text:
-        return jsonify({"error": "Pehle kuch type karein"}), 400
+        return jsonify({"error": "Please type something first"}), 400
     provider = _resolve_provider(data.get("provider"))
     llm_provider, err = _resolve_llm_provider_for_user(data.get("llm_provider"))
     if err:
@@ -489,7 +489,7 @@ def tts():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     if not text:
-        return jsonify({"error": "Pehle kuch type karein"}), 400
+        return jsonify({"error": "Please type something first"}), 400
 
     voice = data.get("voice") or {}
     description = _build_voice_description(voice)
@@ -511,7 +511,7 @@ def tts():
         actual_path = _tts_synthesize(text, str(out_path), description, voice, provider)
     except Exception:
         traceback.print_exc()
-        return jsonify({"error": "Awaaz generate nahi ho payi, dobara try karein"}), 500
+        return jsonify({"error": "Couldn't generate the audio. Please try again."}), 500
 
     actual_filename = Path(actual_path).name
     words = align_words(actual_path) if provider == "parler" else []
@@ -812,7 +812,7 @@ def generate():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     if not text:
-        return jsonify({"error": "Pehle kuch type karein"}), 400
+        return jsonify({"error": "Please type something first"}), 400
 
     job_id = (data.get("job_id") or "").strip() or str(uuid.uuid4())
     _prune_old_progress()
@@ -868,7 +868,7 @@ def generate():
                 actual_path = _tts_synthesize(normalized, str(out_path), description, voice, provider)
             except Exception:
                 traceback.print_exc()
-                _finish_progress(job_id, error="Awaaz generate nahi ho payi, dobara try karein")
+                _finish_progress(job_id, error="Couldn't generate the audio. Please try again.")
                 return
 
             actual_filename = Path(actual_path).name
@@ -904,7 +904,7 @@ def generate():
             })
         except Exception:
             traceback.print_exc()
-            _finish_progress(job_id, error="Kuch galat ho gaya, dobara try karein")
+            _finish_progress(job_id, error="Something went wrong. Please try again.")
 
     threading.Thread(target=_run_generate, daemon=True).start()
     return jsonify({"job_id": job_id}), 202
@@ -940,7 +940,7 @@ def api_image():
 
     if not image_gen.is_configured():
         return jsonify({
-            "error": "ComfyUI reachable nahi hai. Make sure run_nvidia_gpu.bat chal raha hai at localhost:8188"
+            "error": "ComfyUI is not reachable. Make sure run_nvidia_gpu.bat is running at localhost:8188"
         }), 503
 
     width = int(data.get("width", 1024))
@@ -955,7 +955,7 @@ def api_image():
     if use_anchor:
         anchor = _anchor_state()
         if not anchor.get("set"):
-            return jsonify({"error": "Pehle ek anchor image set karein"}), 400
+            return jsonify({"error": "Please set an anchor image first"}), 400
         reference_filename = anchor.get("comfy_filename")
 
     t0 = time.time()
@@ -969,10 +969,10 @@ def api_image():
         )
     except image_gen.ComfyError as e:
         print(f"[app] image gen FAILED: {e}")
-        return jsonify({"error": f"Image generate nahi hui: {e}"}), 502
+        return jsonify({"error": f"Image generation failed: {e}"}), 502
     except Exception:
         traceback.print_exc()
-        return jsonify({"error": "Image generate nahi hui"}), 500
+        return jsonify({"error": "Image generation failed"}), 500
 
     filename = f"img_{int(time.time())}_{uuid.uuid4().hex[:6]}.png"
     out_path = IMAGE_DIR / filename
@@ -1062,7 +1062,7 @@ def api_scenes():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     if not text:
-        return jsonify({"error": "Pehle kuch text dein"}), 400
+        return jsonify({"error": "Please enter some text first"}), 400
 
     t0 = time.time()
     print(f"[app] /api/scenes → {len(text)} chars")

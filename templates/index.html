@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>SastaSpeech App — Generate Hindi voiceovers</title>
+  <title>SastaSpeech App — Generate AI voiceovers</title>
   <!-- noindex: this is the authenticated app surface; the landing page
        at / is what should rank. -->
   <meta name="robots" content="noindex, nofollow" />
@@ -71,7 +71,7 @@
     <div id="appRoot" class="hidden">
     <header class="hero">
       <h1>🎙️ SastaSpeech</h1>
-      <p class="subtitle">Sasta + Mast Text to Speech</p>
+      <p class="subtitle">Expressive AI text-to-speech</p>
       <div id="userBar" class="user-bar hidden">
         <span id="userEmail" class="user-email"></span>
         <span id="userRole" class="user-role"></span>
@@ -108,11 +108,11 @@
       </div>
       <p id="providerNote" class="provider-note hidden"></p>
 
-      <label for="script" class="label">Apna script likhein (Hindi / Hinglish / English)</label>
-      <textarea id="script" rows="12" placeholder="Aaj hum baat karenge photosynthesis ke baare mein..."></textarea>
+      <label for="script" class="label">Write your script (any language)</label>
+      <textarea id="script" rows="12" placeholder="Today, let's talk about photosynthesis..."></textarea>
 
       <details class="voice-controls" open>
-        <summary>🎚️ Voice tune karein</summary>
+        <summary>🎚️ Voice tuning</summary>
         <div class="controls-grid">
           <div class="control">
             <label for="speaker">Voice</label>
@@ -151,19 +151,19 @@
 
       <label class="checkbox-row tag-toggle-row">
         <input type="checkbox" id="emotionTags" />
-        <span id="emotionTagsLabel">🎭 Emotion tags add karo — Gemini classify karega aur tags lagayega</span>
+        <span id="emotionTagsLabel">🎭 Add emotion tags — Gemini classifies each sentence and tags it</span>
       </label>
 
       <label class="checkbox-row">
         <input type="checkbox" id="skipNormalize" />
-        <span id="skipNormalizeLabel">Gemini skip karo — mera text bilkul exact bolo (no auto-correction)</span>
+        <span id="skipNormalizeLabel">Skip Gemini — speak my text exactly as written (no auto-correction)</span>
       </label>
 
-      <button id="generateBtn" class="primary">🎵 Awaaz Banao</button>
+      <button id="generateBtn" class="primary">🎵 Generate Voice</button>
 
       <div id="status" class="status hidden">
         <div class="spinner"></div>
-        <span id="statusText">Awaaz ban rahi hai...</span>
+        <span id="statusText">Generating audio...</span>
       </div>
 
       <div id="error" class="error hidden"></div>
@@ -195,13 +195,13 @@
         </div>
         <button type="button" id="clearAnchorBtn" class="secondary">✖ Clear</button>
       </div>
-      <label class="label" for="sceneInput"><span id="scenesIntroLabel">Hindi/Hinglish script (Gemini will turn it into English image prompts)</span></label>
-      <textarea id="sceneInput" rows="4" placeholder="एक गाँव में एक मूर्ख आदमी रहता था। एक दिन वह अपने घोड़े और बकरी बेचने बाज़ार जा रहा था..."></textarea>
+      <label class="label" for="sceneInput"><span id="scenesIntroLabel">Script in any language (Gemini will turn it into English image prompts)</span></label>
+      <textarea id="sceneInput" rows="4" placeholder="Once upon a time, a foolish man lived in a village. One day he set out to the market to sell his horse and goat..."></textarea>
       <div class="image-controls">
         <button type="button" id="scenesBtn" class="secondary">🎬 Generate Scene Prompts</button>
         <span id="scenesStatus" class="image-status hidden">
           <span class="spinner"></span>
-          <span id="scenesStatusLabel">Gemini prompts bana raha hai (~30-60 sec)...</span>
+          <span id="scenesStatusLabel">Gemini is writing prompts (~30-60 sec)...</span>
         </span>
       </div>
       <div id="scenesError" class="error hidden"></div>
@@ -210,7 +210,7 @@
       <hr class="divider" />
 
       <label class="label" for="imagePrompt">Or write English prompt directly</label>
-      <textarea id="imagePrompt" rows="3" placeholder="A small Indian village at dawn, mud houses, soft golden light, photorealistic, cinematic"></textarea>
+      <textarea id="imagePrompt" rows="3" placeholder="A small village at dawn, mud houses, soft golden light, photorealistic, cinematic"></textarea>
       <label class="checkbox-row anchor-toggle-row hidden">
         <input type="checkbox" id="useAnchor" />
         <span>🎭 Use character anchor (IP-Adapter for consistency)</span>
@@ -220,7 +220,7 @@
         <button type="button" id="imageBtn" class="primary">🖼️ Generate Image</button>
         <span id="imageStatus" class="image-status hidden">
           <span class="spinner"></span>
-          <span>Banayi ja rahi hai (~15-30 sec)...</span>
+          <span>Generating (~15-30 sec)...</span>
         </span>
       </div>
       <div id="imageError" class="error hidden"></div>
@@ -234,9 +234,9 @@
     </section>
 
     <section id="resultSection" class="card hidden">
-      <label class="label" for="normalizedEdit">Normalized text — yahan edit karke dobara bana sakte ho</label>
+      <label class="label" for="normalizedEdit">Normalized text — edit here and regenerate</label>
       <textarea id="normalizedEdit" rows="4" class="normalized-edit"></textarea>
-      <button id="regenBtn" class="secondary">🔁 Is text se dobara banao</button>
+      <button id="regenBtn" class="secondary">🔁 Regenerate from this text</button>
 
       <div class="player-row">
         <audio id="audioPlayer" controls></audio>
@@ -536,13 +536,13 @@
       const scenesIntro = document.getElementById('scenesIntroLabel');
       const scenesStatus = document.getElementById('scenesStatusLabel');
       if (skip) skip.textContent =
-        `${display} skip karo — mera text bilkul exact bolo (no auto-correction)`;
+        `Skip ${display} — speak my text exactly as written (no auto-correction)`;
       if (tags) tags.textContent =
-        `🎭 Emotion tags add karo — ${display} classify karega aur tags lagayega`;
+        `🎭 Add emotion tags — ${display} classifies each sentence and tags it`;
       if (scenesIntro) scenesIntro.textContent =
-        `Hindi/Hinglish script (${display} will turn it into English image prompts)`;
+        `Script in any language (${display} will turn it into English image prompts)`;
       if (scenesStatus) scenesStatus.textContent =
-        `${display} prompts bana raha hai (~30-60 sec)...`;
+        `${display} is writing prompts (~30-60 sec)...`;
     }
 
     async function _applyTtsWhitelist(me) {
@@ -662,11 +662,11 @@
     await Promise.all([loadProviderRegistry(), loadPlans()]);
 
     if (AUTH_DISABLED) {
-      setPageLoaderStatus('Local mode mein boot ho raha hai...');
+      setPageLoaderStatus('Booting in local mode...');
       await continueBoot({ user: null, profile: null, limits: null, usage: null })
         .catch(e => { console.error('continueBoot failed', e); revealApp(); });
     } else {
-      setPageLoaderStatus('Session verify ho raha hai...');
+      setPageLoaderStatus('Verifying session...');
       const token = await getJwt();
       if (!token) {
         window.location.replace('/login');
@@ -778,7 +778,7 @@
       // Subscriptions: only tiers ranked higher than current.
       // Top-ups: always purchasable regardless of current plan — they're
       // additive credits, not a plan switch. So a Pro user out of chars
-      // can grab Sabse Sasta as an emergency refill.
+      // can grab the top-up as an emergency refill.
       const cur = planRankFor(currentPlan);
       return availablePlans
         .filter(p => {
@@ -930,7 +930,7 @@
         const data = await res.json().catch(() => ({}));
         // Payments off (local box) → manual admin-approved flow.
         if (res.status === 503 && data.fallback) return submitUpgradeManual(targetPlan);
-        if (!res.ok) { showToast(data.error || 'Checkout shuru nahi ho paya.', 'error'); return; }
+        if (!res.ok) { showToast(data.error || 'Could not start checkout.', 'error'); return; }
         order = data;
       } catch (e) {
         return submitUpgradeManual(targetPlan);
@@ -938,7 +938,7 @@
 
       const loaded = await loadRazorpay();
       if (!loaded || !window.Razorpay) {
-        showToast('Payment screen load nahi hua — internet check karke dobara try karein.', 'error');
+        showToast('Payment screen failed to load — check your connection and try again.', 'error');
         return;
       }
 
@@ -955,7 +955,7 @@
         handler: resp => confirmPayment(resp, targetPlan),
       });
       rzp.on('payment.failed', resp => {
-        showToast('Payment fail ho gaya: ' + (resp.error?.description || 'dobara try karein'), 'error');
+        showToast('Payment failed: ' + (resp.error?.description || 'please try again'), 'error');
       });
       closeTierPicker();
       rzp.open();
@@ -974,13 +974,13 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          showToast(data.error || 'Payment verify nahi hua. Paisa kata hai to thodi der me apne aap update ho jayega, warna support se baat karein.', 'error', 8000);
+          showToast(data.error || 'Payment verification failed. If you were charged, it will update automatically shortly — otherwise contact support.', 'error', 8000);
           return;
         }
-        showToast(`🎉 ${capitalize(targetPlan)} active ho gaya!`, 'success');
+        showToast(`🎉 ${capitalize(targetPlan)} is now active!`, 'success');
         setTimeout(() => location.reload(), 1200);
       } catch (e) {
-        showToast('Verify me network error — page refresh karke check karein, ya thodi der baad.', 'error', 8000);
+        showToast('Network error during verification — refresh the page to check, or try again shortly.', 'error', 8000);
       }
     }
 
@@ -994,7 +994,7 @@
         : `Upgrading to ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly}/mo).`;
       const note = prompt(
         `${headline}\n\n` +
-        `Payment is handled outside the app for now — drop your UPI handle / WhatsApp / preferred contact:`, '');
+        `Payment is handled manually for now — please share your preferred contact (email / WhatsApp):`, '');
       if (note === null) return;
       try {
         const res = await fetch('/api/upgrade-request', {
@@ -1011,7 +1011,7 @@
         const btn = document.getElementById('upgradeBtn');
         btn.textContent = `⏳ ${capitalize(targetPlan)} pending`;
         btn.disabled = true;
-        showToast('Request bhej di — admin jaldi approve karega.', 'success');
+        showToast('Request sent — an admin will approve it shortly.', 'success');
       } catch (e) {
         showToast('Network error — try again.', 'error');
       }
@@ -1116,7 +1116,7 @@
       scenesError.classList.add('hidden');
       scenesResult.classList.add('hidden');
       scenesResult.innerHTML = '';
-      if (!text) { scenesError.textContent = 'Pehle script likhein'; scenesError.classList.remove('hidden'); return; }
+      if (!text) { scenesError.textContent = 'Please write a script first'; scenesError.classList.remove('hidden'); return; }
 
       scenesBtn.disabled = true;
       scenesStatus.classList.remove('hidden');
@@ -1128,13 +1128,13 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          scenesError.textContent = data.error || 'Scenes generate nahi hue';
+          scenesError.textContent = data.error || 'Could not generate scenes';
           scenesError.classList.remove('hidden');
           return;
         }
         renderScenes(data);
       } catch (e) {
-        scenesError.textContent = 'Server se connect nahi ho paya';
+        scenesError.textContent = 'Could not connect to the server';
         scenesError.classList.remove('hidden');
       } finally {
         scenesStatus.classList.add('hidden');
@@ -1238,7 +1238,7 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          imageError.textContent = data.error || 'Anchor set nahi hua';
+          imageError.textContent = data.error || 'Could not set the anchor';
           imageError.classList.remove('hidden');
           return;
         }
@@ -1262,7 +1262,7 @@
       const prompt = imagePromptEl.value.trim();
       imageError.classList.add('hidden');
       imageResult.classList.add('hidden');
-      if (!prompt) { imageError.textContent = 'Pehle prompt likhein'; imageError.classList.remove('hidden'); return; }
+      if (!prompt) { imageError.textContent = 'Please write a prompt first'; imageError.classList.remove('hidden'); return; }
 
       imageBtn.disabled = true;
       imageStatus.classList.remove('hidden');
@@ -1277,7 +1277,7 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          imageError.textContent = data.error || 'Image generate nahi hui';
+          imageError.textContent = data.error || 'Image generation failed';
           imageError.classList.remove('hidden');
           return;
         }
@@ -1286,7 +1286,7 @@
         lastGeneratedFilename = data.image_url.split('/').pop();
         imageResult.classList.remove('hidden');
       } catch (e) {
-        imageError.textContent = 'Server se connect nahi ho paya / timeout';
+        imageError.textContent = 'Could not connect to the server / timeout';
         imageError.classList.remove('hidden');
       } finally {
         clearTimeout(timer);
@@ -1340,7 +1340,7 @@
           document.getElementById('emotionTags').checked = false;
         }
       } catch (e) {
-        showError('Voice list load nahi hua');
+        showError('Could not load the voice list');
       }
     }
 
@@ -1353,7 +1353,7 @@
         const r = await fetch('/api/providers');
         const info = await r.json();
         if (!info.elevenlabs_configured) {
-          providerNote.textContent = '⚠️ ELEVENLABS_API_KEY .env mein set nahi hai. Generate fail hoga.';
+          providerNote.textContent = '⚠️ ELEVENLABS_API_KEY is not set in .env. Generation will fail.';
         } else {
           providerNote.textContent = 'ElevenLabs API mode — emotions supported, billing active.';
         }
@@ -1405,21 +1405,21 @@
       const text = scriptEl.value.trim();
       clearError();
       result.classList.add('hidden');
-      if (!text) { showError('Pehle kuch type karein'); return; }
+      if (!text) { showError('Please type something first'); return; }
 
       const skip = skipEl.checked;
       const useEmotionTags = emotionTagsEl.checked;
       const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
       setLoading(true);
-      statusText.textContent = skip ? 'Awaaz ban rahi hai...' : 'Script refine ho rahi hai...';
+      statusText.textContent = skip ? 'Generating audio...' : 'Refining the script...';
 
       // Stage labels are intentionally provider-agnostic — the user
       // doesn't need to know whether Gemini or Qwen did the work, just
       // what's happening to their script right now.
       const STAGE_LABEL = {
-        llm_normalize: 'Script refine ho rahi hai',
+        llm_normalize: 'Refining the script',
         llm_emotions: 'Emotions analyze ho rahe hain',
-        tts: 'Awaaz bana rahi hai',
+        tts: 'Generating audio',
       };
       // Vibe over numbers — pick an emoji based on how close we are to
       // the stage's ETA. No raw seconds, no countdown — just a feel.
@@ -1446,7 +1446,7 @@
           }),
         });
         const submitData = await res.json();
-        if (!res.ok) { showError(submitData.error || 'Kuch galat ho gaya, dobara koshish karein'); return; }
+        if (!res.ok) { showError(submitData.error || 'Something went wrong. Please try again.'); return; }
 
         const data = await new Promise((resolve, reject) => {
           const poll = setInterval(async () => {
@@ -1480,8 +1480,8 @@
         refreshMyAudios();
       } catch (e) {
         showError(e.message === 'timeout'
-          ? 'Bahut zyada time lag gaya — neeche "Your recent audios" check karein.'
-          : (e.message || 'Kuch galat ho gaya'));
+          ? 'This took too long — check "Your recent audios" below.'
+          : (e.message || 'Something went wrong'));
         refreshMyAudios();
       } finally {
         setLoading(false);
@@ -1491,10 +1491,10 @@
     regenBtn.addEventListener('click', async () => {
       const text = normalizedEdit.value.trim();
       clearError();
-      if (!text) { showError('Normalized text khali hai'); return; }
+      if (!text) { showError('Normalized text is empty'); return; }
 
       setLoading(true);
-      statusText.textContent = 'Edited text se awaaz bana raha hai...';
+      statusText.textContent = 'Generating audio from edited text...';
       try {
         const res = await fetch('/tts', {
           method: 'POST',
@@ -1507,12 +1507,12 @@
           })
         });
         const data = await res.json();
-        if (!res.ok) { showError(data.error || 'Kuch galat ho gaya'); return; }
+        if (!res.ok) { showError(data.error || 'Something went wrong'); return; }
         audio.src = data.audio_url;
         downloadBtn.href = data.audio_url;
         refreshMyAudios();
       } catch (e) {
-        showError('Server se connect nahi ho paya');
+        showError('Could not connect to the server');
       } finally {
         setLoading(false);
       }

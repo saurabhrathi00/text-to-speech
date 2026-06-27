@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Sign in — SastaSpeech</title>
   <meta name="theme-color" content="#0f172a" />
-  <meta name="description" content="Sign in to SastaSpeech with Google and start generating Hindi voiceovers in seconds." />
+  <meta name="description" content="Sign in to SastaSpeech with Google and start generating expressive AI voiceovers in any language in seconds." />
   <!-- Login pages don't rank on their own — the landing at / is the
        indexable surface. Still 'follow' so link-equity passes through. -->
   <meta name="robots" content="noindex, follow" />
@@ -70,41 +70,41 @@
       </div>
 
       <h1 class="login-headline">
-        Studio-quality <span class="accent">Hindi voiceovers</span>,
-        starting at ₹49.
+        Studio-quality <span class="accent">AI voiceovers</span>,
+        in any language.
       </h1>
       <p class="login-sub">
-        Indian creators ke liye banaya — fast Hinglish narration, real
-        emotion tags, aur pricing jo aapke pocket mein fit baithe.
+        Built for creators everywhere — fast, expressive narration with real
+        emotion tags, at pricing that actually fits your budget.
       </p>
 
       <ul class="login-features">
         <li>
-          <span class="feature-icon">🇮🇳</span>
+          <span class="feature-icon">🌍</span>
           <div>
-            <strong>Best Hindi voices</strong>
-            <small>ElevenLabs v3 ki natural prosody</small>
+            <strong>Truly multilingual</strong>
+            <small>ElevenLabs v3 natural prosody in dozens of languages</small>
           </div>
         </li>
         <li>
           <span class="feature-icon">⚡</span>
           <div>
-            <strong>Seconds mein generate</strong>
+            <strong>Generate in seconds</strong>
             <small>Gemini script-refine + emotion-aware TTS</small>
           </div>
         </li>
         <li>
           <span class="feature-icon">💸</span>
           <div>
-            <strong>Sabse Sasta pricing</strong>
-            <small>Day pass ₹49 · Monthly se ₹299 — koi commitment nahi</small>
+            <strong>Affordable pricing</strong>
+            <small>Day pass ₹49 · Monthly from ₹299 — no commitment</small>
           </div>
         </li>
         <li>
           <span class="feature-icon">🎯</span>
           <div>
             <strong>No surprises</strong>
-            <small>Char-by-char usage tracking · plan kabhi bhi switch karo</small>
+            <small>Char-by-char usage tracking · switch plans anytime</small>
           </div>
         </li>
       </ul>
@@ -140,7 +140,7 @@
 
         <p class="auth-fine">
           By continuing, you agree to our usage terms.<br />
-          New here? Sign-in se hi account ban jayega — separate signup ki zaroorat nahi.
+          New here? Signing in creates your account automatically — no separate signup needed.
         </p>
       </div>
     </section>
@@ -217,10 +217,10 @@
       }
     }
 
-    setPageLoaderStatus('Session check kar rahe hain...');
+    setPageLoaderStatus('Checking your session...');
     const { data: existing } = await supabase.auth.getSession();
     if (existing?.session) {
-      setPageLoaderStatus('Backend se verify ho raha hai...');
+      setPageLoaderStatus('Verifying with the server...');
       try {
         const probe = await fetch('/api/me', {
           headers: { Authorization: 'Bearer ' + existing.session.access_token },
@@ -230,7 +230,7 @@
         } else {
           const body = await probe.json().catch(() => ({}));
           await supabase.auth.signOut();
-          revealForm('Session ko backend ne reject kiya: ' + (body.error || probe.status));
+          revealForm('The server rejected this session: ' + (body.error || probe.status));
         }
       } catch (e) {
         await supabase.auth.signOut();

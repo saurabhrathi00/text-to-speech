@@ -1,20 +1,21 @@
 {% extends "legal/_base.html" %}
 {% block title %}FAQ & Support — SastaSpeech{% endblock %}
-{% block description %}SastaSpeech FAQ — Hindi text-to-speech, emotion tags, pricing from ₹49, free plan, commercial use and how credits work.{% endblock %}
+{% block description %}SastaSpeech FAQ — AI text-to-speech, emotion tags, pricing from ₹49, free plan, commercial use and how credits work.{% endblock %}
 {% block content %}
 <h1>FAQ & Support</h1>
 <p class="updated">Last updated: {{ updated_at }}</p>
 
 <h2>What is SastaSpeech?</h2>
 <p>
-  A Hindi/Hinglish/English text-to-speech service for Indian creators. Type a
+  An expressive AI text-to-speech service for creators worldwide. Type a
   script, get studio-quality narrator audio in seconds.
 </p>
 
 <h2>What languages do you support?</h2>
 <p>
-  Hindi, Hinglish (mixed Roman + Devanagari), and English. Voice quality is
-  tuned for Hindi narration.
+  Dozens of languages — including English, Spanish, French, German, Hindi,
+  Portuguese, Arabic, and many more — powered by ElevenLabs v3, with natural,
+  expressive prosody in each.
 </p>
 
 <h2>How long does a generation take?</h2>
@@ -27,8 +28,8 @@
 <p>
   Each plan has three caps: max characters per request, generations per day,
   and total characters per month. See the upgrade picker in-app for full
-  details. Day passes (Sabse Sasta) are one-time top-ups that ADD to your
-  current plan without replacing it.
+  details. Day passes are one-time top-ups that ADD to your current plan
+  without replacing it.
 </p>
 
 <h2>Are the generated audios commercial-use?</h2>
@@ -53,17 +54,15 @@
 
 <h2>How do I upgrade my plan?</h2>
 <p>
-  Click "Upgrade" in the top bar after signing in. Pick your plan, drop your
-  payment reference in the note field. We currently process payments out of
-  band — admin will approve within
-  {{ biz.approval_sla|pl }}. Automated checkout coming
-  soon.
+  Click "Upgrade" in the top bar after signing in, pick your plan, and pay
+  securely via Razorpay. Your new limits go live the moment payment is
+  confirmed.
 </p>
 
 <h2>Why does my generation say "Daily limit reached"?</h2>
 <p>
   Every plan has a daily cap (a rate-limit, not a quota). Wait 24 hours or buy
-  a Sabse Sasta top-up for +3 generations.
+  a one-time top-up for +3 generations.
 </p>
 
 <h2>Can I clone my own voice?</h2>

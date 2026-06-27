@@ -2,7 +2,8 @@
 
 ## What this is
 
-SastaSpeech — Flask-based Hindi TTS SaaS. Two-deployment model:
+SastaSpeech — Flask-based multilingual TTS SaaS for a global audience
+(English UI; ElevenLabs v3 speaks any language). Two-deployment model:
 - **Local box** (admin): Parler + Whisper + Ollama/Qwen
 - **Cloud** (paying users): ElevenLabs + Gemini
 
@@ -20,7 +21,7 @@ Same code, same Supabase DB, different `.env`. See [docs/DEPLOY.md](docs/DEPLOY.
 
 ## Project conventions
 
-- **Hindi/Hinglish UI strings.** Code identifiers + comments in English.
+- **English UI strings** (global audience). Code identifiers + comments in English too. Don't reintroduce Hindi/Hinglish in user-facing text; Hindi is just one of many supported TTS languages, not the product's framing.
 - **Provider names** never appear in user-visible UI when user has only 1 option (avoid "powered by ElevenLabs" leaks). Toggle row hides when ≤1 allowed.
 - **Heavy ML modules** (`tts_engine`, `bark_tts`, `aligner`, `image_gen`) are **lazy-imported** in `app.py`. Cloud build skips them. Always guard with `if X is None: return 503`.
 - **No emojis in commits** unless user asks.
