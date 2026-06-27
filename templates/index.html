@@ -53,6 +53,78 @@
     }
     @keyframes page-spin { to { transform: rotate(360deg); } }
   </style>
+
+  <!-- ═══════════ Aurora Dark — app theme (inline = ships fresh, no SW cache) ═══════════ -->
+  <style>
+    body{ background:#07080f !important; }
+    /* Aurora mesh + drift */
+    body::before{
+      z-index:0;
+      background:
+        radial-gradient(560px circle at 12% -8%, rgba(99,102,241,.30), transparent 60%),
+        radial-gradient(620px circle at 92% 4%, rgba(236,72,153,.17), transparent 60%),
+        radial-gradient(560px circle at 60% 112%, rgba(34,211,238,.12), transparent 60%) !important;
+      animation:appAurora 30s ease-in-out infinite alternate;
+    }
+    @keyframes appAurora{ to{ transform:translate3d(-2%,2%,0) scale(1.08); } }
+    /* Faint tech grid like the landing */
+    body::after{
+      content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),
+                       linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+      background-size:56px 56px;
+      -webkit-mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,#000 35%,transparent 78%);
+      mask-image:radial-gradient(ellipse 80% 50% at 50% 0%,#000 35%,transparent 78%);
+    }
+    .container{ max-width:880px; }
+
+    /* Brand */
+    .hero{ margin-bottom:30px; padding-top:6px; }
+    .hero h1{ font-size:clamp(1.9rem,5vw,2.8rem); letter-spacing:-.035em; }
+    .subtitle{ font-size:1rem; color:#9aa3b6; }
+
+    /* Glass cards with gradient hairline + focus glow */
+    .card{
+      background:rgba(255,255,255,.032);
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:18px;
+      box-shadow:0 30px 70px -34px rgba(0,0,0,.65);
+    }
+    .card:focus-within{
+      border-color:rgba(167,139,250,.42);
+      box-shadow:0 30px 80px -30px rgba(139,92,246,.4), 0 0 40px -14px rgba(139,92,246,.25);
+    }
+
+    /* User bar */
+    .user-bar{ background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }
+
+    /* Inputs */
+    textarea, input[type="text"], input[type="email"], input[type="password"], select{
+      background:rgba(0,0,0,.34);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:13px;
+    }
+    textarea:focus, input:focus, select:focus{
+      border-color:rgba(167,139,250,.55);
+      box-shadow:0 0 0 3px rgba(167,139,250,.16);
+      background:rgba(0,0,0,.4);
+    }
+    .label{ color:#9aa3b6; }
+
+    /* Provider toggle — segmented glass */
+    .provider-toggle{ background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.08); border-radius:13px; }
+    .prov-btn.active, .llm-btn.active{
+      background:linear-gradient(135deg,#6366f1,#8b5cf6 55%,#d946ef);
+      box-shadow:0 6px 18px -4px rgba(124,58,237,.5);
+    }
+
+    /* Result audio row */
+    #resultSection{ border-color:rgba(167,139,250,.25); }
+
+    @media(prefers-reduced-motion:reduce){
+      body::before{ animation:none; }
+    }
+  </style>
 </head>
 <body>
   <div class="page-loader" id="pageLoader" aria-live="polite">
