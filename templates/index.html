@@ -259,6 +259,29 @@
     // ── Auth bootstrap (Supabase JS) ─────────────────────────────────
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+    // ── Toast notifications ──────────────────────────────────────────
+    // Non-blocking replacement for alert(). type: 'info' | 'success' | 'error'.
+    function showToast(message, type = 'info', timeout = 4500) {
+      let wrap = document.querySelector('.toast-wrap');
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'toast-wrap';
+        document.body.appendChild(wrap);
+      }
+      const el = document.createElement('div');
+      el.className = `toast toast-${type}`;
+      el.innerHTML = `<span class="toast-msg"></span>`;
+      el.querySelector('.toast-msg').textContent = message;
+      wrap.appendChild(el);
+      const dismiss = () => {
+        el.classList.add('toast-hide');
+        el.addEventListener('animationend', () => el.remove(), { once: true });
+      };
+      el.addEventListener('click', dismiss);
+      if (timeout) setTimeout(dismiss, timeout);
+    }
+    window.showToast = showToast;
+
     const SUPABASE_URL = {{ supabase.url | tojson }};
     const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
     const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
@@ -355,6 +378,10 @@
     async function refreshMyAudios() {
       const list = document.getElementById('myAudiosList');
       if (!list) return;
+      // Shimmer placeholders while the list loads.
+      list.innerHTML = '<div class="skeleton skeleton-row"></div>'
+                     + '<div class="skeleton skeleton-row"></div>'
+                     + '<div class="skeleton skeleton-row"></div>';
       try {
         const r = await fetch('/api/my-audios');
         if (!r.ok) {
@@ -903,7 +930,7 @@
         const data = await res.json().catch(() => ({}));
         // Payments off (local box) → manual admin-approved flow.
         if (res.status === 503 && data.fallback) return submitUpgradeManual(targetPlan);
-        if (!res.ok) { alert(data.error || 'Checkout shuru nahi ho paya.'); return; }
+        if (!res.ok) { showToast(data.error || 'Checkout shuru nahi ho paya.', 'error'); return; }
         order = data;
       } catch (e) {
         return submitUpgradeManual(targetPlan);
@@ -911,7 +938,7 @@
 
       const loaded = await loadRazorpay();
       if (!loaded || !window.Razorpay) {
-        alert('Payment screen load nahi hua — internet check karke dobara try karein.');
+        showToast('Payment screen load nahi hua — internet check karke dobara try karein.', 'error');
         return;
       }
 
@@ -928,7 +955,7 @@
         handler: resp => confirmPayment(resp, targetPlan),
       });
       rzp.on('payment.failed', resp => {
-        alert('Payment fail ho gaya: ' + (resp.error?.description || 'dobara try karein'));
+        showToast('Payment fail ho gaya: ' + (resp.error?.description || 'dobara try karein'), 'error');
       });
       closeTierPicker();
       rzp.open();
@@ -947,13 +974,13 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          alert(data.error || 'Payment verify nahi hua. Paisa kata hai to thodi der me apne aap update ho jayega, warna support se baat karein.');
+          showToast(data.error || 'Payment verify nahi hua. Paisa kata hai to thodi der me apne aap update ho jayega, warna support se baat karein.', 'error', 8000);
           return;
         }
-        alert(`🎉 ${capitalize(targetPlan)} active ho gaya!`);
-        location.reload();
+        showToast(`🎉 ${capitalize(targetPlan)} active ho gaya!`, 'success');
+        setTimeout(() => location.reload(), 1200);
       } catch (e) {
-        alert('Verify me network error — page refresh karke check karein, ya thodi der baad.');
+        showToast('Verify me network error — page refresh karke check karein, ya thodi der baad.', 'error', 8000);
       }
     }
 
@@ -977,15 +1004,16 @@
         });
         const data = await res.json();
         if (!res.ok) {
-          alert(data.error || 'Could not send the upgrade request.');
+          showToast(data.error || 'Could not send the upgrade request.', 'error');
           return;
         }
         closeTierPicker();
         const btn = document.getElementById('upgradeBtn');
         btn.textContent = `⏳ ${capitalize(targetPlan)} pending`;
         btn.disabled = true;
+        showToast('Request bhej di — admin jaldi approve karega.', 'success');
       } catch (e) {
-        alert('Network error — try again.');
+        showToast('Network error — try again.', 'error');
       }
     }
 
@@ -1038,12 +1066,12 @@
         const res = await fetch(`/api/admin/upgrade-requests/${id}/${action}`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) {
-          alert(data.error || 'Action failed.');
+          showToast(data.error || 'Action failed.', 'error');
           return;
         }
         await loadUpgradeRequests();
       } catch (e) {
-        alert('Network error.');
+        showToast('Network error.', 'error');
       }
     }
 

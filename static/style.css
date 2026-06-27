@@ -1425,3 +1425,118 @@ main { position: relative; z-index: 1; }
 .landing-footer nav { display: flex; gap: 18px; }
 .landing-footer a { color: #94a3b8; text-decoration: none; }
 .landing-footer a:hover { color: #cbd5e1; }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+ * Phase 3 — motion layer: entrance, micro-interactions, toasts, skeletons.
+ * Everything here degrades to "no animation" under prefers-reduced-motion
+ * (see the guard at the bottom). Purely additive — no existing rule moved.
+ * ════════════════════════════════════════════════════════════════════ */
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+
+/* Card entrance — plays when #appRoot un-hides after boot. Staggered so
+ * the form, audios and result cards cascade in instead of popping. */
+#appRoot:not(.hidden) > .card,
+#appRoot:not(.hidden) > section {
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+#appRoot:not(.hidden) > *:nth-child(2) { animation-delay: 0.04s; }
+#appRoot:not(.hidden) > *:nth-child(3) { animation-delay: 0.10s; }
+#appRoot:not(.hidden) > *:nth-child(4) { animation-delay: 0.16s; }
+#appRoot:not(.hidden) > *:nth-child(5) { animation-delay: 0.22s; }
+
+/* Upgrade picker slides in when shown. */
+.upgrade-picker:not(.hidden) { animation: fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both; }
+
+/* Micro-interactions — tactile press + smoother state changes. */
+button.primary, button.secondary, .provider-btn, .user-upgrade {
+  transition: transform 0.12s ease, filter 0.15s ease,
+              box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+button.primary:active:not(:disabled),
+button.secondary:active:not(:disabled),
+.provider-btn:active { transform: scale(0.97); }
+button.primary:not(:disabled):hover { box-shadow: 0 8px 24px -8px rgba(129,140,248,0.55); }
+
+/* Result section reveal (audio player appears after generate). */
+#resultSection:not(.hidden) { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
+
+/* ── Toasts ──────────────────────────────────────────────────────────── */
+.toast-wrap {
+  position: fixed;
+  z-index: 9999;
+  bottom: 22px; right: 22px;
+  display: flex; flex-direction: column; gap: 10px;
+  max-width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px -16px rgba(0,0,0,0.7);
+  color: var(--text);
+  font-size: 0.9rem; line-height: 1.45;
+  animation: toastIn 0.32s cubic-bezier(0.22,1,0.36,1) both;
+}
+.toast.toast-hide { animation: toastOut 0.25s ease forwards; }
+.toast::before { content: 'ℹ️'; font-size: 1.05rem; line-height: 1.3; }
+.toast.toast-success { border-color: rgba(34,197,94,0.45); }
+.toast.toast-success::before { content: '✅'; }
+.toast.toast-error { border-color: rgba(239,68,68,0.5); }
+.toast.toast-error::before { content: '⚠️'; }
+.toast-msg { flex: 1; }
+@media (max-width: 520px) {
+  .toast-wrap { left: 16px; right: 16px; bottom: 16px; max-width: none; }
+}
+
+/* ── Skeleton loaders ────────────────────────────────────────────────── */
+.skeleton {
+  border-radius: 10px;
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.09) 37%,
+    rgba(255,255,255,0.04) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+.skeleton-row { height: 46px; margin-bottom: 10px; }
+
+/* ── Scroll-reveal (landing) ─────────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.22,1,0.36,1),
+              transform 0.6s cubic-bezier(0.22,1,0.36,1);
+  will-change: opacity, transform;
+}
+.reveal.reveal-visible { opacity: 1; transform: translateY(0); }
+
+/* ── Accessibility: honour reduced-motion ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}

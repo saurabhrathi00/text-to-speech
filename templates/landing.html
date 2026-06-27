@@ -188,32 +188,32 @@
     <section id="features" class="landing-section" aria-labelledby="featuresHeading">
       <h2 id="featuresHeading">Why creators pick SastaSpeech</h2>
       <div class="landing-features-grid">
-        <article class="landing-feature">
+        <article class="landing-feature reveal">
           <span class="feature-icon">🇮🇳</span>
           <h3>Real Hindi prosody</h3>
           <p>ElevenLabs v3 voices that sound human — not the robotic Hindi TTS you've heard before.</p>
         </article>
-        <article class="landing-feature">
+        <article class="landing-feature reveal">
           <span class="feature-icon">🎭</span>
           <h3>60+ emotion tags</h3>
           <p>Per-sentence performance cues: <em>[sobbing]</em>, <em>[giggles]</em>, <em>[whispers]</em>, <em>[breathless]</em>. Gemini picks them automatically.</p>
         </article>
-        <article class="landing-feature">
+        <article class="landing-feature reveal">
           <span class="feature-icon">⚡</span>
           <h3>Seconds, not minutes</h3>
           <p>End-to-end &lt; 10 seconds for a 500-char script. No queue, no waitlist.</p>
         </article>
-        <article class="landing-feature">
+        <article class="landing-feature reveal">
           <span class="feature-icon">💸</span>
           <h3>Sasta pricing, honest math</h3>
           <p>Day pass ₹49. Monthly from ₹299. Char-by-char usage shown — no surprise bills.</p>
         </article>
-        <article class="landing-feature">
+        <article class="landing-feature reveal">
           <span class="feature-icon">🔒</span>
           <h3>Private by default</h3>
           <p>Your scripts never train any model. Audio lives in your own bucket, served via 1-hour signed URLs.</p>
         </article>
-        <article class="landing-feature">
+        <article class="landing-feature reveal">
           <span class="feature-icon">🎯</span>
           <h3>Switch plans freely</h3>
           <p>Top-ups stack on any plan. Pro user out of credits? ₹49 keeps you running.</p>
@@ -230,7 +230,7 @@
         {%- for p in plans %}
           {%- set is_free = (p.price_inr_monthly or 0) == 0 and not p.is_topup %}
           {%- set is_featured = p.plan == 'pro' and not p.is_topup %}
-          {%- set card_class = 'pricing-card' + (' pricing-card-topup' if p.is_topup else (' pricing-card-featured' if is_featured else '')) %}
+          {%- set card_class = 'pricing-card reveal' + (' pricing-card-topup' if p.is_topup else (' pricing-card-featured' if is_featured else '')) %}
           {%- set hours = p.audio_minutes // 60 %}
           {%- set mins  = p.audio_minutes % 60 %}
           {%- if p.audio_minutes >= 60 %}
@@ -293,7 +293,7 @@
     <!-- ─── HOW IT WORKS ─────────────────────────────────────── -->
     <section id="how" class="landing-section" aria-labelledby="howHeading">
       <h2 id="howHeading">How it works</h2>
-      <ol class="landing-steps">
+      <ol class="landing-steps reveal">
         <li>
           <strong>Type or paste your script</strong>
           <p>Hindi, Hinglish, or English — mix freely.</p>
@@ -401,6 +401,31 @@
       console.warn('landing: session probe failed', e);
       hideLoader();
     }
+
+    // ── Scroll-reveal — fade/slide elements in as they enter the viewport.
+    // Honours reduced-motion via the CSS guard (which forces .reveal visible).
+    (function () {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length || !('IntersectionObserver' in window)) {
+        els.forEach(el => el.classList.add('reveal-visible'));
+        return;
+      }
+      // Small per-sibling stagger so grids cascade instead of snapping in.
+      els.forEach(el => {
+        const sibs = Array.from(el.parentElement.children).filter(c => c.classList.contains('reveal'));
+        const i = sibs.indexOf(el);
+        if (i > 0) el.style.transitionDelay = Math.min(i * 70, 350) + 'ms';
+      });
+      const io = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('reveal-visible');
+            obs.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.12 });
+      els.forEach(el => io.observe(el));
+    })();
   </script>
 </body>
 </html>
