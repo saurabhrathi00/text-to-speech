@@ -1540,3 +1540,114 @@ button.primary:not(:disabled):hover { box-shadow: 0 8px 24px -8px rgba(129,140,2
   }
   .reveal { opacity: 1; transform: none; }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+ * Premium visual theme (glow-up) — appended so it overrides base rules.
+ * Tasteful, within the indigo/pink tokens. All infinite animations are
+ * neutralised by the prefers-reduced-motion guard above.
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* Brand title — flowing animated gradient + soft glow. */
+.hero h1 {
+  background: linear-gradient(110deg, #c7d2fe, #f9a8d4, #a5b4fc, #c7d2fe);
+  background-size: 280% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brandFlow 9s ease-in-out infinite;
+  filter: drop-shadow(0 3px 22px rgba(129,140,248,0.22));
+}
+@keyframes brandFlow {
+  0%, 100% { background-position: 0% center; }
+  50%      { background-position: 100% center; }
+}
+
+/* Ambient background drifts slowly so the page feels alive, not static. */
+body::before { animation: ambientDrift 30s ease-in-out infinite alternate; }
+@keyframes ambientDrift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(-2%, 2%, 0) scale(1.08); }
+}
+
+/* Cards — indigo-tinted hairline + the active card lights up on focus. */
+.card {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.card:focus-within {
+  border-color: rgba(129,140,248,0.28);
+  box-shadow:
+    0 24px 56px -22px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(129,140,248,0.12) inset,
+    0 0 36px -10px rgba(129,140,248,0.18);
+}
+
+/* The hero CTA — sheen sweep on hover, deeper gradient + glow. */
+#generateBtn {
+  width: 100%;
+  margin-top: 18px;
+  padding: 16px 24px;
+  font-size: 1.05rem;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6 55%, #d946ef);
+  background-size: 180% auto;
+  box-shadow: 0 12px 32px -10px rgba(124,58,237,0.6);
+  position: relative;
+  overflow: hidden;
+  transition: background-position 0.5s ease, transform 0.12s, box-shadow 0.25s;
+}
+#generateBtn:hover:not(:disabled) {
+  background-position: right center;
+  box-shadow: 0 16px 40px -10px rgba(217,70,239,0.6);
+}
+#generateBtn::after {
+  content: '';
+  position: absolute; top: 0; left: -150%;
+  width: 80%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.28), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.65s ease;
+  pointer-events: none;
+}
+#generateBtn:hover:not(:disabled)::after { left: 160%; }
+
+/* Provider toggle — premium segmented control with a glowing active pill. */
+.prov-btn, .llm-btn {
+  transition: background 0.25s cubic-bezier(0.22,1,0.36,1),
+              color 0.25s, box-shadow 0.25s, transform 0.12s;
+}
+.prov-btn.active, .llm-btn.active {
+  box-shadow: 0 4px 16px -2px rgba(99,102,241,0.55);
+}
+.prov-btn:active, .llm-btn:active { transform: scale(0.96); }
+
+/* Upgrade CTA gently pulses to draw the eye (paid conversion). */
+.user-upgrade:not(:disabled) { animation: upgradePulse 2.6s ease-in-out infinite; }
+@keyframes upgradePulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(239,68,68,0.25); }
+  50%      { box-shadow: 0 3px 20px rgba(239,68,68,0.55); }
+}
+
+/* Audio player + result row — cleaner, full-width, themed. */
+#audioPlayer {
+  width: 100%;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.3);
+}
+.player-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.player-row #audioPlayer { flex: 1; min-width: 220px; }
+
+/* Inputs — smoother all-round transition for the focus glow. */
+textarea, input[type="text"], input[type="email"],
+input[type="password"], select {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+textarea:focus, input:focus, select:focus {
+  background: rgba(0,0,0,0.34);
+}

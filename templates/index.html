@@ -978,9 +978,31 @@
           return;
         }
         showToast(`🎉 ${capitalize(targetPlan)} is now active!`, 'success');
-        setTimeout(() => location.reload(), 1200);
+        closeTierPicker();
+        // Refresh plan + quota in place; fall back to a reload if it fails.
+        const ok = await refreshProfile();
+        if (!ok) setTimeout(() => location.reload(), 1200);
       } catch (e) {
         showToast('Network error during verification — refresh the page to check, or try again shortly.', 'error', 8000);
+      }
+    }
+
+    // Re-fetch /api/me and re-render the plan, quota and provider UI without
+    // a full page reload (so a new subscription OR a top-up credit shows
+    // immediately). Returns false if the fetch fails so the caller can reload.
+    async function refreshProfile() {
+      try {
+        const res = await fetch('/api/me');
+        if (!res.ok) return false;
+        const me = await res.json();
+        window._lastMe = me;
+        renderUserBar(me);
+        maybeShowAdminPanel(me);
+        await applyAllowedProviders(me);
+        return true;
+      } catch (e) {
+        console.error('refreshProfile failed', e);
+        return false;
       }
     }
 
