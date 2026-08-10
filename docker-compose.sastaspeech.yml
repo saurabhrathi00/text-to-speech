@@ -1,0 +1,27 @@
+# SastaSpeech container, deployed alongside the existing voxai stack.
+#
+# It joins voxai's EXISTING docker network (ai-customer-service_backend) so
+# the Caddy container can reverse_proxy to it by name (sastaspeech:8001).
+# No host port is published — the voxai services are untouched.
+#
+#   cd /opt/sastaspeech
+#   docker compose -f docker-compose.sastaspeech.yml up -d --build
+services:
+  sastaspeech:
+    build: .
+    image: sastaspeech:latest
+    container_name: sastaspeech
+    restart: unless-stopped
+    env_file: .env            # live keys — created on the server, never committed
+    environment:
+      PORT: "8001"
+      HOST: "0.0.0.0"
+    expose:
+      - "8001"                # reachable only inside the docker network
+    networks:
+      - voxai_backend
+
+networks:
+  voxai_backend:
+    external: true
+    name: ai-customer-service_backend

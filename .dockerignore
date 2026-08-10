@@ -1,0 +1,18 @@
+# Keep the image small + never bake secrets in.
+# NOTE: do NOT ignore *.md — llm/prompts/*.md are loaded at runtime.
+.git
+.gitignore
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+tests/
+audio/
+.env
+.env.local
+requirements-local.txt
+requirements-dev.txt
+docs/
+node_modules/
