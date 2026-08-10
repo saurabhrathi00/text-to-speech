@@ -336,7 +336,24 @@
     .lx-sample-head{ display:flex; align-items:center; gap:8px; font-size:.92rem; color:var(--lx-tx); margin-bottom:10px; }
     .lx-sample-script{ font-size:.85rem; color:#cdd3e3; line-height:1.5; margin:0 0 14px; min-height:56px; }
     .lx-sample-script b{ color:#a78bfa; font-weight:700; }
-    .lx-sample audio{ width:100%; height:40px; }
+    /* Custom Aurora audio player */
+    .lx-player{ display:flex; align-items:center; gap:12px; }
+    .lx-play{ flex:0 0 auto; width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
+      display:grid; place-items:center; background:linear-gradient(135deg,#6366f1,#8b5cf6 60%,#d946ef);
+      box-shadow:0 10px 24px -8px rgba(124,58,237,.75); transition:transform .15s, box-shadow .15s; }
+    .lx-play:hover{ transform:scale(1.07); box-shadow:0 14px 30px -8px rgba(217,70,239,.7); }
+    .lx-play:active{ transform:scale(.96); }
+    .lx-play svg{ width:20px; height:20px; fill:#fff; }
+    .lx-play .ic-pause{ display:none; }
+    .lx-player.playing .ic-play{ display:none; }
+    .lx-player.playing .ic-pause{ display:block; }
+    .lx-player.playing .lx-play{ animation:lxpulse 1.6s ease-in-out infinite; }
+    @keyframes lxpulse{ 0%,100%{ box-shadow:0 10px 24px -8px rgba(124,58,237,.75); } 50%{ box-shadow:0 10px 30px -6px rgba(217,70,239,.9); } }
+    .lx-track{ flex:1; height:7px; border-radius:999px; background:rgba(255,255,255,.12); cursor:pointer; position:relative; overflow:hidden; }
+    .lx-track-fill{ position:absolute; left:0; top:0; bottom:0; width:0%; border-radius:999px;
+      background:linear-gradient(90deg,#8b5cf6,#d946ef); transition:width .1s linear; }
+    .lx-time{ flex:0 0 auto; font-size:.78rem; color:var(--lx-mut); font-variant-numeric:tabular-nums; min-width:36px; text-align:right; }
+    @media(prefers-reduced-motion:reduce){ .lx-player.playing .lx-play{ animation:none; } }
     .lx-pricing .pricing-tag{ color:var(--lx-mut); font-size:.86rem; margin:0 0 18px; }
     .lx-pricing .pricing-card ul{ list-style:none; padding:0; margin:0 0 22px; }
     .lx-pricing .pricing-card li{ position:relative; padding:7px 0 7px 26px; color:#cdd3e3; font-size:.9rem; line-height:1.45; border-bottom:1px solid rgba(255,255,255,.05); }
@@ -458,17 +475,38 @@
         <div class="lx-sample reveal">
           <div class="lx-sample-head">🎭 <span>English · emotional</span></div>
           <p class="lx-sample-script"><b>[warmly]</b> Hey there. <b>[excited]</b> You're going to love this — <b>[whispers]</b> it's a secret. <b>[laughs]</b></p>
-          <audio controls preload="none" src="/static/samples/sample-en-emotion.mp3"></audio>
+          <div class="lx-player" data-src="/static/samples/sample-en-emotion.mp3">
+            <button class="lx-play" type="button" aria-label="Play sample">
+              <svg viewBox="0 0 24 24" class="ic-play"><path d="M8 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" class="ic-pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+            </button>
+            <div class="lx-track"><div class="lx-track-fill"></div></div>
+            <span class="lx-time">0:00</span>
+          </div>
         </div>
         <div class="lx-sample reveal">
           <div class="lx-sample-head">🎬 <span>English · narration</span></div>
           <p class="lx-sample-script"><b>[dramatic]</b> In a world of flat, robotic voices… <b>[warmly]</b> finally, one that sounds truly human.</p>
-          <audio controls preload="none" src="/static/samples/sample-en-narration.mp3"></audio>
+          <div class="lx-player" data-src="/static/samples/sample-en-narration.mp3">
+            <button class="lx-play" type="button" aria-label="Play sample">
+              <svg viewBox="0 0 24 24" class="ic-play"><path d="M8 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" class="ic-pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+            </button>
+            <div class="lx-track"><div class="lx-track-fill"></div></div>
+            <span class="lx-time">0:00</span>
+          </div>
         </div>
         <div class="lx-sample reveal">
           <div class="lx-sample-head">🌍 <span>Hindi · any language</span></div>
           <p class="lx-sample-script"><b>[cheerfully]</b> नमस्ते दोस्तों! आज मैं आपको कुछ बेहद ख़ास दिखाने वाला हूँ।</p>
-          <audio controls preload="none" src="/static/samples/sample-hi.mp3"></audio>
+          <div class="lx-player" data-src="/static/samples/sample-hi.mp3">
+            <button class="lx-play" type="button" aria-label="Play sample">
+              <svg viewBox="0 0 24 24" class="ic-play"><path d="M8 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" class="ic-pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+            </button>
+            <div class="lx-track"><div class="lx-track-fill"></div></div>
+            <span class="lx-time">0:00</span>
+          </div>
         </div>
       </div>
       <div style="text-align:center; margin-top:30px;">
@@ -742,6 +780,44 @@
       const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 12);
       onScroll();
       window.addEventListener('scroll', onScroll, { passive: true });
+    })();
+
+    // Custom audio players for the sample cards — one plays at a time.
+    (function () {
+      let current = null;
+      const fmt = s => (isFinite(s) && s >= 0)
+        ? Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') : '0:00';
+      document.querySelectorAll('.lx-player').forEach(p => {
+        const audio = new Audio();
+        audio.preload = 'none';
+        audio.src = p.dataset.src;
+        const btn = p.querySelector('.lx-play');
+        const fill = p.querySelector('.lx-track-fill');
+        const track = p.querySelector('.lx-track');
+        const time = p.querySelector('.lx-time');
+        btn.addEventListener('click', () => {
+          if (audio.paused) {
+            if (current && current !== audio) current.pause();
+            audio.play().catch(() => {});
+            current = audio;
+          } else audio.pause();
+        });
+        audio.addEventListener('play', () => p.classList.add('playing'));
+        audio.addEventListener('pause', () => p.classList.remove('playing'));
+        audio.addEventListener('loadedmetadata', () => { time.textContent = fmt(audio.duration); });
+        audio.addEventListener('timeupdate', () => {
+          const pct = audio.duration ? (audio.currentTime / audio.duration * 100) : 0;
+          fill.style.width = pct + '%';
+          time.textContent = fmt(audio.duration ? audio.duration - audio.currentTime : 0);
+        });
+        audio.addEventListener('ended', () => {
+          p.classList.remove('playing'); fill.style.width = '0%'; time.textContent = fmt(audio.duration);
+        });
+        track.addEventListener('click', e => {
+          const r = track.getBoundingClientRect();
+          if (audio.duration) audio.currentTime = ((e.clientX - r.left) / r.width) * audio.duration;
+        });
+      });
     })();
 
     // Sticky signup nudge — slides in once the visitor scrolls into the page.
