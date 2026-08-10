@@ -118,19 +118,19 @@ values
      1,    null, 100,   100,
      array['gemini'], array['elevenlabs'],
      'Free trial: 1 generation per day, max 100 chars'),
-    ('sabse_sasta',  'Quick Top-up',  49,   48,
+    ('sabse_sasta',  'Quick Top-up',  2,    48,
      3,    null, 500,   1500,
      array['gemini'], array['elevenlabs'],
      'Top-up bundle: +1500 chars, +3 gens, +500 chars/req · extends active plan by 48h'),
-    ('starter',      'Starter',      299,  720,
+    ('starter',      'Starter',      5,    720,
      5,    null, 1000,  20000,
      array['gemini'], array['elevenlabs'],
      'Casual users: 5 gens/day, 1000 chars/req, 20k chars/mo (30-day validity)'),
-    ('pro',          'Pro',          799,  720,
+    ('pro',          'Pro',          12,   720,
      10,   null, 3000,  50000,
      array['gemini'], array['elevenlabs'],
      'Regular creators: 10 gens/day, 3000 chars/req, 50k chars/mo (30-day validity)'),
-    ('pro_plus',     'Pro Plus',     1999, 720,
+    ('pro_plus',     'Pro Plus',     29,   720,
      20,   null, 5000,  150000,
      array['gemini'], array['elevenlabs'],
      'Power users: 20 gens/day, 5000 chars/req, 150k chars/mo (30-day validity)'),
@@ -162,6 +162,15 @@ update public.plan_limits set kind = 'subscription' where kind is null;
 -- ('sabse_sasta') is internal and stays; only the user-visible name changes.
 update public.plan_limits set display_name = 'Quick Top-up'
  where plan = 'sabse_sasta' and display_name = 'Sabse Sasta';
+
+-- Currency switch INR → USD. price_inr_monthly now holds the price in the
+-- configured currency's MAJOR unit (dollars); checkout charges price*100
+-- (cents), which is also how Razorpay wants USD. Guarded on the OLD INR
+-- values so an admin's custom price is never clobbered.
+update public.plan_limits set price_inr_monthly = 2  where plan = 'sabse_sasta' and price_inr_monthly = 49;
+update public.plan_limits set price_inr_monthly = 5  where plan = 'starter'     and price_inr_monthly = 299;
+update public.plan_limits set price_inr_monthly = 12 where plan = 'pro'         and price_inr_monthly = 799;
+update public.plan_limits set price_inr_monthly = 29 where plan = 'pro_plus'    and price_inr_monthly = 1999;
 
 -- Bring the original pro row up to current seed values. Earlier seed
 -- had max=5000; new tiered pricing uses 3000/req. daily=10 was right
@@ -195,7 +204,7 @@ update public.plan_limits
 
 -- Backfill display_name + price for pre-existing rows
 update public.plan_limits set display_name = 'Free',     price_inr_monthly = 0    where plan = 'free'     and display_name is null;
-update public.plan_limits set display_name = 'Pro',      price_inr_monthly = 799  where plan = 'pro'      and display_name is null;
+update public.plan_limits set display_name = 'Pro',      price_inr_monthly = 12   where plan = 'pro'      and display_name is null;
 update public.plan_limits set display_name = 'Admin',    price_inr_monthly = null where plan = 'admin'    and display_name is null;
 
 -- Backfill for deployments that had plan_limits rows BEFORE the

@@ -177,7 +177,7 @@ def upsert_coupon(data: dict) -> tuple[dict | None, str | None]:
     if dtype == "percent" and not (1 <= dvalue <= 100):
         return None, "Percent discount must be 1–100"
     if dtype == "flat" and dvalue < 1:
-        return None, "Flat discount (in paise) must be positive"
+        return None, "Flat discount (in cents) must be positive"
 
     row = {
         "code": code,

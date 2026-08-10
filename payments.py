@@ -24,6 +24,7 @@ import requests
 import auth
 import coupons
 import observability
+from config import CURRENCY_CODE
 
 
 API_BASE = "https://api.razorpay.com/v1"
@@ -92,7 +93,7 @@ def create_order(user_id: str, plan: str,
             auth=(key_id(), _key_secret()),
             json={
                 "amount": amount_paise,
-                "currency": "INR",
+                "currency": CURRENCY_CODE,
                 "notes": {"user_id": user_id, "plan": plan,
                           "coupon": applied_code or ""},
             },
@@ -115,7 +116,7 @@ def create_order(user_id: str, plan: str,
             "plan": plan,
             "razorpay_order_id": order_id,
             "amount_paise": amount_paise,
-            "currency": "INR",
+            "currency": CURRENCY_CODE,
             "status": "created",
             "coupon_code": applied_code,
             "discount_paise": discount_paise,
@@ -133,7 +134,7 @@ def create_order(user_id: str, plan: str,
         "base_amount": base_paise,
         "discount": discount_paise,
         "coupon": applied_code,
-        "currency": "INR",
+        "currency": CURRENCY_CODE,
         "plan": plan,
         "display_name": limits.get("display_name") or plan,
     }, None

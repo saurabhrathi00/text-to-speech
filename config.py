@@ -25,6 +25,17 @@ PROVIDERS = ("parler", "elevenlabs", "bark")
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Currency — the app charges + displays in this currency. Plan prices in
+# plan_limits are stored in the MAJOR unit (dollars); the checkout amount
+# is price * 100 (cents), which is also how Razorpay wants USD amounts.
+# Switch back to INR by setting CURRENCY_CODE=INR / CURRENCY_SYMBOL=₹.
+# ──────────────────────────────────────────────────────────────────────
+import os as _os
+CURRENCY_CODE = _os.getenv("CURRENCY_CODE", "USD")
+CURRENCY_SYMBOL = _os.getenv("CURRENCY_SYMBOL", "$")
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Parler-TTS
 # ──────────────────────────────────────────────────────────────────────
 

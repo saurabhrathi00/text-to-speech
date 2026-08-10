@@ -64,7 +64,7 @@
     "description": "Multilingual AI text-to-speech for content creators. 60+ emotion tags, per-sentence performance, signed-URL audio.",
     "offers": [
       {%- for p in plans %}
-      {"@type": "Offer", "name": {{ (p.display_name or p.plan) | tojson }}, "price": "{{ p.price_inr_monthly or 0 }}", "priceCurrency": "INR", "category": "{{ 'one-time top-up' if p.is_topup else ('free' if not p.price_inr_monthly else 'monthly subscription') }}"}{%- if not loop.last %},{%- endif %}
+      {"@type": "Offer", "name": {{ (p.display_name or p.plan) | tojson }}, "price": "{{ p.price_inr_monthly or 0 }}", "priceCurrency": "USD", "category": "{{ 'one-time top-up' if p.is_topup else ('free' if not p.price_inr_monthly else 'monthly subscription') }}"}{%- if not loop.last %},{%- endif %}
       {%- endfor %}
     ]
   }
@@ -103,7 +103,7 @@
       {
         "@type": "Question",
         "name": "What is the quick top-up?",
-        "acceptedAnswer": {"@type": "Answer", "text": "The top-up is a one-time ₹49 add-on that grants 1,500 characters, 3 extra generations, and lifts the per-request limit to 500 characters — all stacked on top of whatever plan you are on. Perfect when your monthly quota runs out and you need a few more audios without renewing the full plan."}
+        "acceptedAnswer": {"@type": "Answer", "text": "The top-up is a one-time $2 add-on that grants 1,500 characters, 3 extra generations, and lifts the per-request limit to 500 characters — all stacked on top of whatever plan you are on. Perfect when your monthly quota runs out and you need a few more audios without renewing the full plan."}
       },
       {
         "@type": "Question",
@@ -419,7 +419,7 @@
       <div><b>30+</b><span>languages</span></div>
       <div><b>60+</b><span>emotion tags</span></div>
       <div><b>&lt;10s</b><span>per generation</span></div>
-      <div><b>₹49</b><span>to get started</span></div>
+      <div><b>$2</b><span>to get started</span></div>
     </section>
 
     <!-- ─── FEATURES (bento) ─────────────────────────────────── -->
@@ -450,7 +450,7 @@
         <article class="lx-cell reveal">
           <span class="ico">💸</span>
           <h3>Honest pricing</h3>
-          <p>Day pass ₹49. Monthly from ₹299. Char-by-char usage shown — no surprise bills.</p>
+          <p>Day pass $2. Monthly from $5. Char-by-char usage shown — no surprise bills.</p>
         </article>
       </div>
     </section>
@@ -459,7 +459,7 @@
     <section id="pricing" class="lx-section" aria-labelledby="pricingHeading">
       <p class="lx-kicker">Pricing</p>
       <h2 class="lx-h2" id="pricingHeading">Simple, honest pricing</h2>
-      <p class="lx-section-sub">All plans use Gemini for refinement and ElevenLabs v3 for voice. Built on honest cost math — about ₹0.013 per character plus a sensible margin.</p>
+      <p class="lx-section-sub">All plans use Gemini for refinement and ElevenLabs v3 for voice. Built on honest cost math — you only pay for the characters you generate, plus a sensible margin.</p>
       <div class="lx-pricing">
         {%- for p in plans %}
           {%- set is_free = (p.price_inr_monthly or 0) == 0 and not p.is_topup %}
@@ -485,9 +485,9 @@
           <h3>{{ p.display_name or p.plan|title }}</h3>
           <p class="pricing-price">
             {%- if is_free %}
-              ₹0
+              $0
             {%- else %}
-              ₹{{ '{:,}'.format(p.price_inr_monthly or 0) }}
+              ${{ '{:,}'.format(p.price_inr_monthly or 0) }}
               <span class="muted">{{ 'one-time' if p.is_topup else '/mo' }}</span>
             {%- endif %}
           </p>
@@ -579,7 +579,7 @@
         </details>
         <details>
           <summary>What's the quick top-up?</summary>
-          <p>A one-time ₹49 add-on: 1,500 extra characters, 3 bonus generations, 500-char per-request limit. Stacks on whatever plan you're already on.</p>
+          <p>A one-time $2 add-on: 1,500 extra characters, 3 bonus generations, 500-char per-request limit. Stacks on whatever plan you're already on.</p>
         </details>
         <details>
           <summary>Can I use the audio commercially?</summary>

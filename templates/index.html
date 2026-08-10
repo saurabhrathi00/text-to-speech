@@ -348,8 +348,8 @@
         <div class="admin-block-body">
           <div class="coupon-form">
             <input id="cpCode" type="text" placeholder="CODE (e.g. LAUNCH50)" />
-            <select id="cpType"><option value="percent">% off</option><option value="flat">₹ flat off</option></select>
-            <input id="cpValue" type="number" placeholder="value (50 = 50% / paise for flat)" />
+            <select id="cpType"><option value="percent">% off</option><option value="flat">$ flat off</option></select>
+            <input id="cpValue" type="number" placeholder="value (50 = 50% / cents for flat)" />
             <label class="cp-check"><input type="checkbox" id="cpAuto" /> Auto-apply (show as pre-applied)</label>
             <label class="cp-check"><input type="checkbox" id="cpActive" checked /> Active</label>
             <input id="cpDesc" type="text" placeholder="description (optional)" />
@@ -1043,11 +1043,11 @@
         const orig = Math.round(p.original_paise / 100).toLocaleString();
         const eff = Math.round(p.effective_paise / 100).toLocaleString();
         return `<span class="upgrade-tier-price">`
-          + `<span class="price-was">₹${orig}</span> `
-          + `₹${eff}<span class="muted">${suffix}</span>`
+          + `<span class="price-was">$${orig}</span> `
+          + `$${eff}<span class="muted">${suffix}</span>`
           + `<span class="price-off">${p.off_pct}% OFF</span></span>`;
       }
-      return `<span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${suffix}</span></span>`;
+      return `<span class="upgrade-tier-price">$${t.price_inr_monthly || 0}<span class="muted">${suffix}</span></span>`;
     }
 
     // Rough chars-to-minutes for Hindi narration. Tunable in one place
@@ -1235,8 +1235,8 @@
       const tierInfo = availablePlans.find(p => p.plan === targetPlan) || {};
       const isT = isTopup(tierInfo);
       const headline = isT
-        ? `Top-up: ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly} one-time, +${tierInfo.monthly_chars} chars).`
-        : `Upgrading to ${tierInfo.display_name || targetPlan} (₹${tierInfo.price_inr_monthly}/mo).`;
+        ? `Top-up: ${tierInfo.display_name || targetPlan} ($${tierInfo.price_inr_monthly} one-time, +${tierInfo.monthly_chars} chars).`
+        : `Upgrading to ${tierInfo.display_name || targetPlan} ($${tierInfo.price_inr_monthly}/mo).`;
       const note = prompt(
         `${headline}\n\n` +
         `Payment is handled manually for now — please share your preferred contact (email / WhatsApp):`, '');
@@ -1356,7 +1356,7 @@
         list.forEach(c => {
           const row = document.createElement('div');
           row.className = 'admin-item';
-          const val = c.discount_type === 'percent' ? `${c.discount_value}% off` : `₹${(c.discount_value/100).toLocaleString()} off`;
+          const val = c.discount_type === 'percent' ? `${c.discount_value}% off` : `$${(c.discount_value/100).toLocaleString()} off`;
           row.innerHTML = `<div><strong>${escapeHtml(c.code)}</strong> · ${val}`
             + `${c.auto_apply ? ' · <span class="chip-auto">AUTO</span>' : ''}`
             + `${c.active ? '' : ' · <span class="muted">inactive</span>'}`
@@ -1436,7 +1436,7 @@
         const d = await r.json().catch(() => ({}));
         if (!r.ok) { el.innerHTML = `<p class="muted">${escapeHtml(d.error || 'Not found')}</p>`; return; }
         const eff = d.effective_limits || {};
-        const orders = (d.orders || []).map(o => `${escapeHtml(o.plan)} · ₹${((o.amount_paise||0)/100).toLocaleString()} · ${escapeHtml(o.status)}${o.coupon_code ? ' · ' + escapeHtml(o.coupon_code) : ''}`).join('<br>') || '—';
+        const orders = (d.orders || []).map(o => `${escapeHtml(o.plan)} · $${((o.amount_paise||0)/100).toLocaleString()} · ${escapeHtml(o.status)}${o.coupon_code ? ' · ' + escapeHtml(o.coupon_code) : ''}`).join('<br>') || '—';
         el.innerHTML = `<div class="admin-item admin-item-col">
           <div><strong>${escapeHtml(d.profile?.email || email)}</strong> · plan: <strong>${escapeHtml(d.effective_plan || 'free')}</strong>${d.profile?.role === 'admin' ? ' 👑' : ''}${d.profile?.banned ? ' · <span class="error">BANNED</span>' : ''}</div>
           <div class="muted">Daily: ${eff.daily_used ?? '?'}/${eff.daily_cap ?? '∞'} · Monthly chars: ${(eff.monthly_used||0).toLocaleString()}/${eff.monthly_cap ? eff.monthly_cap.toLocaleString() : '∞'} · Max/req: ${eff.max_chars_per_request ?? '∞'}${eff.has_topup ? ' · ⚡ top-up' : ''}</div>
