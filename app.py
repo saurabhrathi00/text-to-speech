@@ -246,6 +246,8 @@ IMAGE_DIR.mkdir(exist_ok=True)
 
 app = Flask(__name__)
 security.install(app)  # MAX_CONTENT_LENGTH + CORS allowlist + 413 handler
+import observability   # Datadog log shipping — no-op unless DD_API_KEY is set
+observability.install(app)
 
 
 def _prune_old_audio(keep: int = MAX_AUDIO_FILES):

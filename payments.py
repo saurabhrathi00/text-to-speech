@@ -23,6 +23,7 @@ import requests
 
 import auth
 import coupons
+import observability
 
 
 API_BASE = "https://api.razorpay.com/v1"
@@ -194,6 +195,10 @@ def _grant_order(order_id: str, payment_id: str | None) -> tuple[dict | None, st
 
     # Count the coupon use exactly once (only the claim winner reaches here).
     coupons.increment_use(order.get("coupon_code"))
+    observability.log_event(
+        f"payment granted: {order.get('plan')}", level="info", event="payment.granted",
+        plan=order.get("plan"), coupon=order.get("coupon_code"),
+        amount_paise=order.get("amount_paise"))
     return claimed[0], None
 
 
