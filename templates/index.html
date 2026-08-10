@@ -1163,10 +1163,19 @@
         description: `${order.display_name} plan`,
         prefill: { email: me.profile?.email || me.email || '' },
         theme: { color: '#6366f1' },
+        retry: { enabled: true },      // Razorpay's built-in retry on a failed attempt
+        modal: {
+          // User closed the sheet without paying — reassure them nothing
+          // was charged so they don't panic or double-pay.
+          ondismiss: () => showToast('Checkout closed — you were not charged. Your plan is unchanged.', 'info'),
+        },
         handler: resp => confirmPayment(resp, targetPlan),
       });
       rzp.on('payment.failed', resp => {
-        showToast('Payment failed: ' + (resp.error?.description || 'please try again'), 'error');
+        const e = resp.error || {};
+        const why = e.description || 'please try again';
+        const extra = e.reason && e.reason !== 'payment_failed' ? ` (${e.reason})` : '';
+        showToast(`Payment failed: ${why}${extra}. You were not charged — try again or use another method.`, 'error', 8000);
       });
       closeTierPicker();
       rzp.open();
