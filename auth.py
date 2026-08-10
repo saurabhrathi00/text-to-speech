@@ -213,17 +213,19 @@ def upsert_google_profile(google_sub: str, email: str | None,
             }).eq("user_id", google_sub).execute()
         except Exception as e:
             print(f"[auth] google profile update failed: {e}")
-        return {**rows[0], "email": email, "role": role}
+        return {**rows[0], "email": email, "role": role, "_new": False}
     try:
         ins = ac.table("profiles").insert({
             "user_id": google_sub, "email": email,
             "display_name": name, "role": role,
         }).execute()
         r = getattr(ins, "data", None) or []
-        return r[0] if r else {"user_id": google_sub, "email": email, "role": role}
+        prof = r[0] if r else {"user_id": google_sub, "email": email, "role": role}
+        prof["_new"] = True   # first-time signup — used for the signup analytics event
+        return prof
     except Exception as e:
         print(f"[auth] google profile insert failed: {e}")
-        return {"user_id": google_sub, "email": email, "role": role}
+        return {"user_id": google_sub, "email": email, "role": role, "_new": True}
 
 
 # ──────────────────────────────────────────────────────────────────────

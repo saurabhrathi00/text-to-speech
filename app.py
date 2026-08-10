@@ -722,6 +722,11 @@ def auth_google_callback():
     if not sub or info.get("email_verified") is False:
         return redirect("/login?error=email")
     profile = auth.upsert_google_profile(sub, email, info.get("name"))
+    observability.log_event(
+        "signup" if profile.get("_new") else "login",
+        evt="signup" if profile.get("_new") else "login",
+        user_id=sub, email=email, role=profile.get("role", "user"),
+    )
     session_jwt = auth.make_session_token(sub, email, profile.get("role", "user"))
     resp = redirect("/app")
     resp.set_cookie(auth.SESSION_COOKIE, session_jwt,
@@ -772,6 +777,8 @@ def api_plans():
                 r["pricing"] = coupons.effective_price(r["plan"], base, auto=auto)
         # Sort by (normalized) price ascending; free first.
         rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
+        observability.log_event("pricing_viewed", evt="pricing_viewed",
+                                currency=currency)
         return jsonify({"plans": rows, "currency": currency,
                         "symbol": CURRENCY_SYMBOLS.get(currency, "$")})
     except Exception as e:
@@ -815,7 +822,15 @@ def api_checkout_create_order():
                                        coupon_code=data.get("coupon"),
                                        currency=currency)
     if err:
+        observability.log_event("checkout_failed", level="warning",
+                                evt="checkout_failed", user_id=g.user["id"],
+                                plan=plan, reason=err)
         return jsonify({"error": err}), 400
+    observability.log_event("checkout_started", evt="checkout_started",
+                            user_id=g.user["id"], plan=order.get("plan"),
+                            currency=order.get("currency"),
+                            amount=(order.get("amount") or 0) / 100,
+                            coupon=order.get("coupon"))
     return jsonify(order)
 
 
@@ -834,6 +849,10 @@ def api_checkout_verify():
         (data.get("razorpay_signature") or "").strip(),
     )
     if err:
+        observability.log_event("payment_failed", level="warning",
+                                evt="payment_failed", user_id=g.user["id"],
+                                order_id=(data.get("razorpay_order_id") or "").strip(),
+                                reason=err)
         return jsonify({"error": err}), 400
     return jsonify(result)
 
@@ -1153,6 +1172,10 @@ def generate():
                     print(f"[app] llm({llm_provider}) done in {time.time() - t_llm:.1f}s → {len(normalized)} chars")
                 except OllamaError as e:
                     print(f"[app] llm({llm_provider}) FAILED in {time.time() - t_llm:.1f}s: {e}")
+                    observability.log_event("generation_failed", level="error",
+                        evt="generation_failed", stage="llm",
+                        user_id=(user or {}).get("id"), provider=llm_provider,
+                        reason=str(e)[:200])
                     _finish_progress(job_id, error=_llm_error_message(llm_provider, str(e)))
                     return
 
@@ -1162,8 +1185,12 @@ def generate():
             _set_progress(job_id, "tts", 30)
             try:
                 actual_path = _tts_synthesize(normalized, str(out_path), description, voice, provider)
-            except Exception:
+            except Exception as e:
                 traceback.print_exc()
+                observability.log_event("generation_failed", level="error",
+                    evt="generation_failed", stage="tts",
+                    user_id=(user or {}).get("id"), provider=provider,
+                    reason=str(e)[:200])
                 _finish_progress(job_id, error="Couldn't generate the audio. Please try again.")
                 return
 
@@ -1191,6 +1218,12 @@ def generate():
                 auth.consume_bonus_if_used(user["id"])
 
             print(f"[app] /generate done in {time.time() - t_req:.1f}s → {actual_filename}")
+            observability.log_event(
+                "generation", evt="generation",
+                user_id=(user or {}).get("id"), provider=provider,
+                chars=len(normalized), input_chars=len(text),
+                emotion_tags=add_emotion_tags,
+                duration_s=round(time.time() - t_req, 1))
             _finish_progress(job_id, result={
                 "normalized_text": normalized,
                 "audio_url": audio_url,

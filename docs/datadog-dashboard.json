@@ -1,0 +1,345 @@
+{
+  "title": "SastaSpeech — Business KPIs",
+  "description": "Signups, logins, pricing views, checkout funnel, payments/revenue, and generations. Fed by structured log events (@evt:*) shipped from the app. Import via Datadog → Dashboards → New Dashboard → Import dashboard JSON.",
+  "layout_type": "ordered",
+  "reflow_type": "auto",
+  "widgets": [
+    {
+      "definition": {
+        "title": "Signups (total)",
+        "type": "query_value",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:signup" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Logins (total)",
+        "type": "query_value",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:login" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Pricing viewed (total)",
+        "type": "query_value",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:pricing_viewed" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Paid conversions (total)",
+        "type": "query_value",
+        "autoscale": true,
+        "precision": 0,
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:payment_success" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Signups over time",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:signup" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Conversion funnel: pricing → checkout → paid",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "line",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "viewed",
+                "search": { "query": "service:sastaspeech @evt:pricing_viewed" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "viewed", "alias": "pricing viewed" }]
+          },
+          {
+            "response_format": "timeseries",
+            "display_type": "line",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "checkout",
+                "search": { "query": "service:sastaspeech @evt:checkout_started" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "checkout", "alias": "checkout started" }]
+          },
+          {
+            "response_format": "timeseries",
+            "display_type": "line",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "paid",
+                "search": { "query": "service:sastaspeech @evt:payment_success" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "paid", "alias": "paid" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Revenue by currency (sum of amount)",
+        "type": "toplist",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:payment_success" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "sum", "metric": "@amount" },
+                "group_by": [
+                  {
+                    "facet": "@currency",
+                    "limit": 10,
+                    "sort": { "aggregation": "sum", "metric": "@amount", "order": "desc" }
+                  }
+                ]
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Paid conversions by plan",
+        "type": "toplist",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:payment_success" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": [
+                  {
+                    "facet": "@plan",
+                    "limit": 10,
+                    "sort": { "aggregation": "count", "order": "desc" }
+                  }
+                ]
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Generations over time (by provider)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @evt:generation" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": [
+                  {
+                    "facet": "@provider",
+                    "limit": 5,
+                    "sort": { "aggregation": "count", "order": "desc" }
+                  }
+                ]
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Errors: failed generations & payments",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "gen_fail",
+                "search": { "query": "service:sastaspeech @evt:generation_failed" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "gen_fail", "alias": "generation failed" }]
+          },
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "pay_fail",
+                "search": { "query": "service:sastaspeech (@evt:payment_failed OR @evt:checkout_failed)" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": []
+              }
+            ],
+            "formulas": [{ "formula": "pay_fail", "alias": "payment/checkout failed" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "HTTP errors (5xx / 4xx)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "display_type": "bars",
+            "queries": [
+              {
+                "data_source": "logs",
+                "name": "q",
+                "search": { "query": "service:sastaspeech @http.status_code:>=400" },
+                "indexes": ["*"],
+                "compute": { "aggregation": "count" },
+                "group_by": [
+                  {
+                    "facet": "@http.status_code",
+                    "limit": 10,
+                    "sort": { "aggregation": "count", "order": "desc" }
+                  }
+                ]
+              }
+            ],
+            "formulas": [{ "formula": "q" }]
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Recent business events",
+        "type": "log_stream",
+        "query": "service:sastaspeech @evt:*",
+        "indexes": ["*"],
+        "columns": ["host", "service", "@evt", "@plan", "@currency", "@amount", "@email"],
+        "show_date_column": true,
+        "show_message_column": true,
+        "message_display": "expanded-md",
+        "sort": { "column": "time", "order": "desc" }
+      }
+    }
+  ]
+}

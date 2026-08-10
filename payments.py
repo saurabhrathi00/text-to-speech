@@ -210,9 +210,11 @@ def _grant_order(order_id: str, payment_id: str | None) -> tuple[dict | None, st
     # Count the coupon use exactly once (only the claim winner reaches here).
     coupons.increment_use(order.get("coupon_code"))
     observability.log_event(
-        f"payment granted: {order.get('plan')}", level="info", event="payment.granted",
+        "payment_success", level="info", evt="payment_success",
         plan=order.get("plan"), coupon=order.get("coupon_code"),
-        amount_paise=order.get("amount_paise"))
+        currency=order.get("currency"),
+        amount=(order.get("amount_paise") or 0) / 100,
+        user_id=order.get("user_id"))
     return claimed[0], None
 
 
