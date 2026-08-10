@@ -326,6 +326,37 @@ alter table public.coupons enable row level security;
 
 
 -- ─────────────────────────────────────────────────────────────────────
+-- support_tickets: grievance / support system. A user (or a logged-out
+-- visitor) submits a query with contact details; admins triage + resolve.
+-- Writes go through the service-role backend; a signed-in user can read
+-- their own tickets.
+-- ─────────────────────────────────────────────────────────────────────
+create table if not exists public.support_tickets (
+    id          bigserial primary key,
+    user_id     uuid references auth.users(id) on delete set null,
+    name        text,
+    email       text not null,
+    phone       text,
+    category    text not null default 'query',   -- query | billing | bug | refund | other
+    message     text not null,
+    status      text not null default 'open',     -- open | resolved
+    admin_note  text,
+    created_at  timestamptz not null default now(),
+    resolved_at timestamptz
+);
+
+create index if not exists support_tickets_status_idx
+    on public.support_tickets (status, created_at desc);
+
+alter table public.support_tickets enable row level security;
+
+drop policy if exists "support_self_read" on public.support_tickets;
+create policy "support_self_read"
+    on public.support_tickets for select
+    using (auth.uid() = user_id);
+
+
+-- ─────────────────────────────────────────────────────────────────────
 -- usage_events: every billable action (TTS generation, etc.) logged
 -- ─────────────────────────────────────────────────────────────────────
 create table if not exists public.usage_events (

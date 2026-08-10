@@ -785,6 +785,68 @@ def api_admin_coupon_delete(code: str):
     return jsonify({"ok": ok})
 
 
+# ── Support / grievance system ─────────────────────────────────────────
+
+@app.route("/api/support", methods=["POST"])
+@security.require_json
+@security.rate_limit("ip", 5, 300)   # 5 submissions / 5 min / IP (anti-spam)
+def api_support():
+    """Public support/grievance submission. Works logged-out; if a valid
+    session token is present it is best-effort linked to the account so the
+    user can see their own tickets."""
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    message = (data.get("message") or "").strip()
+    if not email or "@" not in email:
+        return jsonify({"error": "A valid email is required"}), 400
+    if len(message) < 5:
+        return jsonify({"error": "Please describe your issue"}), 400
+    uid = None
+    try:
+        tok = auth._extract_token()
+        if tok:
+            uid = auth.verify_jwt(tok).get("sub")
+    except Exception:
+        uid = None
+    row = {
+        "user_id": uid,
+        "name": ((data.get("name") or "").strip()[:120] or None),
+        "email": email[:200],
+        "phone": ((data.get("phone") or "").strip()[:40] or None),
+        "category": (data.get("category") or "query").strip().lower()[:20],
+        "message": message[:4000],
+    }
+    try:
+        auth.admin_client().table("support_tickets").insert(row).execute()
+    except Exception as e:
+        print(f"[support] insert failed: {e}")
+        return jsonify({"error": "Could not submit — please email us directly"}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/support")
+@auth.require_admin
+def api_admin_support():
+    status = request.args.get("status", "open")
+    q = (auth.admin_client().table("support_tickets")
+         .select("*").order("created_at", desc=True))
+    if status != "all":
+        q = q.eq("status", status)
+    res = q.execute()
+    return jsonify({"tickets": getattr(res, "data", None) or []})
+
+
+@app.route("/api/admin/support/<int:tid>/resolve", methods=["POST"])
+@auth.require_admin
+def api_admin_support_resolve(tid: int):
+    data = request.get_json(silent=True) or {}
+    upd = {"status": "resolved", "resolved_at": "now()"}
+    if (data.get("note") or "").strip():
+        upd["admin_note"] = data["note"].strip()[:2000]
+    auth.admin_client().table("support_tickets").update(upd).eq("id", tid).execute()
+    return jsonify({"ok": True})
+
+
 # ── Admin endpoints ────────────────────────────────────────────────────
 
 @app.route("/api/admin/limits")
@@ -1309,6 +1371,11 @@ def api_status():
 @app.route("/status")
 def status_page():
     return render_template("status.html", status=_deployment_status())
+
+
+@app.route("/support")
+def support_page():
+    return render_template("support.html", biz=BUSINESS_CONFIG)
 
 
 @app.route("/api/providers")
