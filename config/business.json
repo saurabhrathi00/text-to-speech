@@ -7,15 +7,15 @@
   "address_full":         "Ajanta Apartment, Delhi - 110092, India",
 
   "parent_company":       "VoxAI Labs",
-  "support_email":        "support@sastaspeech.in",
-  "whatsapp":             "TBD: +91-XXXXX-XXXXX",
+  "support_email":        "support@voxhelperai.com",
+  "whatsapp":             "+91-7982881768",
 
   "support_response_sla": "24 hours",
   "approval_sla":         "24 hours",
   "refund_window_days":   7,
   "refund_processing":    "5–7 working days",
   "jurisdiction_city":    "Delhi",
-  "gst_inclusive_note":   "TBD: confirm GST inclusive/exclusive",
+  "gst_inclusive_note":   "For customers in India, prices are in INR and inclusive of any applicable GST.",
   "payment_processor":    "Razorpay",
 
   "site_url":             "https://sastaspeech.in",
