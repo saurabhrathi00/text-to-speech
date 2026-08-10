@@ -329,6 +329,14 @@
     .lx-sticky-cta span{ font-size:.9rem; font-weight:600; color:#eef; }
     .lx-sticky-cta .lx-btn{ padding:9px 16px; font-size:.9rem; white-space:nowrap; }
     @media(max-width:520px){ .lx-sticky-cta span{ font-size:.8rem; } .lx-sticky-cta{ padding:10px 12px; } }
+    /* Hear-a-sample cards */
+    .lx-samples{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; margin-top:36px; }
+    .lx-sample{ padding:20px; border-radius:18px; background:rgba(255,255,255,.03); border:1px solid var(--lx-bd); transition:border-color .3s, transform .3s; }
+    .lx-sample:hover{ border-color:var(--lx-bd2); transform:translateY(-3px); }
+    .lx-sample-head{ display:flex; align-items:center; gap:8px; font-size:.92rem; color:var(--lx-tx); margin-bottom:10px; }
+    .lx-sample-script{ font-size:.85rem; color:#cdd3e3; line-height:1.5; margin:0 0 14px; min-height:56px; }
+    .lx-sample-script b{ color:#a78bfa; font-weight:700; }
+    .lx-sample audio{ width:100%; height:40px; }
     .lx-pricing .pricing-tag{ color:var(--lx-mut); font-size:.86rem; margin:0 0 18px; }
     .lx-pricing .pricing-card ul{ list-style:none; padding:0; margin:0 0 22px; }
     .lx-pricing .pricing-card li{ position:relative; padding:7px 0 7px 26px; color:#cdd3e3; font-size:.9rem; line-height:1.45; border-bottom:1px solid rgba(255,255,255,.05); }
@@ -439,6 +447,34 @@
       <div><b>60+</b><span>emotion tags</span></div>
       <div><b>&lt;10s</b><span>per generation</span></div>
       <div><b>$2</b><span>to get started</span></div>
+    </section>
+
+    <!-- ─── HEAR A SAMPLE ────────────────────────────────────── -->
+    <section id="samples" class="lx-section reveal" aria-labelledby="samplesHeading">
+      <p class="lx-kicker">Hear it first</p>
+      <h2 class="lx-h2" id="samplesHeading">Don't take our word for it — listen</h2>
+      <p class="lx-section-sub">Real SastaSpeech output, generated with the same engine you'll use. Notice the emotion, the pauses, the humanity — then make your own, free.</p>
+      <div class="lx-samples">
+        <div class="lx-sample reveal">
+          <div class="lx-sample-head">🎭 <span>English · emotional</span></div>
+          <p class="lx-sample-script"><b>[warmly]</b> Hey there. <b>[excited]</b> You're going to love this — <b>[whispers]</b> it's a secret. <b>[laughs]</b></p>
+          <audio controls preload="none" src="/static/samples/sample-en-emotion.mp3"></audio>
+        </div>
+        <div class="lx-sample reveal">
+          <div class="lx-sample-head">🎬 <span>English · narration</span></div>
+          <p class="lx-sample-script"><b>[dramatic]</b> In a world of flat, robotic voices… <b>[warmly]</b> finally, one that sounds truly human.</p>
+          <audio controls preload="none" src="/static/samples/sample-en-narration.mp3"></audio>
+        </div>
+        <div class="lx-sample reveal">
+          <div class="lx-sample-head">🌍 <span>Hindi · any language</span></div>
+          <p class="lx-sample-script"><b>[cheerfully]</b> नमस्ते दोस्तों! आज मैं आपको कुछ बेहद ख़ास दिखाने वाला हूँ।</p>
+          <audio controls preload="none" src="/static/samples/sample-hi.mp3"></audio>
+        </div>
+      </div>
+      <div style="text-align:center; margin-top:30px;">
+        <a href="/login" class="lx-btn lx-btn-primary">Make your own — free <span>→</span></a>
+        <p class="lx-fine" style="margin-top:12px;">No credit card · 1 free generation/day · ready in seconds</p>
+      </div>
     </section>
 
     <!-- ─── FEATURES (bento) ─────────────────────────────────── -->
