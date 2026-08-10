@@ -473,24 +473,28 @@
     const SUPABASE_URL = {{ supabase.url | tojson }};
     const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
     const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
+    const AUTH_PROVIDER = {{ supabase.auth_provider | tojson }};
+    const OAUTH = AUTH_PROVIDER === 'oauth';  // session is an HttpOnly cookie
 
+    // In OAuth mode we still use Supabase for storage, but never for auth.
     window._supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
       ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
       : null;
 
     async function getJwt() {
-      if (AUTH_DISABLED || !window._supabase) return null;
+      if (OAUTH || AUTH_DISABLED || !window._supabase) return null;
       const { data } = await window._supabase.auth.getSession();
       return data?.session?.access_token || null;
     }
 
-    // Auto-attach Authorization: Bearer <jwt> to our own requests.
+    // Auto-attach Authorization: Bearer <jwt> (Supabase mode). In OAuth mode
+    // the session rides on a same-origin HttpOnly cookie sent automatically.
     const _origFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const opts = { ...(init || {}) };  // shallow clone so we don't mutate caller's object
       const url = (typeof input === 'string') ? input : input.url;
       const ours = url.startsWith('/') || url.startsWith(location.origin);
-      if (ours && !AUTH_DISABLED) {
+      if (ours && !AUTH_DISABLED && !OAUTH) {
         const token = await getJwt();
         if (token) {
           const headers = new Headers(opts.headers || {});
@@ -855,7 +859,9 @@
         .catch(e => { console.error('continueBoot failed', e); revealApp(); });
     } else {
       setPageLoaderStatus('Verifying session...');
-      const token = await getJwt();
+      // OAuth mode has no client-readable token — auth rides on the cookie,
+      // so proceed straight to /api/me (a 401 there bounces to /login).
+      const token = OAUTH ? 'cookie' : await getJwt();
       if (!token) {
         window.location.replace('/login');
       } else {
@@ -1453,7 +1459,12 @@
     document.getElementById('userSearch')?.addEventListener('keydown', e => { if (e.key === 'Enter') userLookup(); });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
-      if (window._supabase) await window._supabase.auth.signOut();
+      if (OAUTH) {
+        // Clear the server-side session cookie, then land on the marketing page.
+        try { await fetch('/auth/logout', { method: 'POST' }); } catch (e) {}
+      } else if (window._supabase) {
+        await window._supabase.auth.signOut();
+      }
       // Land back on the public marketing page so the user sees the
       // pitch on the way out, not a blank login form.
       window.location.href = '/';

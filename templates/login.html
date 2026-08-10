@@ -161,6 +161,7 @@
     const SUPABASE_URL = {{ supabase.url | tojson }};
     const SUPABASE_ANON_KEY = {{ supabase.anon_key | tojson }};
     const AUTH_DISABLED = {{ supabase.auth_disabled | tojson }};
+    const AUTH_PROVIDER = {{ supabase.auth_provider | tojson }};
 
     if (AUTH_DISABLED) {
       window.location.href = '/';
@@ -218,7 +219,24 @@
     }
 
     setPageLoaderStatus('Checking your session...');
-    const { data: existing } = await supabase.auth.getSession();
+
+    // OAuth mode: the session is an HttpOnly cookie — ask the server directly.
+    if (AUTH_PROVIDER === 'oauth') {
+      try {
+        const probe = await fetch('/api/me');
+        if (probe.ok) { window.location.replace('/app'); }
+        else { revealForm(); }
+      } catch (e) { revealForm(); }
+      // Google button just bounces to the server-side OAuth start.
+      const gb = document.getElementById('googleAuthBtn');
+      gb.addEventListener('click', () => {
+        gb.disabled = true;
+        gb.querySelector('span').textContent = 'Redirecting...';
+        window.location.href = '/auth/google/login';
+      });
+    } else {
+      // ── Supabase auth (default) ──────────────────────────────────
+      const { data: existing } = await supabase.auth.getSession();
     if (existing?.session) {
       setPageLoaderStatus('Verifying with the server...');
       try {
@@ -270,6 +288,7 @@
         googleBtn.querySelector('span').textContent = 'Continue with Google';
       }
     });
+    }  // end Supabase-auth branch
   </script>
 </body>
 </html>
