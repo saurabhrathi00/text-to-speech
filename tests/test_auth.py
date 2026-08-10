@@ -1,5 +1,32 @@
 """Effective-plan expiry + effective-limits (base + top-up) math."""
+import pytest
+
 import auth
+
+
+# ── OAuth session JWT (self-hosted auth) ─────────────────────────────
+def test_session_token_roundtrip(monkeypatch):
+    monkeypatch.setattr(auth, "SESSION_SECRET", "test-session-secret")
+    tok = auth.make_session_token("google_123", "a@b.com", "admin")
+    claims = auth.verify_session_token(tok)
+    assert claims["sub"] == "google_123"
+    assert claims["email"] == "a@b.com"
+    assert claims["role"] == "admin"
+
+
+def test_session_token_wrong_secret_rejected(monkeypatch):
+    monkeypatch.setattr(auth, "SESSION_SECRET", "secret-a")
+    tok = auth.make_session_token("u1", "a@b.com")
+    monkeypatch.setattr(auth, "SESSION_SECRET", "secret-b")
+    with pytest.raises(auth.AuthError):
+        auth.verify_session_token(tok)
+
+
+def test_verify_jwt_routes_to_session_in_oauth_mode(monkeypatch):
+    monkeypatch.setattr(auth, "SESSION_SECRET", "s")
+    monkeypatch.setattr(auth, "AUTH_PROVIDER", "oauth")
+    tok = auth.make_session_token("u1", "a@b.com", "user")
+    assert auth.verify_jwt(tok)["sub"] == "u1"
 
 
 # ── plan expiry (expired paid plan reverts to free) ──────────────────

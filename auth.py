@@ -36,6 +36,28 @@ _UNLIMITED_ROLES = {
     if r.strip()
 }
 
+# ──────────────────────────────────────────────────────────────────────
+# Auth provider. "supabase" (default) verifies Supabase JWTs. "oauth" runs
+# a self-hosted Google OAuth flow that issues our OWN session cookie, so the
+# Google consent screen reads "continue to sastaspeech.in" (not a supabase.co
+# subdomain) and Supabase is used for storage/DB only. Switch by setting
+# AUTH_PROVIDER=oauth once the Google client + schema migration are in place.
+# ──────────────────────────────────────────────────────────────────────
+AUTH_PROVIDER = (os.getenv("AUTH_PROVIDER") or "supabase").strip().lower()
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI",
+                               "https://sastaspeech.in/auth/google/callback")
+# Our session JWT signing secret. Falls back to the Supabase secret so a
+# value always exists, but set a dedicated SESSION_SECRET in prod.
+SESSION_SECRET = os.getenv("SESSION_SECRET", "") or SUPABASE_JWT_SECRET
+SESSION_COOKIE = os.getenv("SESSION_COOKIE", "ss_session")
+SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "168"))  # 7 days
+
+
+def oauth_enabled() -> bool:
+    return AUTH_PROVIDER == "oauth"
+
 
 _auth_disabled_warned = False
 
@@ -91,11 +113,36 @@ def _extract_token() -> str | None:
     header = request.headers.get("Authorization", "")
     if header.lower().startswith("bearer "):
         return header[7:].strip()
-    return None
+    # OAuth mode delivers the session as an HttpOnly cookie (no token in JS).
+    return request.cookies.get(SESSION_COOKIE)
+
+
+# ── Self-hosted session JWT (OAuth mode) ──────────────────────────────
+
+def make_session_token(user_id: str, email: str | None, role: str = "user") -> str:
+    now = int(time.time())
+    return pyjwt.encode(
+        {"sub": user_id, "email": email, "role": role, "iat": now,
+         "exp": now + SESSION_TTL_HOURS * 3600, "iss": "sastaspeech"},
+        SESSION_SECRET, algorithm="HS256",
+    )
+
+
+def verify_session_token(token: str) -> dict:
+    try:
+        return pyjwt.decode(token, SESSION_SECRET, algorithms=["HS256"],
+                            issuer="sastaspeech")
+    except pyjwt.ExpiredSignatureError as e:
+        raise AuthError("session expired") from e
+    except pyjwt.InvalidTokenError as e:
+        raise AuthError(f"invalid session: {e}") from e
 
 
 def verify_jwt(token: str) -> dict:
-    """Verify a Supabase JWT and return its claims.
+    """Verify the caller's token and return its claims. In OAuth mode this
+    is our own HS256 session JWT; otherwise it's a Supabase JWT.
+
+    Supabase path is two-step:
 
     Two-step:
       1. Try local HS256 verification using SUPABASE_JWT_SECRET (fast,
@@ -108,6 +155,10 @@ def verify_jwt(token: str) -> dict:
     JWT signing keys where the dashboard "JWT Secret" doesn't HMAC-verify
     the tokens locally.
     """
+    # ── OAuth mode: verify our own session JWT and stop. ────────────
+    if oauth_enabled():
+        return verify_session_token(token)
+
     # ── Step 1: local HMAC verification (fast, no network) ──────────
     if SUPABASE_JWT_SECRET:
         try:
@@ -140,6 +191,39 @@ def verify_jwt(token: str) -> dict:
         "email": getattr(user, "email", None),
         "_via": "supabase_sdk",
     }
+
+
+def upsert_google_profile(google_sub: str, email: str | None,
+                          name: str | None = None) -> dict:
+    """Create/refresh a profile keyed by the Google user id (OAuth mode).
+    Role is (re)synced from ADMIN_EMAILS. Returns the profile row."""
+    ac = admin_client()
+    role = "admin" if (email or "").lower() in _ADMIN_EMAILS else "user"
+    try:
+        res = ac.table("profiles").select("*").eq("user_id", google_sub).limit(1).execute()
+        rows = getattr(res, "data", None) or []
+    except Exception as e:
+        print(f"[auth] google profile lookup failed: {e}")
+        rows = []
+    if rows:
+        try:
+            ac.table("profiles").update({
+                "email": email, "display_name": name, "role": role,
+                "updated_at": "now()",
+            }).eq("user_id", google_sub).execute()
+        except Exception as e:
+            print(f"[auth] google profile update failed: {e}")
+        return {**rows[0], "email": email, "role": role}
+    try:
+        ins = ac.table("profiles").insert({
+            "user_id": google_sub, "email": email,
+            "display_name": name, "role": role,
+        }).execute()
+        r = getattr(ins, "data", None) or []
+        return r[0] if r else {"user_id": google_sub, "email": email, "role": role}
+    except Exception as e:
+        print(f"[auth] google profile insert failed: {e}")
+        return {"user_id": google_sub, "email": email, "role": role}
 
 
 # ──────────────────────────────────────────────────────────────────────

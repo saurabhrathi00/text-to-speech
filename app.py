@@ -21,7 +21,7 @@ def _load_env_file():
 
 _load_env_file()
 
-from flask import Flask, g, jsonify, render_template, request, send_from_directory
+from flask import Flask, g, jsonify, redirect, render_template, request, send_from_directory
 
 import auth
 import audio_storage
@@ -320,6 +320,9 @@ def _public_supabase_config() -> dict:
         "url": os.getenv("SUPABASE_URL", ""),
         "anon_key": os.getenv("SUPABASE_ANON_KEY", ""),
         "auth_disabled": os.getenv("AUTH_DISABLED") == "1",
+        # "oauth" → frontend uses our Google OAuth + session cookie (no
+        # Supabase JS). "supabase" → existing Supabase auth.
+        "auth_provider": auth.AUTH_PROVIDER,
     }
 
 
@@ -639,6 +642,87 @@ def api_me():
         "usage": usage,
         "pending_upgrade": auth.get_pending_upgrade(user["id"]),
     })
+
+
+# ── Self-hosted Google OAuth (AUTH_PROVIDER=oauth) ─────────────────────
+# Consent screen reads "continue to sastaspeech.in" (our redirect domain),
+# not a supabase.co subdomain. Issues our own HttpOnly session cookie.
+
+@app.route("/auth/google/login")
+def auth_google_login():
+    if not auth.oauth_enabled():
+        return jsonify({"error": "OAuth is not enabled"}), 404
+    if not auth.GOOGLE_CLIENT_ID:
+        return "Google OAuth not configured (set GOOGLE_CLIENT_ID)", 500
+    import secrets
+    from urllib.parse import urlencode
+    state = secrets.token_urlsafe(24)
+    params = {
+        "client_id": auth.GOOGLE_CLIENT_ID,
+        "redirect_uri": auth.OAUTH_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    resp = redirect("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+    resp.set_cookie("oauth_state", state, max_age=600, httponly=True,
+                    secure=True, samesite="Lax")
+    return resp
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    if not auth.oauth_enabled():
+        return jsonify({"error": "OAuth is not enabled"}), 404
+    if request.args.get("error"):
+        return redirect("/login?error=" + request.args.get("error"))
+    code = request.args.get("code")
+    state = request.args.get("state")
+    if not code or not state or state != request.cookies.get("oauth_state"):
+        return redirect("/login?error=bad_state")
+    import requests as _rq
+    try:
+        tok = _rq.post("https://oauth2.googleapis.com/token", data={
+            "code": code,
+            "client_id": auth.GOOGLE_CLIENT_ID,
+            "client_secret": auth.GOOGLE_CLIENT_SECRET,
+            "redirect_uri": auth.OAUTH_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }, timeout=15)
+        if tok.status_code != 200:
+            print(f"[oauth] token exchange failed {tok.status_code}: {tok.text[:200]}")
+            return redirect("/login?error=token_exchange")
+        access_token = tok.json().get("access_token")
+        ui = _rq.get("https://www.googleapis.com/oauth2/v3/userinfo",
+                     headers={"Authorization": "Bearer " + access_token}, timeout=15)
+        if ui.status_code != 200:
+            return redirect("/login?error=userinfo")
+        info = ui.json()
+    except _rq.RequestException as e:
+        print(f"[oauth] callback network error: {e}")
+        return redirect("/login?error=network")
+
+    sub = info.get("sub")
+    email = info.get("email")
+    if not sub or info.get("email_verified") is False:
+        return redirect("/login?error=email")
+    profile = auth.upsert_google_profile(sub, email, info.get("name"))
+    session_jwt = auth.make_session_token(sub, email, profile.get("role", "user"))
+    resp = redirect("/app")
+    resp.set_cookie(auth.SESSION_COOKIE, session_jwt,
+                    max_age=auth.SESSION_TTL_HOURS * 3600, httponly=True,
+                    secure=True, samesite="Lax")
+    resp.delete_cookie("oauth_state")
+    return resp
+
+
+@app.route("/auth/logout", methods=["GET", "POST"])
+def auth_logout():
+    resp = redirect("/")
+    resp.delete_cookie(auth.SESSION_COOKIE)
+    return resp
 
 
 @app.route("/api/plans")
