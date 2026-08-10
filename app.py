@@ -27,7 +27,7 @@ import auth
 import audio_storage
 import security
 
-from config import MAX_AUDIO_FILES, PROVIDERS, PARLER_SPEAKERS
+from config import MAX_AUDIO_FILES, PROVIDERS, PARLER_SPEAKERS, HARD_MAX_CHARS
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -551,6 +551,10 @@ def tts():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "Please type something first"}), 400
+    if len(text) > HARD_MAX_CHARS:
+        return jsonify({"error": f"That's too long ({len(text):,} characters). "
+                        f"The maximum is {HARD_MAX_CHARS:,} characters per "
+                        f"generation — please split it into smaller parts."}), 413
 
     voice = data.get("voice") or {}
     description = _build_voice_description(voice)
@@ -1083,6 +1087,10 @@ def generate():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "Please type something first"}), 400
+    if len(text) > HARD_MAX_CHARS:
+        return jsonify({"error": f"That's too long ({len(text):,} characters). "
+                        f"The maximum is {HARD_MAX_CHARS:,} characters per "
+                        f"generation — please split it into smaller parts."}), 413
 
     job_id = (data.get("job_id") or "").strip() or str(uuid.uuid4())
     _prune_old_progress()

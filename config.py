@@ -34,6 +34,11 @@ import os as _os
 CURRENCY_CODE = _os.getenv("CURRENCY_CODE", "USD")
 CURRENCY_SYMBOL = _os.getenv("CURRENCY_SYMBOL", "$")
 
+# Absolute ceiling on a single generation's input length, regardless of
+# plan. Protects the pipeline (chunking, memory, the request timeout) even
+# for admins / unlimited plans. Env-overridable.
+HARD_MAX_CHARS = int(_os.getenv("HARD_MAX_CHARS", "20000"))
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Parler-TTS
