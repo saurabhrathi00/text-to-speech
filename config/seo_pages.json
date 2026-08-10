@@ -28,13 +28,13 @@
     "sub": "Same studio-quality v3 voices and emotion tags — at a fraction of the price. Start free, scale from $2.",
     "intro": "SastaSpeech is built on the same ElevenLabs v3 engine you already trust for expressive, multilingual speech — but packaged for creators who want honest, transparent pricing. You get per-sentence emotion control and a genuinely usable free tier, without the steep monthly commitment.",
     "sections": [
-      {"h": "Same engine, honest pricing", "p": "We use ElevenLabs v3 for voice and Gemini for text refinement. Pricing is built on real per-character cost plus a sensible margin — a day pass is $2, monthly plans start at $5."},
+      {"h": "Same engine, honest pricing", "p": "We use ElevenLabs v3 for voice and Gemini for text refinement. Pricing is built on real per-character cost plus a sensible margin — a day pass is $2, monthly plans start at $9."},
       {"h": "Pay only for what you use", "p": "Character-by-character usage is shown right in the app. One-time top-ups stack on any plan, so you are never locked into a big subscription to finish a project."},
       {"h": "Built for creators worldwide", "p": "Multilingual voices, automatic emotion tagging, and audio ready to drop into your editor in seconds — for YouTube, podcasts, ads and courses."}
     ],
     "faq": [
       {"q": "Is the voice quality the same as ElevenLabs?", "a": "Yes — SastaSpeech generates voice using ElevenLabs v3, including inline emotion tags, so output quality matches what you would get directly."},
-      {"q": "How much cheaper is it?", "a": "You can start free, grab a $2 day-pass top-up, or take a monthly plan from $5 — with usage shown transparently so there are no surprise bills."},
+      {"q": "How much cheaper is it?", "a": "You can start free, grab a $2 day-pass top-up, or take a monthly plan from $9 — with usage shown transparently so there are no surprise bills."},
       {"q": "Do I need a long-term subscription?", "a": "No. One-time top-ups let you add credits to any plan, including free, so you can pay as you go."}
     ]
   },
@@ -87,12 +87,12 @@
     "sections": [
       {"h": "Natural Hindi & Hinglish", "p": "Mix Devanagari, Roman Hindi and English freely. The voices handle code-mixed scripts the way people actually speak."},
       {"h": "Emotion that fits the story", "p": "A heartfelt line sounds heartfelt; a punchy ad line lands. Gemini tags each sentence and the voice performs it — automatically."},
-      {"h": "Affordable for every creator", "p": "Start free, grab a $2 top-up when you need a few more, or go monthly from $5. Usage is shown transparently."}
+      {"h": "Affordable for every creator", "p": "Start free, grab a $2 top-up when you need a few more, or go monthly from $9. Usage is shown transparently."}
     ],
     "faq": [
       {"q": "Does it support Hinglish?", "a": "Yes — mixed Hindi-English (Hinglish) scripts in both Devanagari and Roman text are fully supported."},
       {"q": "How natural is the Hindi voice?", "a": "Very — it uses ElevenLabs v3 with natural prosody and per-sentence emotion, far beyond traditional robotic Hindi TTS."},
-      {"q": "What does it cost?", "a": "There's a free daily generation, a $2 one-time top-up, and monthly plans from $5 with higher limits."}
+      {"q": "What does it cost?", "a": "There's a free daily generation, a $2 one-time top-up, and monthly plans from $9 with higher limits."}
     ]
   }
 }
