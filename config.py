@@ -34,6 +34,16 @@ import os as _os
 CURRENCY_CODE = _os.getenv("CURRENCY_CODE", "USD")
 CURRENCY_SYMBOL = _os.getenv("CURRENCY_SYMBOL", "$")
 
+# Multi-currency checkout. Each order is created in exactly ONE currency:
+#   INR → UPI + cards + netbanking + wallets (domestic India)
+#   USD → international cards
+# The frontend picks per buyer (India auto-detected, with a ₹/$ toggle);
+# CURRENCY_CODE above is only the default/fallback. Plan prices are stored
+# per-currency in plan_limits (price_inr_monthly = USD anchor, price_inr =
+# INR anchor). The percent auto-coupon applies to either, currency-agnostic.
+SUPPORTED_CURRENCIES = ("USD", "INR")
+CURRENCY_SYMBOLS = {"USD": "$", "INR": "₹"}
+
 # Absolute ceiling on a single generation's input length, regardless of
 # plan. Protects the pipeline (chunking, memory, the request timeout) even
 # for admins / unlimited plans. Env-overridable.

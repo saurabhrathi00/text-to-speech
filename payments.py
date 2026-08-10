@@ -24,7 +24,7 @@ import requests
 import auth
 import coupons
 import observability
-from config import CURRENCY_CODE
+from config import CURRENCY_CODE, SUPPORTED_CURRENCIES
 
 
 API_BASE = "https://api.razorpay.com/v1"
@@ -58,19 +58,32 @@ def is_configured() -> bool:
 # ── Order creation ─────────────────────────────────────────────────────
 
 def create_order(user_id: str, plan: str,
-                 coupon_code: str | None = None) -> tuple[dict | None, str | None]:
+                 coupon_code: str | None = None,
+                 currency: str | None = None) -> tuple[dict | None, str | None]:
     """Create a Razorpay order for `plan` and persist a payment_orders
     row. Applies a coupon (explicit code, else the auto-apply coupon) so the
     customer is charged the same discounted price shown on the pricing page.
-    Returns (checkout_payload, error)."""
+    `currency` (INR/USD) decides which per-currency anchor price is used and
+    which currency the Razorpay order is created in. Returns
+    (checkout_payload, error)."""
     plan = (plan or "").lower().strip()
     if plan in ("", "free", "admin"):
         return None, f"Plan '{plan}' is not purchasable"
 
+    currency = (currency or CURRENCY_CODE).upper()
+    if currency not in SUPPORTED_CURRENCIES:
+        currency = CURRENCY_CODE
+
     limits = auth.get_plan_limits(plan)
     if not limits:
         return None, f"Unknown plan '{plan}'"
-    price = int(limits.get("price_inr_monthly") or 0)
+    # INR uses its own anchor (price_inr); everything else uses the USD
+    # anchor stored in price_inr_monthly. Fall back to the USD anchor if an
+    # INR price hasn't been set, so a missing value never crashes checkout.
+    if currency == "INR":
+        price = int(limits.get("price_inr") or limits.get("price_inr_monthly") or 0)
+    else:
+        price = int(limits.get("price_inr_monthly") or 0)
     if price <= 0:
         return None, f"Plan '{plan}' has no price set"
 
@@ -93,7 +106,7 @@ def create_order(user_id: str, plan: str,
             auth=(key_id(), _key_secret()),
             json={
                 "amount": amount_paise,
-                "currency": CURRENCY_CODE,
+                "currency": currency,
                 "notes": {"user_id": user_id, "plan": plan,
                           "coupon": applied_code or ""},
             },
@@ -116,7 +129,7 @@ def create_order(user_id: str, plan: str,
             "plan": plan,
             "razorpay_order_id": order_id,
             "amount_paise": amount_paise,
-            "currency": CURRENCY_CODE,
+            "currency": currency,
             "status": "created",
             "coupon_code": applied_code,
             "discount_paise": discount_paise,
@@ -134,7 +147,7 @@ def create_order(user_id: str, plan: str,
         "base_amount": base_paise,
         "discount": discount_paise,
         "coupon": applied_code,
-        "currency": CURRENCY_CODE,
+        "currency": currency,
         "plan": plan,
         "display_name": limits.get("display_name") or plan,
     }, None

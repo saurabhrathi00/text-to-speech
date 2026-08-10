@@ -27,7 +27,8 @@ import auth
 import audio_storage
 import security
 
-from config import MAX_AUDIO_FILES, PROVIDERS, PARLER_SPEAKERS, HARD_MAX_CHARS
+from config import (MAX_AUDIO_FILES, PROVIDERS, PARLER_SPEAKERS, HARD_MAX_CHARS,
+                    CURRENCY_CODE, CURRENCY_SYMBOLS, SUPPORTED_CURRENCIES)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -742,26 +743,41 @@ def api_plans():
     """Public ladder of plans, sourced from plan_limits. Includes display
     name + monthly price for the upgrade picker. Admin row excluded —
     it's role-driven, not purchasable."""
+    # Currency the buyer is checking out in (INR for India, USD otherwise).
+    # Prices are normalized to this currency's anchor so the UI just swaps
+    # the symbol; the percent auto-coupon is currency-agnostic.
+    currency = (request.args.get("currency") or CURRENCY_CODE).upper()
+    if currency not in SUPPORTED_CURRENCIES:
+        currency = CURRENCY_CODE
     try:
         res = (auth.admin_client().table("plan_limits")
-               .select("plan,display_name,price_inr_monthly,validity_hours,kind,"
-                       "daily_uses,max_chars_per_request,monthly_chars,notes")
+               .select("plan,display_name,price_inr_monthly,price_inr,validity_hours,"
+                       "kind,daily_uses,max_chars_per_request,monthly_chars,notes")
                .neq("plan", "admin")
                .execute())
         rows = getattr(res, "data", None) or []
-        # Sort by price ascending; nulls (free) first.
-        rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
-        # Attach coupon-aware effective pricing so the UI can show a
-        # struck-through list price + the lower "you pay" price.
         auto = coupons.get_auto_apply_coupon()
         for r in rows:
-            base = int(r.get("price_inr_monthly") or 0) * 100
+            # Pick the per-currency anchor; INR falls back to the USD anchor
+            # if an INR price isn't set yet. Normalize price_inr_monthly to the
+            # chosen currency's number so the frontend renders it directly.
+            if currency == "INR":
+                anchor = int(r.get("price_inr") or r.get("price_inr_monthly") or 0)
+            else:
+                anchor = int(r.get("price_inr_monthly") or 0)
+            r["price_inr_monthly"] = anchor
+            r.pop("price_inr", None)
+            base = anchor * 100
             if base > 0:
                 r["pricing"] = coupons.effective_price(r["plan"], base, auto=auto)
-        return jsonify({"plans": rows})
+        # Sort by (normalized) price ascending; free first.
+        rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
+        return jsonify({"plans": rows, "currency": currency,
+                        "symbol": CURRENCY_SYMBOLS.get(currency, "$")})
     except Exception as e:
         print(f"[app] /api/plans failed: {e}")
-        return jsonify({"plans": []})
+        return jsonify({"plans": [], "currency": currency,
+                        "symbol": CURRENCY_SYMBOLS.get(currency, "$")})
 
 
 @app.route("/api/upgrade-request", methods=["POST"])
@@ -794,8 +810,10 @@ def api_checkout_create_order():
         return jsonify({"error": "Payments not configured", "fallback": True}), 503
     data = request.get_json(silent=True) or {}
     plan = (data.get("plan") or "").lower().strip()
+    currency = (data.get("currency") or "").upper()
     order, err = payments.create_order(g.user["id"], plan,
-                                       coupon_code=data.get("coupon"))
+                                       coupon_code=data.get("coupon"),
+                                       currency=currency)
     if err:
         return jsonify({"error": err}), 400
     return jsonify(order)

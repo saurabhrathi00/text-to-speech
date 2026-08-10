@@ -114,6 +114,12 @@
       font-size:.62em; font-weight:800; letter-spacing:.03em; vertical-align:middle;
       background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff;
     }
+    /* ₹/$ currency toggle in the plan picker header */
+    .currency-toggle{ display:inline-flex; gap:2px; margin-left:auto; margin-right:10px;
+      background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); border-radius:999px; padding:2px; }
+    .ccy-btn{ border:0; background:transparent; color:#9aa3b2; font-weight:700; font-size:.78em;
+      padding:4px 10px; border-radius:999px; cursor:pointer; transition:all .15s; }
+    .ccy-btn.active{ background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
 
     /* Admin console */
     .admin-block{ border:1px solid rgba(255,255,255,.08); border-radius:12px; margin-top:12px; overflow:hidden; }
@@ -192,6 +198,10 @@
       <section id="upgradePicker" class="card upgrade-picker hidden">
         <header class="upgrade-picker-header">
           <strong>Choose your plan</strong>
+          <div class="currency-toggle" id="currencyToggle" role="group" aria-label="Currency">
+            <button type="button" data-cur="INR" class="ccy-btn">₹ INR</button>
+            <button type="button" data-cur="USD" class="ccy-btn">$ USD</button>
+          </div>
           <button type="button" id="upgradePickerClose" class="upgrade-picker-close">✖</button>
         </header>
         <div id="upgradePickerList" class="upgrade-picker-list"></div>
@@ -616,6 +626,23 @@
     // await. Same TDZ concern as the vars above.
     let availablePlans = [];
 
+    // Checkout currency: India → INR (UPI + cards + netbanking), else USD
+    // (international cards). Detected from the BROWSER (timezone/language),
+    // not IP — so a VPN doesn't change it; an Indian device stays INR. The
+    // ₹/$ toggle lets the user override; the choice is remembered.
+    function detectCurrency() {
+      try {
+        const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+        const lang = (navigator.language || '').toLowerCase();
+        if (tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta'
+            || lang === 'en-in' || lang.startsWith('hi')) return 'INR';
+      } catch (e) {}
+      return 'USD';
+    }
+    let CURRENCY = (localStorage.getItem('ss_currency') || detectCurrency()).toUpperCase();
+    if (CURRENCY !== 'INR' && CURRENCY !== 'USD') CURRENCY = 'USD';
+    let CURRENCY_SYMBOL = CURRENCY === 'INR' ? '₹' : '$';
+
     function setLLM(name) {
       activeLLM = (name || '').toLowerCase();
       document.querySelectorAll('.llm-btn').forEach(b => {
@@ -858,9 +885,11 @@
 
     async function loadPlans() {
       try {
-        const r = await fetch('/api/plans');
+        const r = await fetch('/api/plans?currency=' + encodeURIComponent(CURRENCY));
         const data = await r.json();
         availablePlans = (data.plans || []).filter(p => p.plan !== 'admin');
+        if (data.symbol) CURRENCY_SYMBOL = data.symbol;
+        if (data.currency) CURRENCY = data.currency;
       } catch (e) {
         availablePlans = [];
       }
@@ -952,11 +981,11 @@
         const orig = Math.round(p.original_paise / 100).toLocaleString();
         const eff = Math.round(p.effective_paise / 100).toLocaleString();
         return `<span class="upgrade-tier-price">`
-          + `<span class="price-was">$${orig}</span> `
-          + `$${eff}<span class="muted">${suffix}</span>`
+          + `<span class="price-was">${CURRENCY_SYMBOL}${orig}</span> `
+          + `${CURRENCY_SYMBOL}${eff}<span class="muted">${suffix}</span>`
           + `<span class="price-off">${p.off_pct}% OFF</span></span>`;
       }
-      return `<span class="upgrade-tier-price">$${t.price_inr_monthly || 0}<span class="muted">${suffix}</span></span>`;
+      return `<span class="upgrade-tier-price">${CURRENCY_SYMBOL}${(t.price_inr_monthly || 0).toLocaleString()}<span class="muted">${suffix}</span></span>`;
     }
 
     // Rough chars-to-minutes for Hindi narration. Tunable in one place
@@ -973,7 +1002,29 @@
       return `~${formatted} hr of audio`;
     }
 
+    let _ccyWired = false;
+    function updateCurrencyButtons() {
+      document.querySelectorAll('#currencyToggle .ccy-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.cur === CURRENCY);
+      });
+    }
+    function wireCurrencyToggle(me) {
+      updateCurrencyButtons();
+      if (_ccyWired) return;
+      _ccyWired = true;
+      document.querySelectorAll('#currencyToggle .ccy-btn').forEach(b => {
+        b.addEventListener('click', async () => {
+          if (b.dataset.cur === CURRENCY) return;
+          CURRENCY = b.dataset.cur;
+          try { localStorage.setItem('ss_currency', CURRENCY); } catch (e) {}
+          await loadPlans();               // re-price in the new currency
+          renderTierPicker(window._lastMe || me || {});
+        });
+      });
+    }
+
     function renderTierPicker(me) {
+      wireCurrencyToggle(me);
       const list = document.getElementById('upgradePickerList');
       const currentPlan = (me.effective_plan || me.profile?.plan || 'free').toLowerCase();
       const tiers = purchasableTiersAbove(currentPlan);
@@ -1045,7 +1096,7 @@
         const res = await fetch('/api/checkout/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: targetPlan }),
+          body: JSON.stringify({ plan: targetPlan, currency: CURRENCY }),
         });
         const data = await res.json().catch(() => ({}));
         // Payments off (local box) → manual admin-approved flow.

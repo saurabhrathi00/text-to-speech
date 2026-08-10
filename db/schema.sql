@@ -81,6 +81,11 @@ alter table public.plan_limits
     add column if not exists display_name text;
 alter table public.plan_limits
     add column if not exists price_inr_monthly integer;
+-- Multi-currency: price_inr_monthly holds the USD anchor (checkout default);
+-- price_inr holds the India (INR) anchor. Buyer's currency picks which one.
+-- The percent auto-coupon then applies to either (currency-agnostic).
+alter table public.plan_limits
+    add column if not exists price_inr integer;
 -- validity_hours: how long this plan stays active after admin approves.
 -- null = no expiry (free, admin). 48 = day-pass, 720 = monthly, etc.
 alter table public.plan_limits
