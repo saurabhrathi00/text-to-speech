@@ -1278,6 +1278,39 @@ def health():
     })
 
 
+_APP_STARTED_AT = time.time()  # module load time — powers uptime on /status
+
+
+def _deployment_status() -> dict:
+    """Which build is live here, plus config sanity. Reads platform env vars
+    (Render sets RENDER_GIT_COMMIT; a future Vercel/AWS deploy can set
+    GIT_COMMIT / APP_VERSION + APP_ENV). Extensible to a multi-env board."""
+    commit = (os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT")
+              or os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("APP_VERSION") or "")
+    env = (os.getenv("APP_ENV") or ("vercel" if os.getenv("VERCEL") else None)
+           or os.getenv("RENDER_SERVICE_NAME") or "render")
+    return {
+        "environment": env,
+        "version": (commit[:12] if commit else "unknown"),
+        "commit": commit or None,
+        "uptime_seconds": round(time.time() - _APP_STARTED_AT),
+        "python_backend": True,
+        "tts_provider": _default_provider(),
+        "payments_configured": payments.is_configured(),
+        "elevenlabs_configured": eleven_tts.is_configured(),
+    }
+
+
+@app.route("/api/status")
+def api_status():
+    return jsonify(_deployment_status())
+
+
+@app.route("/status")
+def status_page():
+    return render_template("status.html", status=_deployment_status())
+
+
 @app.route("/api/providers")
 def api_providers():
     return jsonify({
