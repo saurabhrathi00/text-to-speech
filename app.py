@@ -346,10 +346,16 @@ def _public_plans() -> list[dict]:
                .execute())
         rows = getattr(res, "data", None) or []
         rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
+        auto = coupons.get_auto_apply_coupon()
         for r in rows:
             chars = r.get("monthly_chars") or 0
             r["audio_minutes"] = round(chars / CHARS_PER_AUDIO_MINUTE) if chars else 0
             r["is_topup"] = (r.get("kind") or "subscription").lower() == "topup"
+            # Coupon-aware pricing so the landing shows the SAME discounted
+            # price as the app (struck-through anchor + "you pay" + OFF badge),
+            # not the raw high anchor. USD for the public/SEO page.
+            base = int(r.get("price_inr_monthly") or 0) * 100
+            r["pricing"] = coupons.effective_price(r["plan"], base, auto=auto) if base > 0 else None
         return rows
     except Exception as e:
         print(f"[app] _public_plans failed: {e}")

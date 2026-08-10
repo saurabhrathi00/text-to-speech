@@ -113,7 +113,7 @@
       {
         "@type": "Question",
         "name": "How do I upgrade my plan?",
-        "acceptedAnswer": {"@type": "Answer", "text": "Sign in, click Upgrade in the user bar, pick a plan, and complete payment via the contact channel shown. The admin approves within minutes and your new limits go live instantly."}
+        "acceptedAnswer": {"@type": "Answer", "text": "Sign in, click Upgrade, pick a plan, and pay securely by card, UPI, or netbanking. Your new limits go live instantly — no waiting, no approval needed."}
       }
     ]
   }
@@ -310,6 +310,25 @@
     .lx-pricing .pricing-card h3{ margin:6px 0 4px; font-size:1.2rem; font-weight:700; }
     .lx-pricing .pricing-price{ font-size:2.1rem; font-weight:800; letter-spacing:-.03em; margin:10px 0 4px; }
     .lx-pricing .pricing-price .muted{ font-size:.92rem; font-weight:500; color:var(--lx-mut); }
+    .lx-pricing .price-was{ font-size:1.15rem; font-weight:600; color:var(--lx-mut); text-decoration:line-through; margin-right:6px; }
+    .lx-pricing .price-off{ display:inline-block; margin-left:8px; padding:3px 9px; border-radius:999px; vertical-align:middle;
+      font-size:.62rem; font-weight:800; letter-spacing:.03em; background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; }
+    /* Launch-offer urgency strip above the pricing grid */
+    .lx-offer{ display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
+      margin:26px auto 0; max-width:560px; padding:11px 18px; border-radius:14px;
+      background:linear-gradient(135deg,rgba(34,197,94,.14),rgba(139,92,246,.14)); border:1px solid rgba(34,197,94,.35);
+      font-size:.92rem; font-weight:600; color:#e6ffef; }
+    .lx-offer b{ color:#4ade80; }
+    /* Sticky signup nudge for logged-out visitors */
+    .lx-sticky-cta{ position:fixed; left:16px; right:16px; bottom:16px; z-index:60; margin:0 auto; max-width:640px;
+      display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+      padding:12px 16px; border-radius:16px; background:rgba(18,18,28,.92); backdrop-filter:blur(12px);
+      border:1px solid rgba(139,92,246,.4); box-shadow:0 20px 60px -20px rgba(0,0,0,.7);
+      transform:translateY(150%); opacity:0; transition:transform .35s cubic-bezier(.22,1,.36,1), opacity .35s; }
+    .lx-sticky-cta.show{ transform:translateY(0); opacity:1; }
+    .lx-sticky-cta span{ font-size:.9rem; font-weight:600; color:#eef; }
+    .lx-sticky-cta .lx-btn{ padding:9px 16px; font-size:.9rem; white-space:nowrap; }
+    @media(max-width:520px){ .lx-sticky-cta span{ font-size:.8rem; } .lx-sticky-cta{ padding:10px 12px; } }
     .lx-pricing .pricing-tag{ color:var(--lx-mut); font-size:.86rem; margin:0 0 18px; }
     .lx-pricing .pricing-card ul{ list-style:none; padding:0; margin:0 0 22px; }
     .lx-pricing .pricing-card li{ position:relative; padding:7px 0 7px 26px; color:#cdd3e3; font-size:.9rem; line-height:1.45; border-bottom:1px solid rgba(255,255,255,.05); }
@@ -459,7 +478,8 @@
     <section id="pricing" class="lx-section" aria-labelledby="pricingHeading">
       <p class="lx-kicker">Pricing</p>
       <h2 class="lx-h2" id="pricingHeading">Simple, honest pricing</h2>
-      <p class="lx-section-sub">All plans use Gemini for refinement and ElevenLabs v3 for voice. Built on honest cost math — you only pay for the characters you generate, plus a sensible margin.</p>
+      <p class="lx-section-sub">Studio-quality AI voice in any language. You only pay for the characters you generate — plus a real free plan to start, no card needed.</p>
+      <div class="lx-offer reveal">🔥 <b>Launch offer — 80% OFF</b> already applied. Grab it before prices go up.</div>
       <div class="lx-pricing">
         {%- for p in plans %}
           {%- set is_free = (p.price_inr_monthly or 0) == 0 and not p.is_topup %}
@@ -486,6 +506,11 @@
           <p class="pricing-price">
             {%- if is_free %}
               $0
+            {%- elif p.pricing and p.pricing.discount_paise > 0 %}
+              <span class="price-was">${{ '{:,}'.format((p.pricing.original_paise / 100)|int) }}</span>
+              ${{ '{:,}'.format((p.pricing.effective_paise / 100)|int) }}
+              <span class="muted">{{ 'one-time' if p.is_topup else '/mo' }}</span>
+              <span class="price-off">{{ p.pricing.off_pct }}% OFF</span>
             {%- else %}
               ${{ '{:,}'.format(p.price_inr_monthly or 0) }}
               <span class="muted">{{ 'one-time' if p.is_topup else '/mo' }}</span>
@@ -587,7 +612,7 @@
         </details>
         <details>
           <summary>How do I upgrade?</summary>
-          <p>Sign in → click Upgrade → pick a plan → pay via the contact channel shown. Admin approves within minutes.</p>
+          <p>Sign in → click Upgrade → pick a plan → pay by card, UPI, or netbanking. Your new limits go live <strong>instantly</strong> — no waiting.</p>
         </details>
       </div>
     </section>
@@ -683,6 +708,19 @@
       window.addEventListener('scroll', onScroll, { passive: true });
     })();
 
+    // Sticky signup nudge — slides in once the visitor scrolls into the page.
+    (function () {
+      const bar = document.getElementById('lxStickyCta');
+      if (!bar) return;
+      const onScroll = () => {
+        const past = window.scrollY > 700;
+        bar.classList.toggle('show', past);
+        bar.setAttribute('aria-hidden', past ? 'false' : 'true');
+      };
+      onScroll();
+      window.addEventListener('scroll', onScroll, { passive: true });
+    })();
+
     // Bento cells: spotlight glow follows the cursor.
     (function () {
       document.querySelectorAll('.lx-cell').forEach(cell => {
@@ -694,6 +732,12 @@
       });
     })();
   </script>
+  <!-- Sticky signup nudge (logged-out visitors) -->
+  <div class="lx-sticky-cta" id="lxStickyCta" aria-hidden="true">
+    <span>🎙️ <b>Start free</b> — 1 generation/day, no card needed</span>
+    <a href="/login" class="lx-btn lx-btn-primary">Start free →</a>
+  </div>
+
   <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "0660591f96db45e3b080da5f19b9020b"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
