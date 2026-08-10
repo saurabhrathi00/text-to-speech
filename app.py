@@ -847,6 +847,42 @@ def api_admin_support_resolve(tid: int):
     return jsonify({"ok": True})
 
 
+# ── Admin: user look-up ("view-as" / read-only impersonation) ──────────
+
+@app.route("/api/admin/user-lookup")
+@auth.require_admin
+def api_admin_user_lookup():
+    """Read-only snapshot of any user's account so an admin can see exactly
+    what that user sees (plan, quota, orders, tickets) to help them — without
+    minting a session as them."""
+    email = (request.args.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"error": "email required"}), 400
+    ac = auth.admin_client()
+    prof = (ac.table("profiles").select("*").ilike("email", email)
+            .limit(1).execute())
+    rows = getattr(prof, "data", None) or []
+    if not rows:
+        return jsonify({"error": "No user found with that email"}), 404
+    profile = rows[0]
+    uid = profile["user_id"]
+    summary = auth.get_usage_summary(uid)
+    orders = (ac.table("payment_orders")
+              .select("plan,amount_paise,discount_paise,coupon_code,status,granted,created_at")
+              .eq("user_id", uid).order("created_at", desc=True).limit(5).execute())
+    tickets = (ac.table("support_tickets")
+               .select("category,status,created_at")
+               .eq("user_id", uid).order("created_at", desc=True).limit(5).execute())
+    return jsonify({
+        "profile": profile,
+        "effective_plan": auth.get_effective_plan(profile),
+        "effective_limits": auth.get_effective_limits({**profile, "user_id": uid}, summary),
+        "usage": summary,
+        "orders": getattr(orders, "data", None) or [],
+        "tickets": getattr(tickets, "data", None) or [],
+    })
+
+
 # ── Admin endpoints ────────────────────────────────────────────────────
 
 @app.route("/api/admin/limits")

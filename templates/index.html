@@ -111,6 +111,26 @@
       background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff;
     }
 
+    /* Admin console */
+    .admin-block{ border:1px solid rgba(255,255,255,.08); border-radius:12px; margin-top:12px; overflow:hidden; }
+    .admin-block > summary{ padding:14px 16px; cursor:pointer; font-weight:650; list-style:none; }
+    .admin-block > summary::-webkit-details-marker{ display:none; }
+    .admin-block-body{ padding:14px 16px; border-top:1px solid rgba(255,255,255,.06); }
+    .coupon-form{ display:grid; gap:10px; margin-bottom:14px; }
+    .coupon-form .cp-check{ display:flex; align-items:center; gap:8px; font-size:.88rem; color:#9aa3b6; text-transform:none; letter-spacing:0; }
+    .coupon-form .cp-check input{ width:auto; }
+    .admin-row-head{ display:flex; gap:10px; margin-bottom:12px; }
+    .admin-row-head input{ flex:1; }
+    .admin-list{ display:flex; flex-direction:column; gap:8px; }
+    .admin-item{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 14px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); font-size:.9rem; }
+    .admin-item-col{ flex-direction:column; align-items:stretch; }
+    .admin-item button{ margin-top:0; flex-shrink:0; }
+    .admin-item-col button{ align-self:flex-start; margin-top:8px; }
+    .ticket-msg{ margin-top:6px; color:#cdd3e3; line-height:1.5; white-space:pre-wrap; }
+    .chip-auto{ display:inline-block; padding:1px 7px; border-radius:6px; font-size:.7em; font-weight:800;
+      background:rgba(129,140,248,.2); border:1px solid rgba(129,140,248,.4); color:#c4b5fd; }
+
     /* Inputs */
     textarea, input[type="text"], input[type="email"], input[type="password"], select{
       background:rgba(0,0,0,.34);
@@ -317,6 +337,49 @@
           <button type="button" id="setAnchorBtn" class="secondary">🎭 Set as character anchor</button>
         </div>
       </div>
+    </section>
+
+    <!-- ── Admin tools (coupons · support · user view-as) ── -->
+    <section class="card admin-tools hidden" data-admin-only>
+      <header class="admin-panel-header"><strong>🛠️ Admin tools</strong></header>
+
+      <details class="admin-block">
+        <summary>🎟️ Coupons</summary>
+        <div class="admin-block-body">
+          <div class="coupon-form">
+            <input id="cpCode" type="text" placeholder="CODE (e.g. LAUNCH50)" />
+            <select id="cpType"><option value="percent">% off</option><option value="flat">₹ flat off</option></select>
+            <input id="cpValue" type="number" placeholder="value (50 = 50% / paise for flat)" />
+            <label class="cp-check"><input type="checkbox" id="cpAuto" /> Auto-apply (show as pre-applied)</label>
+            <label class="cp-check"><input type="checkbox" id="cpActive" checked /> Active</label>
+            <input id="cpDesc" type="text" placeholder="description (optional)" />
+            <button type="button" id="cpSave" class="primary">Save coupon</button>
+          </div>
+          <div id="couponList" class="admin-list"></div>
+        </div>
+      </details>
+
+      <details class="admin-block">
+        <summary>💬 Support tickets</summary>
+        <div class="admin-block-body">
+          <div class="admin-row-head">
+            <select id="ticketStatus"><option value="open">Open</option><option value="all">All</option></select>
+            <button type="button" id="ticketRefresh" class="secondary">Refresh</button>
+          </div>
+          <div id="ticketList" class="admin-list"></div>
+        </div>
+      </details>
+
+      <details class="admin-block">
+        <summary>👤 Look up user (view-as)</summary>
+        <div class="admin-block-body">
+          <div class="admin-row-head">
+            <input id="userSearch" type="email" placeholder="user email…" />
+            <button type="button" id="userLookupBtn" class="secondary">Look up</button>
+          </div>
+          <div id="userSnapshot" class="admin-list"></div>
+        </div>
+      </details>
     </section>
 
     <section id="resultSection" class="card hidden">
@@ -1256,6 +1319,8 @@
       if (isAdmin) {
         panel.classList.remove('hidden');
         loadUpgradeRequests();
+        loadCoupons();
+        loadTickets();
         // Image-generation status probe — only meaningful for admins
         // (the section is gated by data-admin-only below).
         if (typeof refreshComfyStatus === 'function') refreshComfyStatus();
@@ -1269,6 +1334,114 @@
         el.classList.toggle('hidden', !isAdmin);
       });
     }
+
+    // ── Admin console: coupons ────────────────────────────────────────
+    async function loadCoupons() {
+      const el = document.getElementById('couponList');
+      if (!el) return;
+      try {
+        const r = await fetch('/api/admin/coupons');
+        const d = await r.json();
+        const list = d.coupons || [];
+        el.innerHTML = list.length ? '' : '<p class="muted">No coupons yet.</p>';
+        list.forEach(c => {
+          const row = document.createElement('div');
+          row.className = 'admin-item';
+          const val = c.discount_type === 'percent' ? `${c.discount_value}% off` : `₹${(c.discount_value/100).toLocaleString()} off`;
+          row.innerHTML = `<div><strong>${escapeHtml(c.code)}</strong> · ${val}`
+            + `${c.auto_apply ? ' · <span class="chip-auto">AUTO</span>' : ''}`
+            + `${c.active ? '' : ' · <span class="muted">inactive</span>'}`
+            + `<div class="muted">used ${c.used_count||0}${c.max_uses?('/'+c.max_uses):''}</div></div>`;
+          const del = document.createElement('button');
+          del.className = 'secondary'; del.textContent = '✖';
+          del.addEventListener('click', () => deleteCoupon(c.code));
+          row.appendChild(del);
+          el.appendChild(row);
+        });
+      } catch (e) { el.innerHTML = '<p class="error">Could not load coupons.</p>'; }
+    }
+    async function saveCoupon() {
+      const code = document.getElementById('cpCode').value.trim();
+      const value = document.getElementById('cpValue').value;
+      if (!code || !value) { showToast('Code and value required', 'error'); return; }
+      const body = {
+        code, discount_type: document.getElementById('cpType').value,
+        discount_value: parseInt(value, 10),
+        auto_apply: document.getElementById('cpAuto').checked,
+        active: document.getElementById('cpActive').checked,
+        description: document.getElementById('cpDesc').value.trim(),
+      };
+      const r = await fetch('/api/admin/coupons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { showToast(d.error || 'Could not save', 'error'); return; }
+      showToast('Coupon saved', 'success');
+      document.getElementById('cpCode').value = ''; document.getElementById('cpValue').value = ''; document.getElementById('cpDesc').value = '';
+      loadCoupons();
+    }
+    async function deleteCoupon(code) {
+      if (!confirm(`Delete coupon ${code}?`)) return;
+      const r = await fetch('/api/admin/coupons/' + encodeURIComponent(code), { method: 'DELETE' });
+      if (r.ok) { showToast('Deleted', 'success'); loadCoupons(); } else { showToast('Delete failed', 'error'); }
+    }
+
+    // ── Admin console: support tickets ────────────────────────────────
+    async function loadTickets() {
+      const el = document.getElementById('ticketList');
+      if (!el) return;
+      const status = document.getElementById('ticketStatus')?.value || 'open';
+      try {
+        const r = await fetch('/api/admin/support?status=' + status);
+        const d = await r.json();
+        const list = d.tickets || [];
+        el.innerHTML = list.length ? '' : '<p class="muted">No tickets.</p>';
+        list.forEach(t => {
+          const row = document.createElement('div');
+          row.className = 'admin-item admin-item-col';
+          row.innerHTML = `<div><strong>${escapeHtml(t.category || 'query')}</strong> · ${escapeHtml(t.email || '')}`
+            + `${t.phone ? ' · ' + escapeHtml(t.phone) : ''} · <span class="muted">${new Date(t.created_at).toLocaleString()}</span>`
+            + `${t.status === 'resolved' ? ' · <span class="muted">resolved</span>' : ''}</div>`
+            + `<div class="ticket-msg">${escapeHtml(t.message || '')}</div>`;
+          if (t.status !== 'resolved') {
+            const btn = document.createElement('button');
+            btn.className = 'secondary'; btn.textContent = 'Mark resolved';
+            btn.addEventListener('click', () => resolveTicket(t.id));
+            row.appendChild(btn);
+          }
+          el.appendChild(row);
+        });
+      } catch (e) { el.innerHTML = '<p class="error">Could not load tickets.</p>'; }
+    }
+    async function resolveTicket(id) {
+      const r = await fetch(`/api/admin/support/${id}/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (r.ok) { showToast('Resolved', 'success'); loadTickets(); } else { showToast('Failed', 'error'); }
+    }
+
+    // ── Admin console: user look-up (view-as) ─────────────────────────
+    async function userLookup() {
+      const el = document.getElementById('userSnapshot');
+      const email = document.getElementById('userSearch').value.trim();
+      if (!email) return;
+      el.innerHTML = '<div class="skeleton skeleton-row"></div>';
+      try {
+        const r = await fetch('/api/admin/user-lookup?email=' + encodeURIComponent(email));
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) { el.innerHTML = `<p class="muted">${escapeHtml(d.error || 'Not found')}</p>`; return; }
+        const eff = d.effective_limits || {};
+        const orders = (d.orders || []).map(o => `${escapeHtml(o.plan)} · ₹${((o.amount_paise||0)/100).toLocaleString()} · ${escapeHtml(o.status)}${o.coupon_code ? ' · ' + escapeHtml(o.coupon_code) : ''}`).join('<br>') || '—';
+        el.innerHTML = `<div class="admin-item admin-item-col">
+          <div><strong>${escapeHtml(d.profile?.email || email)}</strong> · plan: <strong>${escapeHtml(d.effective_plan || 'free')}</strong>${d.profile?.role === 'admin' ? ' 👑' : ''}${d.profile?.banned ? ' · <span class="error">BANNED</span>' : ''}</div>
+          <div class="muted">Daily: ${eff.daily_used ?? '?'}/${eff.daily_cap ?? '∞'} · Monthly chars: ${(eff.monthly_used||0).toLocaleString()}/${eff.monthly_cap ? eff.monthly_cap.toLocaleString() : '∞'} · Max/req: ${eff.max_chars_per_request ?? '∞'}${eff.has_topup ? ' · ⚡ top-up' : ''}</div>
+          <div class="muted">Recent orders:<br>${orders}</div>
+          <div class="muted">Tickets: ${(d.tickets||[]).length}</div>
+        </div>`;
+      } catch (e) { el.innerHTML = '<p class="error">Lookup failed.</p>'; }
+    }
+
+    document.getElementById('cpSave')?.addEventListener('click', saveCoupon);
+    document.getElementById('ticketRefresh')?.addEventListener('click', loadTickets);
+    document.getElementById('ticketStatus')?.addEventListener('change', loadTickets);
+    document.getElementById('userLookupBtn')?.addEventListener('click', userLookup);
+    document.getElementById('userSearch')?.addEventListener('keydown', e => { if (e.key === 'Enter') userLookup(); });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       if (window._supabase) await window._supabase.auth.signOut();
