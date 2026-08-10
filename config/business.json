@@ -1,20 +1,20 @@
 {
   "_comment": "Business / legal placeholders rendered into templates/legal/*.html via the {{ biz }} context. Values starting with 'TBD:' are highlighted by the |pl Jinja filter so unfilled spots are visually obvious before launch.",
 
-  "legal_entity":         "TBD: legal entity name (Pvt Ltd / Sole Proprietorship / etc.)",
-  "city":                 "TBD: city",
-  "state":                "TBD: state",
-  "address_full":         "TBD: full street address, city, state, PIN, India",
+  "legal_entity":         "VoxAI Labs",
+  "city":                 "Delhi",
+  "state":                "Delhi",
+  "address_full":         "Ajanta Apartment, Delhi - 110092, India",
 
   "parent_company":       "VoxAI Labs",
-  "support_email":        "support@sastaspeech.com",
+  "support_email":        "support@sastaspeech.in",
   "whatsapp":             "TBD: +91-XXXXX-XXXXX",
 
   "support_response_sla": "24 hours",
   "approval_sla":         "24 hours",
   "refund_window_days":   7,
   "refund_processing":    "5–7 working days",
-  "jurisdiction_city":    "TBD: city",
+  "jurisdiction_city":    "Delhi",
   "gst_inclusive_note":   "TBD: confirm GST inclusive/exclusive",
   "payment_processor":    "Razorpay",
 
