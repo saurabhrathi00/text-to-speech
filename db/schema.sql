@@ -290,6 +290,40 @@ create policy "payment_orders_self_read"
     on public.payment_orders for select
     using (auth.uid() = user_id);
 
+-- Coupon applied to this order (for audit + analytics). Added idempotently.
+alter table public.payment_orders add column if not exists coupon_code text;
+alter table public.payment_orders add column if not exists discount_paise integer not null default 0;
+
+
+-- ─────────────────────────────────────────────────────────────────────
+-- coupons: admin-managed discount codes. Pricing psychology relies on an
+-- `auto_apply` coupon whose discount is shown pre-applied on every plan
+-- (high list price struck through, lower effective price highlighted).
+-- Service-role only — codes are never exposed to the browser; the backend
+-- computes effective prices in /api/plans and validates at checkout.
+-- ─────────────────────────────────────────────────────────────────────
+create table if not exists public.coupons (
+    code           text primary key,                 -- stored UPPERCASE, e.g. 'LAUNCH50'
+    description    text,
+    discount_type  text not null default 'percent',  -- 'percent' | 'flat'
+    discount_value integer not null,                  -- 50 (=50%) or paise for 'flat'
+    active         boolean not null default true,
+    auto_apply     boolean not null default false,    -- shown pre-applied on pricing
+    applies_to     text[],                            -- null/empty = all plans; else plan keys
+    max_uses       integer,                           -- null = unlimited
+    used_count     integer not null default 0,
+    expires_at     timestamptz,                       -- null = never expires
+    created_at     timestamptz not null default now()
+);
+
+create index if not exists coupons_auto_active_idx
+    on public.coupons (auto_apply, active);
+
+alter table public.coupons enable row level security;
+-- No policies on purpose: end-users never read/write coupons directly. All
+-- access is through the service-role backend (validate at checkout, admin CRUD,
+-- effective-price computation for /api/plans). This keeps codes unguessable.
+
 
 -- ─────────────────────────────────────────────────────────────────────
 -- usage_events: every billable action (TTS generation, etc.) logged

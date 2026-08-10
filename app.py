@@ -76,6 +76,7 @@ def _llm_error_message(provider: str | None, detail: str = "") -> str:
 from normalizer import normalize_text, generate_scene_prompts, OllamaError
 import llm
 import payments  # Razorpay checkout — requests + stdlib only, no heavy deps
+import coupons   # discount codes + pricing-psychology helpers
 from tts import eleven as eleven_tts  # cloud HTTP, no heavy deps
 
 # Heavy local-only modules (torch / transformers / parler_tts /
@@ -652,6 +653,13 @@ def api_plans():
         rows = getattr(res, "data", None) or []
         # Sort by price ascending; nulls (free) first.
         rows.sort(key=lambda r: (r.get("price_inr_monthly") or 0))
+        # Attach coupon-aware effective pricing so the UI can show a
+        # struck-through list price + the lower "you pay" price.
+        auto = coupons.get_auto_apply_coupon()
+        for r in rows:
+            base = int(r.get("price_inr_monthly") or 0) * 100
+            if base > 0:
+                r["pricing"] = coupons.effective_price(r["plan"], base, auto=auto)
         return jsonify({"plans": rows})
     except Exception as e:
         print(f"[app] /api/plans failed: {e}")
@@ -688,7 +696,8 @@ def api_checkout_create_order():
         return jsonify({"error": "Payments not configured", "fallback": True}), 503
     data = request.get_json(silent=True) or {}
     plan = (data.get("plan") or "").lower().strip()
-    order, err = payments.create_order(g.user["id"], plan)
+    order, err = payments.create_order(g.user["id"], plan,
+                                       coupon_code=data.get("coupon"))
     if err:
         return jsonify({"error": err}), 400
     return jsonify(order)
@@ -752,6 +761,28 @@ def api_admin_resolve_upgrade(req_id: int, action: str):
     if err:
         return jsonify({"error": err}), 400
     return jsonify({"request": row})
+
+
+# ── Admin: coupon management ────────────────────────────────────────────
+
+@app.route("/api/admin/coupons", methods=["GET", "POST"])
+@auth.require_admin
+def api_admin_coupons():
+    if request.method == "POST":
+        row, err = coupons.upsert_coupon(request.get_json(silent=True) or {})
+        if err:
+            return jsonify({"error": err}), 400
+        return jsonify({"coupon": row})
+    return jsonify({"coupons": coupons.list_coupons()})
+
+
+@app.route("/api/admin/coupons/<code>", methods=["DELETE"])
+@auth.require_admin
+def api_admin_coupon_delete(code: str):
+    ok, err = coupons.delete_coupon(code)
+    if err:
+        return jsonify({"error": err}), 400
+    return jsonify({"ok": ok})
 
 
 # ── Admin endpoints ────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import hashlib
 import requests
 
 import auth
+import coupons
 
 
 API_BASE = "https://api.razorpay.com/v1"
@@ -54,10 +55,12 @@ def is_configured() -> bool:
 
 # ── Order creation ─────────────────────────────────────────────────────
 
-def create_order(user_id: str, plan: str) -> tuple[dict | None, str | None]:
+def create_order(user_id: str, plan: str,
+                 coupon_code: str | None = None) -> tuple[dict | None, str | None]:
     """Create a Razorpay order for `plan` and persist a payment_orders
-    row. Returns (checkout_payload, error). The payload is everything the
-    frontend needs to open the Razorpay modal."""
+    row. Applies a coupon (explicit code, else the auto-apply coupon) so the
+    customer is charged the same discounted price shown on the pricing page.
+    Returns (checkout_payload, error)."""
     plan = (plan or "").lower().strip()
     if plan in ("", "free", "admin"):
         return None, f"Plan '{plan}' is not purchasable"
@@ -69,7 +72,19 @@ def create_order(user_id: str, plan: str) -> tuple[dict | None, str | None]:
     if price <= 0:
         return None, f"Plan '{plan}' has no price set"
 
-    amount_paise = price * 100
+    base_paise = price * 100
+    # If the user typed a code, reject it explicitly (so they see why); an
+    # auto-apply coupon is applied silently as the shown discount.
+    if (coupon_code or "").strip():
+        disc, _c, cerr = coupons.validate_coupon(coupon_code, plan, base_paise)
+        if cerr:
+            return None, cerr
+        applied_code = _c["code"]
+        discount_paise = disc
+    else:
+        discount_paise, applied_code = coupons.resolve_for_checkout(None, plan, base_paise)
+    amount_paise = max(100, base_paise - discount_paise)
+
     try:
         r = requests.post(
             f"{API_BASE}/orders",
@@ -77,7 +92,8 @@ def create_order(user_id: str, plan: str) -> tuple[dict | None, str | None]:
             json={
                 "amount": amount_paise,
                 "currency": "INR",
-                "notes": {"user_id": user_id, "plan": plan},
+                "notes": {"user_id": user_id, "plan": plan,
+                          "coupon": applied_code or ""},
             },
             timeout=_TIMEOUT,
         )
@@ -100,6 +116,8 @@ def create_order(user_id: str, plan: str) -> tuple[dict | None, str | None]:
             "amount_paise": amount_paise,
             "currency": "INR",
             "status": "created",
+            "coupon_code": applied_code,
+            "discount_paise": discount_paise,
         }).execute()
     except Exception as e:
         # Order exists at Razorpay but we couldn't persist it. The webhook
@@ -111,6 +129,9 @@ def create_order(user_id: str, plan: str) -> tuple[dict | None, str | None]:
         "key_id": key_id(),
         "order_id": order_id,
         "amount": amount_paise,
+        "base_amount": base_paise,
+        "discount": discount_paise,
+        "coupon": applied_code,
         "currency": "INR",
         "plan": plan,
         "display_name": limits.get("display_name") or plan,
@@ -171,6 +192,8 @@ def _grant_order(order_id: str, payment_id: str | None) -> tuple[dict | None, st
             print(f"[payments] FAILED to release claim on {order_id}: {e2}")
         return None, err or "Failed to apply plan"
 
+    # Count the coupon use exactly once (only the claim winner reaches here).
+    coupons.increment_use(order.get("coupon_code"))
     return claimed[0], None
 
 
