@@ -103,6 +103,13 @@
       border:1px solid rgba(251,191,36,.45) !important;
       color:#fcd34d !important;
     }
+    /* Coupon pricing psychology: struck-through list price + OFF badge */
+    .price-was{ color:#6b7387; text-decoration:line-through; font-weight:500; font-size:.82em; margin-right:2px; }
+    .price-off{
+      display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px;
+      font-size:.62em; font-weight:800; letter-spacing:.03em; vertical-align:middle;
+      background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff;
+    }
 
     /* Inputs */
     textarea, input[type="text"], input[type="email"], input[type="password"], select{
@@ -964,6 +971,22 @@
       return t.validity_hours < 168 ? ' one-time' : '/mo';
     }
 
+    // Coupon-aware price: struck-through list price + discounted "you pay"
+    // + an OFF badge when an auto-apply coupon is active (pricing psychology).
+    function renderPrice(t) {
+      const suffix = priceSuffix(t);
+      const p = t.pricing;
+      if (p && p.discount_paise > 0) {
+        const orig = Math.round(p.original_paise / 100).toLocaleString();
+        const eff = Math.round(p.effective_paise / 100).toLocaleString();
+        return `<span class="upgrade-tier-price">`
+          + `<span class="price-was">₹${orig}</span> `
+          + `₹${eff}<span class="muted">${suffix}</span>`
+          + `<span class="price-off">${p.off_pct}% OFF</span></span>`;
+      }
+      return `<span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${suffix}</span></span>`;
+    }
+
     // Rough chars-to-minutes for Hindi narration. Tunable in one place
     // — bump this if real-world speech speed differs noticeably.
     const CHARS_PER_AUDIO_MINUTE = 500;
@@ -1004,7 +1027,7 @@
         card.innerHTML = `
           <div class="upgrade-tier-head">
             <strong>${escapeHtml(t.display_name || t.plan)}${badgeLabel}</strong>
-            <span class="upgrade-tier-price">₹${t.price_inr_monthly || 0}<span class="muted">${priceSuffix(t)}</span></span>
+            ${renderPrice(t)}
           </div>
           ${audioHint ? `<div class="upgrade-tier-audio">${audioLabel}</div>` : ''}
           <div class="upgrade-tier-features">${features.join(' · ') || '&nbsp;'}</div>
