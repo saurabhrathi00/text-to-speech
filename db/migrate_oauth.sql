@@ -27,7 +27,11 @@ drop policy if exists "payment_orders_self_read"   on public.payment_orders;
 drop policy if exists "upgrade_requests_self_read" on public.upgrade_requests;
 drop policy if exists "support_self_read"          on public.support_tickets;
 
--- 3. Wipe disposable user data (cascades to anything referencing it).
+-- 3. Drop the usage_summary view — it reads usage_events.user_id, and a
+--    column can't be re-typed while a view depends on it. Recreated in step 6.
+drop view if exists public.usage_summary;
+
+-- 4. Wipe disposable user data (cascades to anything referencing it).
 truncate table public.usage_events,
                public.payment_orders,
                public.upgrade_requests,
@@ -35,7 +39,7 @@ truncate table public.usage_events,
                public.profiles
         restart identity cascade;
 
--- 4. Drop the FKs to auth.users, then widen user_id to text (Google sub).
+-- 5. Drop the FKs to auth.users, then widen user_id to text (Google sub).
 alter table public.profiles         drop constraint if exists profiles_user_id_fkey;
 alter table public.usage_events      drop constraint if exists usage_events_user_id_fkey;
 alter table public.payment_orders    drop constraint if exists payment_orders_user_id_fkey;
@@ -47,6 +51,21 @@ alter table public.usage_events      alter column user_id type text using user_i
 alter table public.payment_orders    alter column user_id type text using user_id::text;
 alter table public.upgrade_requests  alter column user_id type text using user_id::text;
 alter table public.support_tickets   alter column user_id type text using user_id::text;
+
+-- 6. Recreate the usage_summary view (identical definition; user_id is text now).
+create view public.usage_summary as
+select
+    user_id,
+    coalesce(sum(case when created_at > now() - interval '1 day'  then chars else 0 end), 0)::int as chars_24h,
+    coalesce(sum(case when created_at > now() - interval '30 days' then chars else 0 end), 0)::int as chars_30d,
+    coalesce(sum(chars), 0)::int                                                                   as chars_total,
+    coalesce(sum(case when created_at > now() - interval '30 days' and chars > 0 then chars else 0 end), 0)::int as gen_chars_30d,
+    coalesce(sum(case when created_at > now() - interval '30 days' and chars < 0 then -chars else 0 end), 0)::int as topup_credit_30d,
+    coalesce(sum(case when created_at > now() - interval '1 day'  and chars > 0 then 1 else 0 end), 0)::int as uses_24h,
+    coalesce(sum(case when created_at > now() - interval '30 days' and chars > 0 then 1 else 0 end), 0)::int as uses_30d,
+    coalesce(sum(case when chars > 0 then 1 else 0 end), 0)::int as uses_total
+from public.usage_events
+group by user_id;
 
 -- RLS stays ENABLED on every table (service-role bypasses it); with no
 -- policies + no Supabase session, end-user clients get zero rows — which is
