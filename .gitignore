@@ -10,3 +10,4 @@ venv/
 .claude/
 .anchor.json
 images/
+.pytest_cache/
