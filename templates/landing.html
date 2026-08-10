@@ -2,6 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <script>
+    /* Pick pricing currency BEFORE paint (flash-free): India -> ₹, else $.
+       Detected from browser timezone/language (VPN-proof, not IP), and
+       respects the ₹/$ toggle the app stores in localStorage. */
+    (function () {
+      try {
+        var stored = localStorage.getItem('ss_currency');
+        var inr;
+        if (stored) { inr = (stored.toUpperCase() === 'INR'); }
+        else {
+          var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+          var lang = (navigator.language || '').toLowerCase();
+          inr = (tz === 'Asia/Kolkata' || tz === 'Asia/Calcutta' || lang === 'en-in' || lang.indexOf('hi') === 0);
+        }
+        if (inr) document.documentElement.setAttribute('data-ccy', 'inr');
+      } catch (e) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <!-- ─── SEO basics ────────────────────────────────────────────── -->
@@ -313,6 +331,10 @@
     .lx-pricing .price-was{ font-size:1.15rem; font-weight:600; color:var(--lx-mut); text-decoration:line-through; margin-right:6px; }
     .lx-pricing .price-off{ display:inline-block; margin-left:8px; padding:3px 9px; border-radius:999px; vertical-align:middle;
       font-size:.62rem; font-weight:800; letter-spacing:.03em; background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; }
+    /* Currency switch — India sees ₹, everyone else $ (set by inline head script). */
+    .ccy-inr{ display:none; }
+    [data-ccy="inr"] .ccy-usd{ display:none; }
+    [data-ccy="inr"] .ccy-inr{ display:inline; }
     /* Launch-offer urgency strip above the pricing grid */
     .lx-offer{ display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
       margin:26px auto 0; max-width:560px; padding:11px 18px; border-radius:14px;
@@ -463,7 +485,7 @@
       <div><b>30+</b><span>languages</span></div>
       <div><b>60+</b><span>emotion tags</span></div>
       <div><b>&lt;10s</b><span>per generation</span></div>
-      <div><b>$2</b><span>to get started</span></div>
+      <div><b><span class="ccy ccy-usd">$2</span><span class="ccy ccy-inr">₹79</span></b><span>to get started</span></div>
     </section>
 
     <!-- ─── HEAR A SAMPLE ────────────────────────────────────── -->
@@ -578,16 +600,20 @@
           {%- endif %}
           <h3>{{ p.display_name or p.plan|title }}</h3>
           <p class="pricing-price">
-            {%- if is_free %}
-              $0
-            {%- elif p.pricing and p.pricing.discount_paise > 0 %}
-              <span class="price-was">${{ '{:,}'.format((p.pricing.original_paise / 100)|int) }}</span>
-              ${{ '{:,}'.format((p.pricing.effective_paise / 100)|int) }}
-              <span class="muted">{{ 'one-time' if p.is_topup else '/mo' }}</span>
-              <span class="price-off">{{ p.pricing.off_pct }}% OFF</span>
+            {%- if is_free %}Free
             {%- else %}
-              ${{ '{:,}'.format(p.price_inr_monthly or 0) }}
+              <span class="ccy ccy-usd">
+                {%- if p.pricing_usd and p.pricing_usd.discount_paise > 0 -%}
+                  <span class="price-was">${{ '{:,}'.format((p.pricing_usd.original_paise / 100)|int) }}</span> ${{ '{:,}'.format((p.pricing_usd.effective_paise / 100)|int) }}
+                {%- else -%}${{ '{:,}'.format(p.usd_price or 0) }}{%- endif -%}
+              </span>
+              <span class="ccy ccy-inr">
+                {%- if p.pricing_inr and p.pricing_inr.discount_paise > 0 -%}
+                  <span class="price-was">₹{{ '{:,}'.format((p.pricing_inr.original_paise / 100)|int) }}</span> ₹{{ '{:,}'.format((p.pricing_inr.effective_paise / 100)|int) }}
+                {%- else -%}₹{{ '{:,}'.format(p.inr_price or 0) }}{%- endif -%}
+              </span>
               <span class="muted">{{ 'one-time' if p.is_topup else '/mo' }}</span>
+              {%- if p.pricing_usd and p.pricing_usd.off_pct > 0 %}<span class="price-off">{{ p.pricing_usd.off_pct }}% OFF</span>{%- endif %}
             {%- endif %}
           </p>
           <p class="pricing-tag">

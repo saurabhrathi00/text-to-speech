@@ -340,7 +340,7 @@ def _public_plans() -> list[dict]:
     list by hiding the pricing grid."""
     try:
         res = (auth.admin_client().table("plan_limits")
-               .select("plan,display_name,price_inr_monthly,validity_hours,kind,"
+               .select("plan,display_name,price_inr_monthly,price_inr,validity_hours,kind,"
                        "daily_uses,max_chars_per_request,monthly_chars,notes")
                .neq("plan", "admin")
                .execute())
@@ -351,11 +351,16 @@ def _public_plans() -> list[dict]:
             chars = r.get("monthly_chars") or 0
             r["audio_minutes"] = round(chars / CHARS_PER_AUDIO_MINUTE) if chars else 0
             r["is_topup"] = (r.get("kind") or "subscription").lower() == "topup"
-            # Coupon-aware pricing so the landing shows the SAME discounted
-            # price as the app (struck-through anchor + "you pay" + OFF badge),
-            # not the raw high anchor. USD for the public/SEO page.
-            base = int(r.get("price_inr_monthly") or 0) * 100
-            r["pricing"] = coupons.effective_price(r["plan"], base, auto=auto) if base > 0 else None
+            # Coupon-aware pricing in BOTH currencies so the landing can show
+            # ₹ to India and $ to everyone else (the template renders both and
+            # a tiny head script picks one — flash-free, VPN-proof via timezone).
+            usd_anchor = int(r.get("price_inr_monthly") or 0)
+            inr_anchor = int(r.get("price_inr") or 0)
+            r["usd_price"] = usd_anchor
+            r["inr_price"] = inr_anchor
+            r["pricing_usd"] = coupons.effective_price(r["plan"], usd_anchor * 100, auto=auto) if usd_anchor > 0 else None
+            r["pricing_inr"] = coupons.effective_price(r["plan"], inr_anchor * 100, auto=auto) if inr_anchor > 0 else None
+            r.pop("price_inr", None)
         return rows
     except Exception as e:
         print(f"[app] _public_plans failed: {e}")
