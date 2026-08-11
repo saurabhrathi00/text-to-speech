@@ -111,12 +111,21 @@ def install(app):
             pass
         return resp
 
+    from werkzeug.exceptions import HTTPException
+
     @app.errorhandler(Exception)
     def _dd_exception(e):
+        # Normal HTTP errors (404, 405, 400, redirects, aborts) are NOT bugs —
+        # return them untouched so Flask renders the right status. Re-raising
+        # them here previously turned every 404 into a 500. Their status codes
+        # are already captured by the per-request access log above.
+        if isinstance(e, HTTPException):
+            return e
+        # Genuine unhandled exception — log with stack, return a clean 500
+        # (returning rather than re-raising avoids an error-handling loop).
         import traceback
         log_event(f"Unhandled exception: {e}", level="error",
                   error={"stack": traceback.format_exc()[:4000]})
-        # Re-raise so Flask's normal error handling still runs.
-        raise e
+        return ("Internal Server Error", 500)
 
     print(f"[observability] Datadog logs enabled → {DD_SITE} service={DD_SERVICE} env={DD_ENV}")
