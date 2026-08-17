@@ -160,12 +160,17 @@ def synthesize(text: str, out_path: str, voice_config: dict | None = None) -> st
         if len(chunks) > 1:
             print(f"[elevenlabs] text too long ({len(text)} chars), "
                   f"splitting into {len(chunks)} chunks")
+        multi = len(chunks) > 1
         with open(tmp_path, "wb") as f:
             for i, chunk in enumerate(chunks):
-                if len(chunks) > 1:
+                if multi:
                     print(f"[elevenlabs] chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)")
                 audio = _eleven_request_retry(url, headers, chunk, model_id, voice_settings)
-                if i > 0:
+                # Multi-chunk: strip ID3 + the per-chunk Xing/Info duration
+                # header from EVERY chunk (incl. the first) so the joined file
+                # carries no wrong-duration header. Single chunk: keep bytes
+                # verbatim — its own header already reports the right length.
+                if multi:
                     audio = _strip_mp3_headers(audio)
                 f.write(audio)
         os.replace(tmp_path, mp3_path)
@@ -198,9 +203,37 @@ def _eleven_request_retry(url: str, headers: dict, text: str, model_id: str,
     raise last_err
 
 
+# MPEG-1 Layer III bitrate table (kbps) — ElevenLabs mp3 output is MPEG-1 L3.
+_MP3_BITRATES_V1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0]
+_MP3_SAMPLERATES_V1 = {0: 44100, 1: 48000, 2: 32000}
+
+
+def _mp3_frame_len(hdr: bytes) -> "int | None":
+    """Length in bytes of an MPEG-1 Layer III frame from its 4-byte header,
+    or None if the header isn't MPEG-1 Layer III / is malformed."""
+    if len(hdr) < 4:
+        return None
+    version = (hdr[1] >> 3) & 0x03   # 3 = MPEG-1
+    layer = (hdr[1] >> 1) & 0x03     # 1 = Layer III
+    br_i = (hdr[2] >> 4) & 0x0F
+    sr_i = (hdr[2] >> 2) & 0x03
+    pad = (hdr[2] >> 1) & 0x01
+    if version != 3 or layer != 1:
+        return None
+    br = _MP3_BITRATES_V1_L3[br_i] * 1000
+    sr = _MP3_SAMPLERATES_V1.get(sr_i)
+    if not br or not sr:
+        return None
+    return (144 * br) // sr + pad
+
+
 def _strip_mp3_headers(data: bytes) -> bytes:
-    """Strip ID3v2 header (front) and ID3v1 tag (last 128 bytes) so
-    concatenated chunks form a single valid MP3 stream."""
+    """Strip ID3v2 (front), ID3v1 (last 128 bytes), AND a leading Xing/Info
+    VBR/CBR header frame so concatenated chunks form ONE valid MP3 whose
+    duration is correct. The Xing/Info header declares only its own chunk's
+    length; left in a concatenated file, players report/stop at that short
+    duration (audio plays fully in browsers, but downloads look truncated).
+    Dropping it lets players derive duration from the CBR bitrate instead."""
     offset = 0
     # ID3v2: starts with "ID3", size at bytes 6-9 (syncsafe int)
     if data[:3] == b"ID3" and len(data) > 10:
@@ -220,6 +253,13 @@ def _strip_mp3_headers(data: bytes) -> bytes:
         # back 200). Appending the tail would corrupt the stream — fail
         # loudly so the retry/temp-file path discards it instead.
         raise ElevenLabsError("chunk contained no decodable MP3 audio")
+    # If the first frame is a Xing/Info header frame (the tag sits within the
+    # first ~36 bytes of the frame), drop that whole frame by its computed
+    # length so no wrong-duration header survives into the joined file.
+    if b"Xing" in data[offset + 4:offset + 40] or b"Info" in data[offset + 4:offset + 40]:
+        flen = _mp3_frame_len(data[offset:offset + 4])
+        if flen and 0 < flen < len(data) - offset:
+            offset += flen
     # Strip trailing ID3v1 tag (128 bytes starting with "TAG")
     end = len(data)
     if end >= 128 and data[end - 128:end - 125] == b"TAG":
